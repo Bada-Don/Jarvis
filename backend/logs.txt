@@ -1,3 +1,8 @@
 [2025-11-24 19:52:00] Hello from Python
 [2025-11-24 20:02:26] Hi
 [2025-11-24 20:02:48] Sent image
+[2025-11-24 20:35:13] Shifted to laptop
+[2025-11-24 20:36:45] Test
+[2025-11-24 20:37:08] Image sent to laptop
+[2025-11-24 21:36:55] Dynamic IP testing
+[2025-11-24 21:37:06] Pretty fast!
