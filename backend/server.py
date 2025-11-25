@@ -8,8 +8,9 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload size
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=50 * 1024 * 1024)
 
 UPLOAD_FOLDER = 'uploads'
 LOG_FILE = 'logs.txt'
@@ -25,13 +26,19 @@ def mock_router(text):
     For MVP, we look for keywords.
     """
     text = text.lower()
-    if "nameplate" in text or "size" in text:
+    
+    # FlexiSIGN keywords
+    flexisign_keywords = ["nameplate", "numberplate", "sticker", "logo"]
+    
+    if any(keyword in text for keyword in flexisign_keywords):
         return {
             "intent": "create_draft",
             "software": "flexisign",
             "params": {"size": "15x10", "color": "silver"} # Extracted from text in real scenario
         }
+    
     return {"intent": "unknown", "message": "I didn't understand that."}
+
 
 def mock_vision_ocr(image_path):
     """
@@ -63,13 +70,21 @@ def upload_file():
     
     file = request.files['file']
     
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "No selected file"}), 400
+    if not file or file.filename == '' or file.filename is None:
+        # Generate a filename if none provided
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"upload_{timestamp}.jpg"
+    else:
+        filename = file.filename
     
-    if file:
-        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    try:
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
-        return jsonify({"status": "success", "message": f"File {file.filename} uploaded"}), 200
+        print(f"✓ File saved: {filename} ({os.path.getsize(filepath)} bytes)")
+        return jsonify({"status": "success", "message": f"File {filename} uploaded"}), 200
+    except Exception as e:
+        print(f"✗ Upload error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/process', methods=['POST'])
 def process_instruction():
@@ -94,12 +109,23 @@ def process_instruction():
         
         # 3. Construct the Command for the Local Client
         command_payload = {
-            "action": "sequence",
+            "action": "flexisign_workflow",
             "steps": [
-                {"type": "notification", "message": "Starting FlexiSIGN automation..."},
-                {"type": "open_app", "path": "notepad.exe"}, # Mocking FlexiSIGN with Notepad for safety
-                {"type": "type_text", "text": f"Name: {extracted_text}\nSize: {intent_data['params']['size']}"}
-            ]
+                {"type": "notification", "message": "Yes sir! On it. Starting FlexiSIGN automation..."},
+                {
+                    "type": "check_process",
+                    "process_name": "Production Suite Scanner 10.5.1 Build 1806 Protected",
+                    "exe_path": r"D:\Program Files\FLEXI 10 full version _by AARY-meii\FlexiSign_Pro_10.5\STEP 2\Production Suite Scanner 10.5.1 Build 1806 Protected.exe"
+                },
+                {
+                    "type": "check_window",
+                    "window_title": "FlexiSIGN-PRO"
+                },
+                {"type": "press_key", "key": "t"},
+                {"type": "click_center"},
+                {"type": "type_text", "text": "Script ran successfully"}
+            ],
+            "extracted_text": extracted_text
         }
         
         # 4. Send to Local Client via WebSocket
@@ -108,10 +134,10 @@ def process_instruction():
         
         return jsonify({
             "status": "success", 
-            "response": f"I'm on it. Creating draft for {extracted_text} with size {intent_data['params']['size']}."
+            "response": f"Yes sir! On it. Creating draft for {extracted_text} with size {intent_data['params']['size']}."
         })
 
-    return jsonify({"status": "success", "response": "I heard you, but I don't know how to do that yet."})
+    return jsonify({"status": "success", "response": "I didn't understand that."})
 
 # --- SocketIO Events ---
 
@@ -130,7 +156,22 @@ def handle_screen_update(data):
     # Here we would pass the image to SpiritSight
     pass
 
+@socketio.on('status_update')
+def handle_status_update(data):
+    """Receive status updates from local client and broadcast to mobile app."""
+    message = data.get('message', '')
+    status_type = data.get('type', 'info')
+    print(f"📱 Status Update [{status_type}]: {message}")
+    
+    # Broadcast to all connected clients (mobile app)
+    socketio.emit('jarvis_status', {
+        'message': message,
+        'type': status_type,
+        'timestamp': data.get('timestamp')
+    }, broadcast=True)
+
 if __name__ == '__main__':
     # Host 0.0.0.0 allows access from other devices/emulator
     # socketio.run replaces app.run
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    # use_reloader=True enables auto-reload on code changes
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=True)

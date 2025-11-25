@@ -23,10 +23,10 @@ export default function ChatScreen() {
 
         const attachments = files.map((file) => ({
             id: createId(),
-            name: file.name,
-            size: file.size,
+            name: file.name || file.fileName || `image_${Date.now()}.jpg`,
+            size: file.size || file.fileSize || 0,
             uri: file.uri,
-            type: file.mimeType,
+            type: file.mimeType || file.type || 'image/jpeg',
         }));
 
         const userMessage = {
@@ -79,7 +79,7 @@ export default function ChatScreen() {
             <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
             <ChatHeader
-                title="Aurora AI"
+                title="Jarvis"
                 subtitle="Online · Realtime"
             />
 

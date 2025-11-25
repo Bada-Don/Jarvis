@@ -1,2 +1,5 @@
 python-socketio[client]
 pyautogui
+psutil
+pywin32
+watchdog

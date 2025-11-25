@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, MoreVertical, Phone, Video } from 'lucide-react-native';
+import { ArrowLeft, MoreVertical } from 'lucide-react-native';
 
 interface ChatHeaderProps {
     title: string;
@@ -30,12 +30,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ title, subtitle, onBack 
                 </View>
 
                 <View style={styles.rightContainer}>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Phone size={20} color="#007AFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Video size={20} color="#007AFF" />
-                    </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton}>
                         <MoreVertical size={20} color="#007AFF" />
                     </TouchableOpacity>
