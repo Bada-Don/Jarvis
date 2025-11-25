@@ -1,0 +1,43 @@
+{
+  "loader_patcher": {
+    "process_name": "Production Suite Scanner 10.5.1 Build 1806 Protected",
+    "exe_path": "D:\\Program Files\\FLEXI 10 full version _by AARY-meii\\FlexiSign_Pro_10.5\\STEP 2\\Production Suite Scanner 10.5.1 Build 1806 Protected.exe",
+    "startup_modal": {
+      "enabled": true,
+      "title": "FlexiSIGN",
+      "button": "OK",
+      "timeout": 15
+    },
+    "wait_after_start": 3
+  },
+  "flexisign_pro": {
+    "process_names": [
+      "FlexiSIGN",
+      "FlexiSign",
+      "flexisign.exe"
+    ],
+    "exe_path": "D:\\Program Files\\FLEXI 10 full version _by AARY-meii\\FlexiSign_Pro_10.5\\FlexiSign.exe",
+    "window_titles": [
+      "FlexiSIGN-PRO",
+      "FlexiSIGN",
+      "FlexiSign-PRO"
+    ],
+    "demo_mode_indicators": [
+      "trial",
+      "demo",
+      "evaluation",
+      "restricted"
+    ],
+    "wait_after_start": 8
+  },
+  "timing": {
+    "process_check_interval": 0.5,
+    "window_check_interval": 1,
+    "modal_check_interval": 0.5,
+    "window_close_wait": 2
+  },
+  "debug": {
+    "verbose_logging": true,
+    "list_all_windows": false
+  }
+}

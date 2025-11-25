@@ -128,22 +128,21 @@ def process_instruction():
         extracted_text = mock_vision_ocr("dummy_path")
         
         # 3. Construct the Command for the Local Client
+        # The FlexiSign Manager handles all startup logic automatically
         command_payload = {
             "action": "flexisign_workflow",
             "steps": [
-                {"type": "notification", "message": "Yes sir! On it. Starting FlexiSIGN automation..."},
-                {
-                    "type": "check_process",
-                    "process_name": "Production Suite Scanner 10.5.1 Build 1806 Protected",
-                    "exe_path": r"D:\Program Files\FLEXI 10 full version _by AARY-meii\FlexiSign_Pro_10.5\STEP 2\Production Suite Scanner 10.5.1 Build 1806 Protected.exe"
-                },
-                {
-                    "type": "check_window",
-                    "window_title": "FlexiSIGN-PRO"
-                },
+                {"type": "notification", "message": f"Yes sir! On it. Creating draft for {extracted_text}..."},
+                # FlexiSign Manager automatically handles:
+                # - Loader/patcher startup and modal
+                # - Closing demo mode windows
+                # - Starting FlexiSign Pro properly
+                # - Bringing window to front
+                
+                # Your actual workflow steps go here:
                 {"type": "press_key", "key": "t"},
                 {"type": "click_center"},
-                {"type": "type_text", "text": "Script ran successfully"}
+                {"type": "type_text", "text": extracted_text}
             ],
             "extracted_text": extracted_text
         }
@@ -184,11 +183,12 @@ def handle_status_update(data):
     print(f"📱 Status Update [{status_type}]: {message}")
     
     # Broadcast to all connected clients (mobile app)
+    # Use 'room' parameter instead of 'broadcast' for flask-socketio
     socketio.emit('jarvis_status', {
         'message': message,
         'type': status_type,
         'timestamp': data.get('timestamp')
-    }, broadcast=True)
+    })
 
 if __name__ == '__main__':
     # Host 0.0.0.0 allows access from other devices/emulator

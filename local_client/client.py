@@ -8,10 +8,28 @@ import win32gui
 import win32con
 import sys
 
+# Import configuration
+try:
+    from config import *
+except ImportError:
+    print("⚠️ Warning: config.py not found, using default settings")
+    SERVER_URL = 'http://localhost:5000'
+    STARTUP_MODAL_ENABLED = True
+    STARTUP_MODAL_TITLE = "FlexiSIGN"
+    STARTUP_MODAL_BUTTON = "OK"
+    STARTUP_MODAL_TIMEOUT = 30
+    MODAL_CHECK_INTERVAL = 1
+
+# Import FlexiSign Manager
+try:
+    from flexisign_manager import FlexiSignManager
+    FLEXISIGN_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: flexisign_manager.py not found, using legacy mode")
+    FLEXISIGN_MANAGER_AVAILABLE = False
+
 # Initialize SocketIO Client
 sio = socketio.Client()
-
-SERVER_URL = 'http://localhost:5000'
 
 @sio.event
 def connect():
@@ -49,21 +67,26 @@ def is_process_running(process_name):
     return False
 
 
-def find_window_by_title(title):
-    """Find a window by its title (partial match)."""
+def find_window_by_title(title, exact_match=False):
+    """Find a window by its title (partial or exact match)."""
     def callback(hwnd, windows):
         if win32gui.IsWindowVisible(hwnd):
             window_text = win32gui.GetWindowText(hwnd)
             if window_text:  # Only check non-empty titles
                 # Debug: print all visible windows
                 # print(f"DEBUG: Found window: '{window_text}'")
-                if title.lower() in window_text.lower():
-                    print(f"✓ MATCH FOUND: '{window_text}'")
-                    windows.append(hwnd)
+                if exact_match:
+                    if window_text.lower() == title.lower():
+                        print(f"✓ EXACT MATCH FOUND: '{window_text}'")
+                        windows.append(hwnd)
+                else:
+                    if title.lower() in window_text.lower():
+                        print(f"✓ MATCH FOUND: '{window_text}'")
+                        windows.append(hwnd)
         return True
     
     windows = []
-    print(f"Searching for window containing: '{title}'")
+    print(f"Searching for window containing: '{title}' (exact={exact_match})")
     win32gui.EnumWindows(callback, windows)
     
     if windows:
@@ -72,6 +95,73 @@ def find_window_by_title(title):
         print(f"No windows found matching '{title}'")
     
     return windows[0] if windows else None
+
+def wait_for_modal_and_click(modal_title, button_text="OK", timeout=30, check_interval=None):
+    """
+    Wait for a modal dialog to appear and click a button on it.
+    
+    Args:
+        modal_title: The title of the modal window to look for
+        button_text: The text of the button to click (default: "OK")
+        timeout: Maximum time to wait in seconds
+        check_interval: How often to check for the modal in seconds
+    
+    Returns:
+        True if modal was found and clicked, False if timeout
+    """
+    if check_interval is None:
+        check_interval = MODAL_CHECK_INTERVAL if 'MODAL_CHECK_INTERVAL' in globals() else 1
+    
+    print(f"Waiting for modal: '{modal_title}' (timeout: {timeout}s)...")
+    start_time = time.time()
+    
+    while (time.time() - start_time) < timeout:
+        # Look for the modal window
+        modal_hwnd = find_window_by_title(modal_title, exact_match=False)
+        
+        if modal_hwnd:
+            print(f"✓ Modal found: '{modal_title}'")
+            send_status(f"Modal detected, clicking {button_text}...", "info")
+            
+            # Bring modal to front
+            bring_window_to_front(modal_hwnd)
+            time.sleep(0.5)
+            
+            # Try to find the button by text using pyautogui
+            try:
+                # Take a screenshot and look for the button
+                # For now, we'll use a simple approach: press Enter or click center
+                # You can enhance this with OCR or image recognition
+                
+                # Method 1: Press Enter (works for most OK buttons)
+                print(f"Pressing Enter to click {button_text}...")
+                pyautogui.press('enter')
+                time.sleep(0.5)
+                
+                # Verify modal is gone
+                if not find_window_by_title(modal_title, exact_match=False):
+                    print(f"✓ Modal closed successfully")
+                    send_status(f"Modal handled successfully", "success")
+                    return True
+                else:
+                    # Method 2: Try clicking center of modal
+                    print(f"Enter didn't work, trying to click center...")
+                    rect = win32gui.GetWindowRect(modal_hwnd)
+                    center_x = (rect[0] + rect[2]) // 2
+                    center_y = (rect[1] + rect[3]) // 2
+                    pyautogui.click(center_x, center_y)
+                    time.sleep(0.5)
+                    return True
+                    
+            except Exception as e:
+                print(f"Error clicking modal button: {e}")
+                return False
+        
+        # Wait before checking again
+        time.sleep(check_interval)
+    
+    print(f"⚠️ Timeout: Modal '{modal_title}' not found within {timeout}s")
+    return False
 
 def bring_window_to_front(hwnd):
     """Bring a window to the front."""
@@ -90,6 +180,58 @@ def execute_command(command_data):
     action = command_data.get('action')
     
     if action == 'flexisign_workflow':
+        # Use new FlexiSign Manager if available
+        if FLEXISIGN_MANAGER_AVAILABLE:
+            try:
+                send_status("Starting FlexiSign automation (new manager)...", "info")
+                manager = FlexiSignManager()
+                success = manager.ensure_proper_state()
+                
+                if success:
+                    send_status("FlexiSign Pro is ready!", "success")
+                    
+                    # Execute remaining workflow steps (after FlexiSign is ready)
+                    steps = command_data.get('steps', [])
+                    for step in steps:
+                        step_type = step.get('type')
+                        
+                        # Skip process/window checks (already handled by manager)
+                        if step_type in ['check_process', 'check_window', 'wait_for_modal']:
+                            continue
+                        
+                        # Execute other steps
+                        if step_type == 'notification':
+                            message = step.get('message')
+                            print(f"NOTIFICATION: {message}")
+                            send_status(message, "info")
+                        
+                        elif step_type == 'press_key':
+                            key = step.get('key')
+                            print(f"Pressing key: {key}")
+                            pyautogui.press(key)
+                        
+                        elif step_type == 'click_center':
+                            print("Clicking at screen center...")
+                            center_x, center_y = get_screen_center()
+                            pyautogui.click(center_x, center_y)
+                        
+                        elif step_type == 'type_text':
+                            text = step.get('text')
+                            print(f"Typing text: {text}")
+                            pyautogui.write(text, interval=0.05)
+                        
+                        time.sleep(0.5)
+                else:
+                    send_status("Failed to start FlexiSign Pro", "error")
+                
+                return  # Exit after using new manager
+                
+            except Exception as e:
+                print(f"Error using FlexiSign Manager: {e}")
+                send_status(f"Manager error: {e}, falling back to legacy mode", "warning")
+                # Fall through to legacy mode
+        
+        # Legacy mode (original implementation)
         steps = command_data.get('steps', [])
         for step in steps:
             step_type = step.get('type')
@@ -102,20 +244,37 @@ def execute_command(command_data):
             elif step_type == 'check_process':
                 process_name = step.get('process_name')
                 exe_path = step.get('exe_path')
+                wait_for_modal = step.get('wait_for_modal', False)
+                modal_title = step.get('modal_title', '')
+                modal_button = step.get('modal_button', 'OK')
                 
                 print(f"Checking if process '{process_name}' is running...")
+                process_was_started = False
+                
                 if not is_process_running(process_name):
                     print(f"Process not found. Starting: {exe_path}")
                     send_status(f"Starting {process_name}...", "info")
                     try:
                         subprocess.Popen([exe_path])
+                        process_was_started = True
                         print("Waiting for process to start...")
                         time.sleep(5)  # Wait for the process to initialize
                     except Exception as e:
                         print(f"Error starting process: {e}")
+                        send_status(f"Error starting process: {e}", "error")
                 else:
                     print(f"Process '{process_name}' is already running.")
                     send_status(f"{process_name} is ready", "success")
+                
+                # If we just started the process and need to handle a modal
+                if process_was_started and wait_for_modal and modal_title:
+                    print(f"Process was just started, waiting for modal...")
+                    modal_timeout = step.get('modal_timeout', 30)
+                    if wait_for_modal_and_click(modal_title, modal_button, timeout=modal_timeout):
+                        print(f"✓ Modal handled successfully")
+                    else:
+                        print(f"⚠️ Modal not found or couldn't be handled")
+                        send_status(f"Warning: Expected modal not found", "warning")
             
             elif step_type == 'check_window':
                 window_title = step.get('window_title')
@@ -170,6 +329,17 @@ def execute_command(command_data):
                 text = step.get('text')
                 print(f"Typing text: {text}")
                 pyautogui.write(text, interval=0.05)
+            
+            elif step_type == 'wait_for_modal':
+                modal_title = step.get('modal_title')
+                button_text = step.get('button_text', 'OK')
+                timeout = step.get('timeout', 30)
+                print(f"Waiting for modal: '{modal_title}'...")
+                send_status(f"Waiting for modal: {modal_title}...", "info")
+                if wait_for_modal_and_click(modal_title, button_text, timeout):
+                    print(f"✓ Modal handled")
+                else:
+                    print(f"⚠️ Modal timeout")
             
             time.sleep(0.5)
     

@@ -1,5 +1,16 @@
-python-socketio[client]
-pyautogui
-psutil
-pywin32
-watchdog
+# JARVIS Local Client Dependencies
+
+# Socket.IO client for server communication
+python-socketio[client]>=5.10.0
+
+# GUI automation
+pyautogui>=0.9.54
+
+# Process management
+psutil>=5.9.6
+
+# Windows API access (use latest available)
+pywin32>=307
+
+# Additional dependencies for pyautogui
+Pillow>=10.1.0
