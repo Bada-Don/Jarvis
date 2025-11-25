@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { CheckCircle, XCircle, Loader } from 'lucide-react-native';
 
 interface ProgressCardProps {
@@ -15,19 +15,75 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
     status,
     errorMessage
 }) => {
-    const progressAnim = React.useRef(new Animated.Value(progress)).current;
+    // Animated values for smooth transitions
+    const progressAnim = useRef(new Animated.Value(0)).current;
+    const spinAnim = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
-    React.useEffect(() => {
+    // Initial fade-in animation
+    useEffect(() => {
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+    }, []);
+
+    // Smooth progress bar animation
+    useEffect(() => {
         Animated.timing(progressAnim, {
             toValue: progress,
-            duration: 300,
+            duration: 400,
+            easing: Easing.out(Easing.cubic),
             useNativeDriver: false,
         }).start();
     }, [progress]);
 
+    // Spinning animation for loader icon when running
+    useEffect(() => {
+        if (status === 'running') {
+            const spin = Animated.loop(
+                Animated.timing(spinAnim, {
+                    toValue: 1,
+                    duration: 1500,
+                    easing: Easing.linear,
+                    useNativeDriver: true,
+                })
+            );
+            spin.start();
+            return () => spin.stop();
+        } else {
+            spinAnim.setValue(0);
+        }
+    }, [status]);
+
+    // Pulse animation for success/error states
+    useEffect(() => {
+        if (status === 'success' || status === 'error') {
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1.1,
+                    duration: 150,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 150,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        }
+    }, [status]);
+
     const progressWidth = progressAnim.interpolate({
         inputRange: [0, 100],
         outputRange: ['0%', '100%'],
+    });
+
+    const spinRotation = spinAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
     });
 
     const getStatusColor = () => {
@@ -44,56 +100,105 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
     const getStatusIcon = () => {
         switch (status) {
             case 'success':
-                return <CheckCircle size={20} color="#10B981" />;
+                return (
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                        <CheckCircle size={20} color="#10B981" />
+                    </Animated.View>
+                );
             case 'error':
-                return <XCircle size={20} color="#EF4444" />;
+                return (
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                        <XCircle size={20} color="#EF4444" />
+                    </Animated.View>
+                );
             default:
-                return <Loader size={20} color="#3B82F6" />;
+                return (
+                    <Animated.View style={{ transform: [{ rotate: spinRotation }] }}>
+                        <Loader size={20} color="#3B82F6" />
+                    </Animated.View>
+                );
+        }
+    };
+
+    const getBackgroundColor = () => {
+        switch (status) {
+            case 'success':
+                return '#F0FDF4';
+            case 'error':
+                return '#FEF2F2';
+            default:
+                return '#F9FAFB';
+        }
+    };
+
+    const getBorderColor = () => {
+        switch (status) {
+            case 'success':
+                return '#BBF7D0';
+            case 'error':
+                return '#FECACA';
+            default:
+                return '#E5E7EB';
         }
     };
 
     return (
-        <View style={styles.container}>
+        <Animated.View 
+            style={[
+                styles.container, 
+                { 
+                    opacity: fadeAnim,
+                    backgroundColor: getBackgroundColor(),
+                    borderColor: getBorderColor(),
+                }
+            ]}
+        >
             <View style={styles.header}>
                 {getStatusIcon()}
-                <Text style={[styles.title, { color: getStatusColor() }]}>
+                <Text 
+                    style={[styles.title, { color: getStatusColor() }]}
+                    numberOfLines={2}
+                >
                     {title}
                 </Text>
             </View>
 
-            {status === 'running' && (
-                <View style={styles.progressContainer}>
-                    <View style={styles.progressBackground}>
-                        <Animated.View
-                            style={[
-                                styles.progressBar,
-                                {
-                                    width: progressWidth,
-                                    backgroundColor: getStatusColor(),
-                                },
-                            ]}
-                        />
-                    </View>
-                    <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+            {/* Always show progress bar, but style differently based on status */}
+            <View style={styles.progressContainer}>
+                <View style={styles.progressBackground}>
+                    <Animated.View
+                        style={[
+                            styles.progressBar,
+                            {
+                                width: progressWidth,
+                                backgroundColor: getStatusColor(),
+                            },
+                        ]}
+                    />
                 </View>
-            )}
+                <Text style={[styles.progressText, { color: getStatusColor() }]}>
+                    {Math.round(progress)}%
+                </Text>
+            </View>
 
             {status === 'success' && (
                 <View style={styles.statusContainer}>
                     <View style={[styles.statusBadge, { backgroundColor: '#D1FAE5' }]}>
                         <Text style={[styles.statusText, { color: '#065F46' }]}>
-                            Completed
+                            ✓ Completed
                         </Text>
                     </View>
                 </View>
             )}
 
-            {status === 'error' && errorMessage && (
+            {status === 'error' && (
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{errorMessage}</Text>
+                    <Text style={styles.errorText}>
+                        {errorMessage || 'An error occurred'}
+                    </Text>
                 </View>
             )}
-        </View>
+        </Animated.View>
     );
 };
 

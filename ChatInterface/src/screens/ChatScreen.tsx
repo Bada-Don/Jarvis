@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MessageList } from '../components/MessageList';
@@ -17,9 +17,12 @@ export default function ChatScreen() {
     ]);
 
     const [isSending, setIsSending] = useState(false);
-    const [progressMessageId, setProgressMessageId] = useState<string | null>(null);
+    
+    // Use ref to track progress message ID to avoid re-creating the effect
+    const progressMessageIdRef = useRef<string | null>(null);
+    const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Connect to real-time status updates
+    // Connect to real-time status updates - only run once on mount
     useEffect(() => {
         const cleanup = connectToStatusUpdates((statusData) => {
             console.log('Status update received:', statusData);
@@ -43,17 +46,26 @@ export default function ChatScreen() {
                 return;
             }
             
-            // Update or create progress message
-            if (progressMessageId) {
-                // Update existing progress message
+            // Clear any pending timeout that would reset the progress ID
+            if (clearTimeoutRef.current) {
+                clearTimeout(clearTimeoutRef.current);
+                clearTimeoutRef.current = null;
+            }
+            
+            // Determine the final status
+            const progressStatus = status === 'success' || status === 'error' ? status : 'running';
+            
+            // Check if we have an existing progress message to update
+            if (progressMessageIdRef.current) {
+                // Update existing progress message in-place
                 setMessages((prev) =>
                     prev.map((msg) =>
-                        msg.id === progressMessageId
+                        msg.id === progressMessageIdRef.current
                             ? {
                                   ...msg,
                                   progress: progress,
                                   progressTitle: message,
-                                  progressStatus: status === 'success' || status === 'error' ? status : 'running',
+                                  progressStatus: progressStatus,
                                   errorMessage: error,
                               }
                             : msg
@@ -62,7 +74,7 @@ export default function ChatScreen() {
             } else {
                 // Create new progress message
                 const newProgressId = createId();
-                setProgressMessageId(newProgressId);
+                progressMessageIdRef.current = newProgressId;
                 
                 setMessages((prev) => [
                     ...prev,
@@ -73,19 +85,29 @@ export default function ChatScreen() {
                         isProgress: true,
                         progress: progress,
                         progressTitle: message,
-                        progressStatus: status === 'success' || status === 'error' ? status : 'running',
+                        progressStatus: progressStatus,
+                        errorMessage: error,
                     },
                 ]);
             }
             
-            // Clear progress message ID when complete
+            // Clear progress message ID when complete (after a delay to allow for final display)
             if (status === 'success' || status === 'error') {
-                setTimeout(() => setProgressMessageId(null), 3000);
+                clearTimeoutRef.current = setTimeout(() => {
+                    progressMessageIdRef.current = null;
+                    clearTimeoutRef.current = null;
+                }, 3000);
             }
         });
 
-        return cleanup;
-    }, [progressMessageId]);
+        return () => {
+            cleanup();
+            // Clear any pending timeout on unmount
+            if (clearTimeoutRef.current) {
+                clearTimeout(clearTimeoutRef.current);
+            }
+        };
+    }, []); // Empty dependency array - only run once on mount
 
     const handleSend = async (text: string, files: any[]) => {
         setIsSending(true);

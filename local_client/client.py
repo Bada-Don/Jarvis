@@ -45,14 +45,29 @@ def command(data):
     execute_command(data)
 
 def send_status(message, status_type="info"):
-    """Send status update to server."""
+    """Send status update to server.
+    
+    Args:
+        message: Either a string message or a dict with progress data:
+                 {'message': str, 'progress': int, 'status': str, 'error': str}
+        status_type: Type of status (info, success, error, warning)
+    """
     try:
-        sio.emit('status_update', {
-            'message': message,
-            'type': status_type,
-            'timestamp': time.time()
-        })
-        print(f"📤 Status sent: {message}")
+        # Handle dict messages (progress updates from FlexiSignManager)
+        if isinstance(message, dict):
+            sio.emit('status_update', {
+                'message': message,  # Pass the entire progress dict
+                'type': message.get('status', status_type),
+                'timestamp': time.time()
+            })
+            print(f"📤 Progress sent: {message.get('message', '')} ({message.get('progress', 0)}%)")
+        else:
+            sio.emit('status_update', {
+                'message': message,
+                'type': status_type,
+                'timestamp': time.time()
+            })
+            print(f"📤 Status sent: {message}")
     except Exception as e:
         print(f"Failed to send status: {e}")
 
