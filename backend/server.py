@@ -73,15 +73,35 @@ def upload_file():
     if not file or file.filename == '' or file.filename is None:
         # Generate a filename if none provided
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"upload_{timestamp}.jpg"
+        # Detect file type from content type
+        content_type = request.files['file'].content_type
+        if 'audio' in content_type:
+            filename = f"voice_{timestamp}.m4a"
+        elif 'image' in content_type:
+            filename = f"image_{timestamp}.jpg"
+        else:
+            filename = f"upload_{timestamp}"
     else:
         filename = file.filename
     
     try:
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
-        print(f"✓ File saved: {filename} ({os.path.getsize(filepath)} bytes)")
-        return jsonify({"status": "success", "message": f"File {filename} uploaded"}), 200
+        file_size = os.path.getsize(filepath)
+        print(f"✓ File saved: {filename} ({file_size} bytes)")
+        
+        # If it's an audio file, we could transcribe it here (future feature)
+        if 'audio' in (request.files['file'].content_type or ''):
+            print(f"🎤 Audio file detected: {filename}")
+            # TODO: Add speech-to-text transcription here
+            # transcribed_text = transcribe_audio(filepath)
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"File {filename} uploaded",
+            "filename": filename,
+            "size": file_size
+        }), 200
     except Exception as e:
         print(f"✗ Upload error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

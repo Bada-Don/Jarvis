@@ -13,7 +13,14 @@ import {
 import { Paperclip, Send, FileText, X, Camera, Mic } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useAudioRecorder, RecordingPresets, setAudioModeAsync, useAudioRecorderState, requestRecordingPermissionsAsync } from 'expo-audio';
+import { 
+    useAudioRecorder, 
+    RecordingPresets, 
+    setAudioModeAsync, 
+    useAudioRecorderState, 
+    requestRecordingPermissionsAsync,
+    RecordingOptions 
+} from 'expo-audio';
 
 interface ChatInputProps {
     onSend: (text: string, files: any[]) => void;
@@ -25,8 +32,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
     const [pendingFiles, setPendingFiles] = useState<any[]>([]);
     const inputRef = useRef<TextInput>(null);
 
-    // Initialize audio recorder with high quality preset
-    const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    // Initialize audio recorder with custom settings for better compatibility
+    const recordingOptions: RecordingOptions = {
+        ...RecordingPresets.HIGH_QUALITY,
+        android: {
+            extension: '.m4a',
+            sampleRate: 44100,
+            outputFormat: 'mpeg4',
+            audioEncoder: 'aac',
+        },
+        ios: {
+            extension: '.m4a',
+            audioQuality: 0x7F, // AVAudioQuality.max
+            sampleRate: 44100,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+        },
+        web: {
+            mimeType: 'audio/webm',
+            bitsPerSecond: 128000,
+        },
+    };
+
+    const audioRecorder = useAudioRecorder(recordingOptions);
     const recorderState = useAudioRecorderState(audioRecorder);
 
     // Set up audio mode on mount
@@ -145,19 +174,51 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
         try {
             if (recorderState.isRecording) {
                 // Stop recording
+                console.log('Stopping recording...');
+                console.log('Recording duration:', recorderState.durationMillis, 'ms');
                 await audioRecorder.stop();
                 const uri = audioRecorder.uri;
 
                 if (uri) {
+                    console.log('Recording saved to:', uri);
+                    
+                    // Get file info
+                    let fileSize = 0;
+                    try {
+                        // Try to get file size (platform-specific)
+                        const response = await fetch(uri);
+                        const blob = await response.blob();
+                        fileSize = blob.size;
+                        console.log('Audio file size:', fileSize, 'bytes');
+                        
+                        if (fileSize < 1000) {
+                            console.warn('⚠️ Warning: Audio file is very small, might be empty!');
+                        }
+                    } catch (e) {
+                        console.log('Could not get file size:', e);
+                    }
+
                     // Add the audio file to pending files
                     const audioFile = {
                         uri,
                         name: `voice_${Date.now()}.m4a`,
+                        fileName: `voice_${Date.now()}.m4a`,
                         type: 'audio/m4a',
-                        size: 0,
+                        mimeType: 'audio/m4a',
+                        size: fileSize,
+                        fileSize: fileSize,
                     };
 
                     setPendingFiles((prev) => [...prev, audioFile]);
+                    
+                    if (fileSize > 0) {
+                        Alert.alert('Success', `Voice recording added! (${Math.round(fileSize / 1024)}KB)`);
+                    } else {
+                        Alert.alert('Warning', 'Recording saved but file size is 0. Check microphone permissions.');
+                    }
+                } else {
+                    console.error('No URI returned from recorder');
+                    Alert.alert('Error', 'Recording failed - no file created');
                 }
             } else {
                 // Request permission before starting
@@ -172,12 +233,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                     return;
                 }
 
-                // Start recording
-                await audioRecorder.record();
+                // Prepare and start recording
+                console.log('Preparing to record...');
+                try {
+                    await audioRecorder.prepareToRecordAsync();
+                    console.log('Recorder prepared successfully');
+                    console.log('Starting recording...');
+                    audioRecorder.record();
+                    console.log('Recording started');
+                    Alert.alert('Recording', 'Tap the mic button again to stop recording');
+                } catch (prepError) {
+                    console.error('Failed to prepare recorder:', prepError);
+                    throw new Error(`Preparation failed: ${prepError.message || prepError}`);
+                }
             }
         } catch (err) {
             console.error('Failed to handle voice recording:', err);
-            Alert.alert('Error', 'Failed to record audio');
+            Alert.alert('Error', `Failed to record audio: ${err.message || err}`);
         }
     };
 
@@ -202,13 +274,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             style={styles.container}
         >
-            {pendingFiles.length > 0 && (
+            {(pendingFiles.length > 0 || recorderState.isRecording) && (
                 <View style={styles.pendingFilesContainer}>
+                    {recorderState.isRecording && (
+                        <View style={[styles.pendingFileItem, styles.recordingIndicator]}>
+                            <Mic size={12} color="#EF4444" />
+                            <Text style={styles.recordingText}>
+                                Recording... {Math.floor((recorderState.durationMillis || 0) / 1000)}s
+                            </Text>
+                        </View>
+                    )}
                     {pendingFiles.map((file, index) => (
                         <View key={index} style={styles.pendingFileItem}>
-                            <FileText size={12} color="#007AFF" />
+                            {(file.type || file.mimeType || '').includes('audio') ? (
+                                <Mic size={12} color="#007AFF" />
+                            ) : (
+                                <FileText size={12} color="#007AFF" />
+                            )}
                             <Text style={styles.pendingFileName} numberOfLines={1}>
-                                {file.name || file.fileName || 'Image'}
+                                {file.name || file.fileName || 'File'}
                             </Text>
                             <TouchableOpacity onPress={() => removePendingFile(index)} style={styles.removeFileButton}>
                                 <X size={12} color="#6B7280" />
@@ -347,5 +431,14 @@ const styles = StyleSheet.create({
     },
     sendButtonDisabled: {
         backgroundColor: '#E5E7EB',
+    },
+    recordingIndicator: {
+        backgroundColor: '#FEE2E2',
+        borderColor: '#FCA5A5',
+    },
+    recordingText: {
+        color: '#DC2626',
+        fontSize: 12,
+        fontWeight: '600',
     },
 });
