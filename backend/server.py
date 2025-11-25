@@ -180,15 +180,26 @@ def handle_status_update(data):
     """Receive status updates from local client and broadcast to mobile app."""
     message = data.get('message', '')
     status_type = data.get('type', 'info')
-    print(f"📱 Status Update [{status_type}]: {message}")
     
-    # Broadcast to all connected clients (mobile app)
-    # Use 'room' parameter instead of 'broadcast' for flask-socketio
-    socketio.emit('jarvis_status', {
-        'message': message,
-        'type': status_type,
-        'timestamp': data.get('timestamp')
-    })
+    # Check if message is a dict with progress data
+    if isinstance(message, dict) and 'progress' in message:
+        print(f"📱 Progress Update: {message.get('message')} ({message.get('progress')}%)")
+        # Send progress data directly
+        socketio.emit('jarvis_status', {
+            'progress': message.get('progress'),
+            'message': message.get('message'),
+            'status': message.get('status', 'running'),
+            'error': message.get('error'),
+            'timestamp': data.get('timestamp')
+        })
+    else:
+        print(f"📱 Status Update [{status_type}]: {message}")
+        # Send regular status message
+        socketio.emit('jarvis_status', {
+            'message': message,
+            'type': status_type,
+            'timestamp': data.get('timestamp')
+        })
 
 if __name__ == '__main__':
     # Host 0.0.0.0 allows access from other devices/emulator

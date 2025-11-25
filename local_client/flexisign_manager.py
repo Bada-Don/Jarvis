@@ -15,10 +15,11 @@ from typing import Optional, List, Dict, Tuple
 
 
 class FlexiSignManager:
-    def __init__(self, config_path='local_client\\flexisign_config.json'):
+    def __init__(self, config_path='local_client\\flexisign_config.json', status_callback=None):
         """Initialize the FlexiSign Manager with configuration."""
         self.config = self._load_config(config_path)
         self.verbose = self.config['debug']['verbose_logging']
+        self.status_callback = status_callback
         
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from JSON file."""
@@ -39,6 +40,15 @@ class FlexiSignManager:
             "DEBUG": "🔍"
         }.get(level, "•")
         print(f"[{timestamp}] {prefix} {message}")
+    
+    def send_progress(self, message: str, progress: int, status: str = "running"):
+        """Send progress update via callback."""
+        if self.status_callback:
+            self.status_callback({
+                'message': message,
+                'progress': progress,
+                'status': status
+            })
     
     def is_process_running(self, process_names: List[str]) -> Tuple[bool, Optional[str]]:
         """
@@ -196,7 +206,30 @@ class FlexiSignManager:
         self.log("Starting loader/patcher...", "INFO")
         
         try:
-            subprocess.Popen([config['exe_path']])
+            # Try to start with admin privileges on Windows
+            import ctypes
+            
+            # Check if we're already running as admin
+            try:
+                is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+            except:
+                is_admin = False
+            
+            if is_admin:
+                # We have admin rights, start normally
+                subprocess.Popen([config['exe_path']])
+            else:
+                # Try to start with elevated privileges using ShellExecute
+                self.log("Requesting administrator privileges...", "WARNING")
+                ctypes.windll.shell32.ShellExecuteW(
+                    None,
+                    "runas",  # Request elevation
+                    config['exe_path'],
+                    None,
+                    None,
+                    1  # SW_SHOWNORMAL
+                )
+            
             time.sleep(config['wait_after_start'])
             
             # Handle startup modal if configured
@@ -213,10 +246,12 @@ class FlexiSignManager:
                 return True
             else:
                 self.log("Loader/patcher process not detected after start", "ERROR")
+                self.log("Please start the loader/patcher manually with admin rights", "WARNING")
                 return False
                 
         except Exception as e:
             self.log(f"Failed to start loader/patcher: {e}", "ERROR")
+            self.log("Please start the loader/patcher manually with admin rights", "WARNING")
             return False
     
     def close_all_flexisign_windows(self) -> bool:
@@ -318,19 +353,38 @@ class FlexiSignManager:
         self.log("Starting FlexiSign Pro automation...", "INFO")
         self.log("=" * 60, "INFO")
         
+        self.send_progress("Starting FlexiSign Pro workflow...", 0)
+        
         # Step 1: Ensure loader/patcher is running
+        self.send_progress("Checking loader/patcher status...", 10)
         loader_config = self.config['loader_patcher']
         loader_was_running, _ = self.is_process_running([loader_config['process_name']])
         
         if loader_was_running:
             self.log("Loader/patcher is already running ✓", "SUCCESS")
+            self.send_progress("Loader/patcher confirmed active", 30)
         else:
             self.log("Loader/patcher is NOT running - starting it now", "WARNING")
+            self.send_progress("Launching loader/patcher utility...", 15)
             if not self.start_loader_patcher():
                 self.log("CRITICAL: Failed to start loader/patcher", "ERROR")
-                return False
+                
+                # Check one more time if it's running (user might have started it manually)
+                time.sleep(2)
+                is_running_now, _ = self.is_process_running([loader_config['process_name']])
+                
+                if is_running_now:
+                    self.log("Loader/patcher detected running now!", "SUCCESS")
+                    self.send_progress("Loader/patcher confirmed active", 30)
+                else:
+                    error_msg = "Please start the loader/patcher manually (requires admin rights)"
+                    self.send_progress(error_msg, 100, "error")
+                    return False
+            else:
+                self.send_progress("Loader/patcher started successfully", 30)
         
         # Step 2: Check for existing FlexiSign windows
+        self.send_progress("Checking for existing FlexiSign windows...", 40)
         flexisign_config = self.config['flexisign_pro']
         existing_windows = self.find_windows_by_title(flexisign_config['window_titles'])
         
@@ -338,6 +392,7 @@ class FlexiSignManager:
             # FlexiSign is open but loader wasn't running = DEMO MODE
             self.log("CRITICAL: FlexiSign is running in DEMO MODE (loader was not active)", "ERROR")
             self.log("Closing all FlexiSign windows to restart properly...", "WARNING")
+            self.send_progress("Closing demo mode windows...", 45)
             
             if not self.close_all_flexisign_windows():
                 self.log("Failed to close windows gracefully, force killing...", "WARNING")
@@ -346,14 +401,18 @@ class FlexiSignManager:
             # Wait a bit before restarting
             time.sleep(2)
             existing_windows = []
+            self.send_progress("Demo mode windows closed", 50)
         
         # Step 3: Ensure FlexiSign Pro is running (now that loader is active)
         if not existing_windows:
             self.log("FlexiSign Pro is not running - starting it now", "INFO")
+            self.send_progress("Starting FlexiSign Pro...", 60)
             if not self.start_flexisign_pro():
                 self.log("Failed to start FlexiSign Pro", "ERROR")
+                self.send_progress("Failed to start FlexiSign Pro", 100, "error")
                 return False
             
+            self.send_progress("Waiting for FlexiSign Pro window...", 80)
             # Get the new window
             existing_windows = self.find_windows_by_title(flexisign_config['window_titles'])
         
@@ -363,13 +422,18 @@ class FlexiSignManager:
             window_title = win32gui.GetWindowText(existing_windows[0])
             self.log(f"Found FlexiSign window: '{window_title}'", "INFO")
             
+            self.send_progress("Bringing FlexiSign to front...", 90)
             self.bring_window_to_front(existing_windows[0])
+            
             self.log("=" * 60, "INFO")
             self.log("FlexiSign Pro is ready! ✓", "SUCCESS")
             self.log("=" * 60, "INFO")
+            
+            self.send_progress("FlexiSign Pro is ready!", 100, "success")
             return True
         else:
             self.log("Failed to get FlexiSign Pro window", "ERROR")
+            self.send_progress("Failed to find FlexiSign window", 100, "error")
             return False
 
 

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MessageList } from '../components/MessageList';
 import { ChatInput } from '../components/ChatInput';
-import { sendMessage, uploadFile } from '../services/api';
+import { sendMessage, uploadFile, connectToStatusUpdates } from '../services/api';
 
 const createId = () => Math.random().toString(36).slice(2);
 
@@ -17,6 +17,75 @@ export default function ChatScreen() {
     ]);
 
     const [isSending, setIsSending] = useState(false);
+    const [progressMessageId, setProgressMessageId] = useState<string | null>(null);
+
+    // Connect to real-time status updates
+    useEffect(() => {
+        const cleanup = connectToStatusUpdates((statusData) => {
+            console.log('Status update received:', statusData);
+            
+            // Parse the data - handle nested message structure
+            let progressData = statusData;
+            
+            // If message is an object with progress data, use that
+            if (typeof statusData.message === 'object' && statusData.message.progress !== undefined) {
+                progressData = statusData.message;
+            }
+            
+            // Extract progress info
+            const progress = progressData.progress;
+            const message = progressData.message || statusData.message;
+            const status = progressData.status || statusData.type;
+            const error = progressData.error;
+            
+            // Only handle progress updates (not regular status messages)
+            if (progress === undefined) {
+                return;
+            }
+            
+            // Update or create progress message
+            if (progressMessageId) {
+                // Update existing progress message
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg.id === progressMessageId
+                            ? {
+                                  ...msg,
+                                  progress: progress,
+                                  progressTitle: message,
+                                  progressStatus: status === 'success' || status === 'error' ? status : 'running',
+                                  errorMessage: error,
+                              }
+                            : msg
+                    )
+                );
+            } else {
+                // Create new progress message
+                const newProgressId = createId();
+                setProgressMessageId(newProgressId);
+                
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: newProgressId,
+                        role: 'assistant',
+                        content: '',
+                        isProgress: true,
+                        progress: progress,
+                        progressTitle: message,
+                        progressStatus: status === 'success' || status === 'error' ? status : 'running',
+                    },
+                ]);
+            }
+            
+            // Clear progress message ID when complete
+            if (status === 'success' || status === 'error') {
+                setTimeout(() => setProgressMessageId(null), 3000);
+            }
+        });
+
+        return cleanup;
+    }, [progressMessageId]);
 
     const handleSend = async (text: string, files: any[]) => {
         setIsSending(true);
@@ -49,16 +118,8 @@ export default function ChatScreen() {
                 await sendMessage(text);
             }
 
-            // Simulate response (or get real response if backend supported it)
-            const assistantId = createId();
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: assistantId,
-                    role: 'assistant',
-                    content: 'Message received and logged.',
-                },
-            ]);
+            // Progress updates will come via WebSocket
+            // No need to add a static response message
         } catch (error) {
             console.error('Error in handleSend:', error);
             setMessages((prev) => [

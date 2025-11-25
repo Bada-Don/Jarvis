@@ -184,7 +184,9 @@ def execute_command(command_data):
         if FLEXISIGN_MANAGER_AVAILABLE:
             try:
                 send_status("Starting FlexiSign automation (new manager)...", "info")
-                manager = FlexiSignManager()
+                
+                # Create manager with status callback
+                manager = FlexiSignManager(status_callback=send_status)
                 success = manager.ensure_proper_state()
                 
                 if success:

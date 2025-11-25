@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { FileText } from 'lucide-react-native';
+import { ProgressCard } from './ProgressCard';
 
 interface Attachment {
     id: string;
@@ -16,6 +17,11 @@ interface MessageItemProps {
         role: string;
         content: string;
         attachments?: Attachment[];
+        isProgress?: boolean;
+        progress?: number;
+        progressTitle?: string;
+        progressStatus?: 'running' | 'success' | 'error';
+        errorMessage?: string;
     };
 }
 
@@ -29,6 +35,23 @@ const formatFileSize = (bytes: number) => {
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
     const isUser = message.role === 'user';
+
+    // Render progress card for progress messages
+    if (message.isProgress) {
+        return (
+            <View style={[styles.container, styles.containerAssistant]}>
+                <View style={styles.avatarAssistant} />
+                <View style={{ maxWidth: '75%', flex: 1 }}>
+                    <ProgressCard
+                        title={message.progressTitle || 'Processing...'}
+                        progress={message.progress || 0}
+                        status={message.progressStatus || 'running'}
+                        errorMessage={message.errorMessage}
+                    />
+                </View>
+            </View>
+        );
+    }
 
     const renderAttachments = (attachments?: Attachment[]) => {
         if (!attachments || attachments.length === 0) return null;

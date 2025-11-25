@@ -52,14 +52,24 @@ You should see:
 
 ### Step 4: Start JARVIS Client (30 seconds)
 
+**Important:** The loader/patcher requires administrator privileges!
+
+**Option A - Run as Admin (Recommended):**
 ```bash
-python client.py
+# Double-click this file:
+run_as_admin.bat
 ```
+
+**Option B - Start Loader Manually:**
+1. Right-click the loader/patcher → "Run as administrator"
+2. Then run: `python client.py`
 
 You should see:
 ```
 Connected to Server
 ```
+
+> **Note:** See [ADMIN_PRIVILEGES_GUIDE.md](ADMIN_PRIVILEGES_GUIDE.md) for detailed info
 
 ### Step 5: Test from Mobile App (1 minute)
 
