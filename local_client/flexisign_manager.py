@@ -359,6 +359,10 @@ class FlexiSignManager:
         
         # Step 4: Bring FlexiSign to front
         if existing_windows:
+            # Show which window was found
+            window_title = win32gui.GetWindowText(existing_windows[0])
+            self.log(f"Found FlexiSign window: '{window_title}'", "INFO")
+            
             self.bring_window_to_front(existing_windows[0])
             self.log("=" * 60, "INFO")
             self.log("FlexiSign Pro is ready! ✓", "SUCCESS")
