@@ -18,6 +18,13 @@ except ImportError:
     VISION_SERVICE_AVAILABLE = False
     print("⚠️ Warning: vision_service not available")
 
+# Import debug logger
+try:
+    from debug_logger import get_debug_logger
+    DEBUG_LOGGER_AVAILABLE = True
+except ImportError:
+    DEBUG_LOGGER_AVAILABLE = False
+
 
 class PlanExecutor:
     """
@@ -108,6 +115,12 @@ class PlanExecutor:
             try:
                 if step_type == 'keyboard':
                     self.execute_keyboard_step(step)
+                    # Log step execution
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "keyboard", 
+                            f"value='{step.get('value', '')}' desc='{step_desc}'"
+                        )
                     
                 elif step_type == 'visual_click':
                     # Single-pass: take screenshot and map targets on first visual click
@@ -117,6 +130,13 @@ class PlanExecutor:
                     target_name = step.get('target_name')
                     if target_name:
                         self.execute_visual_click(target_name, self._id_map, self._box_map)
+                        # Log step execution
+                        if DEBUG_LOGGER_AVAILABLE:
+                            element_id = self._id_map.get(target_name) if self._id_map else None
+                            get_debug_logger().log_step_execution(
+                                step_order, "visual_click",
+                                f"target='{target_name}' id={element_id} desc='{step_desc}'"
+                            )
                     else:
                         self._send_status(f"Missing target_name in step {step_order}", "warning")
                 
@@ -128,6 +148,11 @@ class PlanExecutor:
                 
             except Exception as e:
                 self._send_status(f"Error in step {step_order}: {e}", "error")
+                # Log error
+                if DEBUG_LOGGER_AVAILABLE:
+                    get_debug_logger().log_step_execution(
+                        step_order, step_type, f"ERROR: {e}", success=False
+                    )
                 # Continue with remaining steps (graceful degradation)
                 continue
         
@@ -257,6 +282,17 @@ class PlanExecutor:
         
         # Get element ID from id_map
         element_id = id_map.get(target_name)
+        
+        # Special fallback for canvas_center - use screen center if not found
+        if element_id is None and target_name == 'canvas_center':
+            screen_width, screen_height = pyautogui.size()
+            # Click slightly right of center (to account for left toolbar) and centered vertically
+            cx = screen_width * 0.55  # 55% from left to account for toolbars
+            cy = screen_height * 0.5   # 50% from top
+            self._send_status(f"Using screen center fallback for '{target_name}' at ({int(cx)}, {int(cy)})", "info")
+            pyautogui.click(int(cx), int(cy))
+            return
+        
         if element_id is None:
             self._send_status(f"Target '{target_name}' not found in ID map", "warning")
             return

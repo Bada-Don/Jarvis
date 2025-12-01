@@ -122,8 +122,8 @@ class FlexiSignManager:
             self.log(f"Error closing window: {e}", "ERROR")
             return False
     
-    def bring_window_to_front(self, hwnd: int):
-        """Bring a window to the foreground."""
+    def bring_window_to_front(self, hwnd: int, maximize: bool = True):
+        """Bring a window to the foreground and optionally maximize it."""
         try:
             window_title = win32gui.GetWindowText(hwnd)
             self.log(f"Bringing window to front: '{window_title}'", "INFO")
@@ -131,6 +131,12 @@ class FlexiSignManager:
             # Restore window if minimized
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
             time.sleep(0.2)
+            
+            # Maximize the window for consistent UI element positions
+            if maximize:
+                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                time.sleep(0.3)
+                self.log("Window maximized", "INFO")
             
             # Try to set foreground (may fail due to Windows restrictions)
             try:

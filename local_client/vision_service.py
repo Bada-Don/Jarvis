@@ -20,6 +20,13 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Import debug logger
+try:
+    from debug_logger import get_debug_logger
+    DEBUG_LOGGER_AVAILABLE = True
+except ImportError:
+    DEBUG_LOGGER_AVAILABLE = False
+
 # Import Gemini
 try:
     import google.generativeai as genai
@@ -207,6 +214,13 @@ class VisionService:
         # Convert RGB to BGR for OpenCV
         screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
         
+        # Save to debug log
+        if DEBUG_LOGGER_AVAILABLE:
+            try:
+                get_debug_logger().log_screenshot(screenshot_bgr)
+            except Exception as e:
+                print(f"⚠️ Debug log error: {e}")
+        
         return screenshot_bgr
     
     def run_som_detection(self, image: np.ndarray) -> tuple[np.ndarray, dict]:
@@ -251,6 +265,14 @@ class VisionService:
             # Draw annotations and get box_map
             annotated_image, box_map = draw_annotations(image, filtered_boxes)
             
+            # Save to debug log
+            if DEBUG_LOGGER_AVAILABLE:
+                try:
+                    get_debug_logger().log_annotated_image(annotated_image)
+                    get_debug_logger().log_box_map(box_map)
+                except Exception as e:
+                    print(f"⚠️ Debug log error: {e}")
+            
             return annotated_image, box_map
             
         finally:
@@ -284,20 +306,28 @@ class VisionService:
         
         # Build prompt for Vision Mapper
         targets_str = ", ".join(f'"{t}"' for t in targets)
-        prompt = f"""You are a UI element identifier. Look at this screenshot with numbered red boxes (Set-of-Mark annotations).
+        prompt = f"""You are a FlexiSIGN UI element identifier. Look at this screenshot with numbered red boxes (Set-of-Mark annotations).
 
 Your task: Find the UI elements that match these target names: {targets_str}
+
+FlexiSIGN UI Element Guide:
+- "text_tool": The "T" or text icon in the left toolbar (usually a capital T letter)
+- "select_tool": The arrow/pointer icon in the left toolbar
+- "width_input": Input field labeled "Width" or "W" in the right panel or dialog
+- "height_input": Input field labeled "Height" or "H" in the right panel or dialog
+- "canvas_center": The LARGE white/gray drawing area in the CENTER of the screen (the main workspace where designs are created). This is usually the biggest rectangular area.
 
 For each target, identify which numbered box corresponds to that UI element.
 
 IMPORTANT:
 - Look at the red numbered boxes in the image
 - Match each target name to the most appropriate numbered box
+- For "canvas_center", find the LARGEST box that covers the main white drawing workspace area
 - If you cannot find a matching element, use null for that target
 
 Respond ONLY with a valid JSON object mapping target names to box numbers (integers) or null.
 Example response format:
-{{"text_tool": 45, "width_input": 88, "unknown_element": null}}
+{{"text_tool": 45, "width_input": 88, "canvas_center": 12, "unknown_element": null}}
 
 Now identify the targets in this image:"""
 
@@ -338,6 +368,13 @@ Now identify the targets in this image:"""
                         cleaned_map[target] = None
                 else:
                     cleaned_map[target] = None
+            
+            # Save to debug log
+            if DEBUG_LOGGER_AVAILABLE:
+                try:
+                    get_debug_logger().log_vision_mapper_output(cleaned_map, targets)
+                except Exception as e:
+                    print(f"⚠️ Debug log error: {e}")
             
             return cleaned_map
             

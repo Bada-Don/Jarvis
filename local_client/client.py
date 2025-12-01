@@ -38,6 +38,13 @@ except ImportError as e:
     print(f"⚠️ Warning: Two-Model Pipeline components not available: {e}")
     TWO_MODEL_PIPELINE_AVAILABLE = False
 
+# Import debug logger (optional)
+try:
+    from debug_logger import create_new_session, get_debug_logger
+    DEBUG_LOGGER_AVAILABLE = True
+except ImportError:
+    DEBUG_LOGGER_AVAILABLE = False
+
 # Initialize SocketIO Client
 sio = socketio.Client()
 
@@ -384,6 +391,17 @@ def execute_command(command_data):
             send_status("No execution plan received", "error")
             return
         
+        # Initialize debug logger for this session
+        debug_logger = None
+        if DEBUG_LOGGER_AVAILABLE:
+            try:
+                debug_logger = create_new_session()
+                debug_logger.set_user_command(user_command)
+                debug_logger.log_planner_output(plan)
+                print(f"📁 Debug session started: {debug_logger.session_id}")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize debug logger: {e}")
+        
         try:
             # Send initial status update (Requirement 7.2)
             send_status({
@@ -453,12 +471,20 @@ def execute_command(command_data):
                     'progress': 100,
                     'status': 'success'
                 }, "success")
+                
+                # Complete debug session
+                if debug_logger:
+                    debug_logger.complete(success=True)
             else:
                 send_status({
                     'message': 'Workflow completed with warnings',
                     'progress': 100,
                     'status': 'warning'
                 }, "warning")
+                
+                # Complete debug session with warnings
+                if debug_logger:
+                    debug_logger.complete(success=False)
                 
         except Exception as e:
             print(f"❌ Two-Model Pipeline error: {e}")
@@ -468,6 +494,11 @@ def execute_command(command_data):
                 'status': 'error',
                 'error': str(e)
             }, "error")
+            
+            # Log error to debug session
+            if debug_logger:
+                debug_logger.log_error(str(e))
+                debug_logger.complete(success=False)
     
     elif action == 'sequence':
         # Legacy support for old sequence commands

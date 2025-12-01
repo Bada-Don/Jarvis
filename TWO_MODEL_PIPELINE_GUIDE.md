@@ -120,6 +120,28 @@ Send these commands from the mobile app:
 | Bike Glass | 6 x 1.2 inches | 10 x 1.5 inches |
 | Car Normal | 14 x 2.3 inches | 14 x 2.4 inches |
 
+## Debug Logging
+
+Every workflow execution creates a debug folder with all outputs for troubleshooting:
+
+```
+local_client/debug_logs/
+  └── 2024-12-01_16-39-33/
+      ├── session_info.json       # Command, timestamps, status
+      ├── planner_output.json     # Execution plan from Gemini Flash Lite
+      ├── screenshot.png          # Original screenshot
+      ├── annotated.png           # SoM annotated image with numbered boxes
+      ├── box_map.json            # Element ID to coordinates mapping
+      ├── vision_mapper_output.json  # Target to ID mapping from Gemini 2.0 Flash
+      └── execution_log.txt       # Step-by-step execution log
+```
+
+Use these files to:
+- See exactly what the AI models returned
+- Check if UI elements were detected correctly
+- Verify click coordinates
+- Debug failed workflows
+
 ## Troubleshooting
 
 ### "Vision Mapper not finding elements"
