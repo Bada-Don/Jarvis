@@ -2,3 +2,10 @@ flask
 flask-cors
 flask-socketio
 eventlet
+
+ultralytics
+opencv-python
+pillow
+torch
+torchvision
+pyautogui
