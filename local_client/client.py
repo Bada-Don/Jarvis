@@ -28,6 +28,16 @@ except ImportError:
     print("⚠️ Warning: flexisign_manager.py not found, using legacy mode")
     FLEXISIGN_MANAGER_AVAILABLE = False
 
+# Import Two-Model Pipeline components
+# Requirements: 1.3, 1.4, 7.2, 7.3, 7.4, 7.5
+try:
+    from vision_service import VisionService
+    from plan_executor import PlanExecutor
+    TWO_MODEL_PIPELINE_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Warning: Two-Model Pipeline components not available: {e}")
+    TWO_MODEL_PIPELINE_AVAILABLE = False
+
 # Initialize SocketIO Client
 sio = socketio.Client()
 
@@ -359,6 +369,105 @@ def execute_command(command_data):
                     print(f"⚠️ Modal timeout")
             
             time.sleep(0.5)
+    
+    elif action == 'two_model_workflow':
+        # Two-Model Pipeline: Execute plan from Planner Model with vision-guided clicks
+        # Requirements: 1.3, 1.4, 7.2, 7.3, 7.4, 7.5
+        if not TWO_MODEL_PIPELINE_AVAILABLE:
+            send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
+            return
+        
+        plan = command_data.get('plan')
+        user_command = command_data.get('user_command', '')
+        
+        if not plan:
+            send_status("No execution plan received", "error")
+            return
+        
+        try:
+            # Send initial status update (Requirement 7.2)
+            send_status({
+                'message': 'Initializing Two-Model Pipeline...',
+                'progress': 5,
+                'status': 'info'
+            }, "info")
+            
+            # STEP 0: Ensure FlexiSIGN is open and ready before executing the plan
+            if FLEXISIGN_MANAGER_AVAILABLE:
+                send_status({
+                    'message': 'Ensuring FlexiSIGN is ready...',
+                    'progress': 8,
+                    'status': 'info'
+                }, "info")
+                
+                manager = FlexiSignManager(status_callback=send_status)
+                if not manager.ensure_proper_state():
+                    send_status({
+                        'message': 'Failed to start FlexiSIGN Pro',
+                        'progress': 0,
+                        'status': 'error'
+                    }, "error")
+                    return
+                
+                send_status({
+                    'message': 'FlexiSIGN Pro is ready!',
+                    'progress': 10,
+                    'status': 'success'
+                }, "success")
+            else:
+                print("⚠️ FlexiSignManager not available - assuming FlexiSIGN is already open")
+            
+            # Initialize VisionService
+            # Requirement 6.2: Load API key from environment
+            try:
+                vision_service = VisionService()
+                send_status({
+                    'message': 'Vision service initialized',
+                    'progress': 15,
+                    'status': 'info'
+                }, "info")
+            except ValueError as e:
+                send_status(f"Vision service error: {e}", "error")
+                return
+            except Exception as e:
+                send_status(f"Failed to initialize vision service: {e}", "error")
+                return
+            
+            # Initialize PlanExecutor with status callback
+            # The status_callback sends progress updates throughout execution
+            # Requirements: 7.3, 7.4, 7.5
+            executor = PlanExecutor(vision_service, status_callback=send_status)
+            
+            # Log the plan being executed
+            sequence = plan.get('sequence', [])
+            print(f"📋 Executing plan with {len(sequence)} steps for: {user_command}")
+            
+            # Execute the plan
+            # Requirement 1.3: Execute keyboard actions and visual clicks in order
+            success = executor.execute_plan(plan)
+            
+            if success:
+                # Requirement 1.4: Send success status
+                send_status({
+                    'message': 'Workflow completed successfully!',
+                    'progress': 100,
+                    'status': 'success'
+                }, "success")
+            else:
+                send_status({
+                    'message': 'Workflow completed with warnings',
+                    'progress': 100,
+                    'status': 'warning'
+                }, "warning")
+                
+        except Exception as e:
+            print(f"❌ Two-Model Pipeline error: {e}")
+            send_status({
+                'message': f'Pipeline error: {str(e)}',
+                'progress': 0,
+                'status': 'error',
+                'error': str(e)
+            }, "error")
     
     elif action == 'sequence':
         # Legacy support for old sequence commands

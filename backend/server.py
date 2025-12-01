@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from datetime import datetime
+from gemini_service import GeminiPlannerService
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -18,6 +19,14 @@ LOG_FILE = 'logs.txt'
 # Ensure upload directory exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# Initialize Gemini Planner Service
+planner_service = None
+try:
+    planner_service = GeminiPlannerService()
+    print("✓ Gemini Planner Service initialized successfully")
+except ValueError as e:
+    print(f"⚠ Gemini Planner Service not available: {e}")
 
 # --- Mock AI Logic ---
 def mock_router(text):
@@ -111,35 +120,116 @@ def process_instruction():
     """
     Main entry point for the Agent.
     Receives: { "text": "...", "image": "..." (optional base64 or filename) }
+    
+    Uses the Two-Model Pipeline:
+    1. Planner Model (Gemini Flash Lite) generates execution plan
+    2. Sends plan to Local Client via WebSocket
+    3. Local Client uses Vision Mapper Model for UI element identification
     """
     data = request.json
     text = data.get('text', '')
-    image_data = data.get('image', None) # Could be base64 or just a flag that an image was uploaded previously
+    image_data = data.get('image', None)
     
     print(f"Received instruction: {text}")
+    
+    # Check if Planner Service is available
+    if planner_service is None:
+        print("⚠ Planner service not available, falling back to legacy flow")
+        return _legacy_process_instruction(text, image_data)
+    
+    # Check if this looks like a number plate command (for two-model pipeline)
+    text_lower = text.lower()
+    plate_keywords = ["plate", "number", "bike", "car", "iron", "glass"]
+    is_plate_command = any(keyword in text_lower for keyword in plate_keywords)
+    
+    if not is_plate_command:
+        # Fall back to legacy flow for non-plate commands
+        return _legacy_process_instruction(text, image_data)
+    
+    try:
+        # Emit status update: Processing request
+        socketio.emit('jarvis_status', {
+            'message': 'Processing your request...',
+            'status': 'running',
+            'progress': 10
+        })
+        print("📤 Status: Processing your request...")
+        
+        # Generate execution plan using Planner Model
+        print("🤖 Calling Planner Model...")
+        plan = planner_service.generate_plan(text)
+        print(f"✓ Plan generated with {len(plan.get('sequence', []))} steps")
+        
+        # Emit status update: Plan generated
+        socketio.emit('jarvis_status', {
+            'message': 'Plan generated, sending to local client...',
+            'status': 'running',
+            'progress': 30
+        })
+        
+        # Construct the command payload for two-model workflow
+        command_payload = {
+            "action": "two_model_workflow",
+            "plan": plan,
+            "user_command": text
+        }
+        
+        # Send to Local Client via WebSocket
+        print("📤 Sending two_model_workflow command to local client...")
+        socketio.emit('command', command_payload)
+        
+        return jsonify({
+            "status": "success",
+            "response": f"Processing your request: {text}",
+            "plan_steps": len(plan.get('sequence', []))
+        })
+        
+    except ValueError as e:
+        # Handle validation errors (invalid JSON, missing fields, etc.)
+        error_msg = f"Failed to generate plan: {e}"
+        print(f"✗ {error_msg}")
+        socketio.emit('jarvis_status', {
+            'message': error_msg,
+            'status': 'error',
+            'error': str(e)
+        })
+        return jsonify({
+            "status": "error",
+            "response": "Sorry, I couldn't understand that command. Please try again."
+        }), 500
+        
+    except Exception as e:
+        # Handle unexpected errors
+        error_msg = f"Error processing request: {e}"
+        print(f"✗ {error_msg}")
+        socketio.emit('jarvis_status', {
+            'message': 'An error occurred while processing your request.',
+            'status': 'error',
+            'error': str(e)
+        })
+        return jsonify({
+            "status": "error",
+            "response": "An error occurred. Please try again."
+        }), 500
 
+
+def _legacy_process_instruction(text, image_data):
+    """
+    Legacy processing flow for non-plate commands.
+    Maintains backward compatibility with existing functionality.
+    """
     # 1. Router Analysis
     intent_data = mock_router(text)
     
     if intent_data['intent'] == 'create_draft':
         # 2. If there's an image (handwritten note), do OCR
-        # For this MVP, we assume the image was uploaded via /api/upload and we might have the filename
-        # Or we just mock the OCR result directly for now.
         extracted_text = mock_vision_ocr("dummy_path")
         
         # 3. Construct the Command for the Local Client
-        # The FlexiSign Manager handles all startup logic automatically
         command_payload = {
             "action": "flexisign_workflow",
             "steps": [
                 {"type": "notification", "message": f"Yes sir! On it. Creating draft for {extracted_text}..."},
-                # FlexiSign Manager automatically handles:
-                # - Loader/patcher startup and modal
-                # - Closing demo mode windows
-                # - Starting FlexiSign Pro properly
-                # - Bringing window to front
-                
-                # Your actual workflow steps go here:
                 {"type": "press_key", "key": "t"},
                 {"type": "click_center"},
                 {"type": "type_text", "text": extracted_text}

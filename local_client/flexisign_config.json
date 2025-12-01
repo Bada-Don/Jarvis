@@ -11,19 +11,10 @@
     "wait_after_start": 20
   },
   "flexisign_pro": {
-    "process_names": [
-      "Flexi"
-    ],
-    "exe_path": "D:\\Program Files\\SAi\\SAi Production Suite\\Program\\app.exe",
-    "window_titles": [
-      "FlexiSIGN-PRO"
-    ],
-    "demo_mode_indicators": [
-      "trial",
-      "demo",
-      "evaluation",
-      "restricted"
-    ],
+    "process_names": ["Flexi"],
+    "exe_path": "C:\\Program Files (x86)\\SAi\\SAi Production Suite\\Program\\app.exe",
+    "window_titles": ["FlexiSIGN-PRO"],
+    "demo_mode_indicators": ["trial", "demo", "evaluation", "restricted"],
     "wait_after_start": 20
   },
   "timing": {

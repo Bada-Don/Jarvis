@@ -14,3 +14,9 @@ pywin32>=307
 
 # Additional dependencies for pyautogui
 Pillow>=10.1.0
+
+# Gemini AI for Vision Mapper Model
+google-generativeai
+
+# Environment variable management
+python-dotenv

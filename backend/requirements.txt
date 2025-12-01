@@ -9,3 +9,9 @@ pillow
 torch
 torchvision
 pyautogui
+
+# Gemini AI for Planner Model
+google-generativeai
+
+# Environment variable management
+python-dotenv
