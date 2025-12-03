@@ -1,13 +1,11 @@
 """
 Vision Service for Two-Model Pipeline
 Handles screenshot capture, SoM detection, and Vision Mapper model integration.
-
-Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2
+Supports both FlexiSIGN-specific and general computer automation.
 """
 
 import os
 import json
-import base64
 from io import BytesIO
 from pathlib import Path
 
@@ -47,7 +45,6 @@ except ImportError:
 def filter_boxes(boxes: np.ndarray, img_width: int, img_height: int) -> np.ndarray:
     """
     Filter out too small or too large boxes.
-    Reused from backend/SoM.py with identical logic.
     """
     img_area = img_width * img_height
     filtered = []
@@ -57,11 +54,11 @@ def filter_boxes(boxes: np.ndarray, img_width: int, img_height: int) -> np.ndarr
         w, h = x2 - x1, y2 - y1
         box_area = w * h
         
-        # Skip tiny boxes (noise) - minimum 15x15 pixels for UI elements
-        if w < 15 or h < 15:
+        # Skip tiny boxes (noise) - minimum 10x10 pixels for UI elements
+        if w < 10 or h < 10:
             continue
-        # Skip huge boxes (background windows)
-        if box_area > 0.9 * img_area:
+        # Skip huge boxes (background windows) - max 85% of screen
+        if box_area > 0.85 * img_area:
             continue
             
         filtered.append(box)
@@ -72,53 +69,44 @@ def filter_boxes(boxes: np.ndarray, img_width: int, img_height: int) -> np.ndarr
 def draw_annotations(image: np.ndarray, boxes: np.ndarray) -> tuple[np.ndarray, dict]:
     """
     Draw Set-of-Mark annotations: red boxes with white ID numbers.
-    Reused from backend/SoM.py with identical logic.
     
     Returns:
         tuple: (annotated_image, box_map)
-            - annotated_image: Image with red boxes and ID labels
-            - box_map: Dict mapping element IDs to coordinates {id: [x1, y1, x2, y2]}
     """
     annotated = image.copy()
     box_map = {}
     
-    # CONFIG FOR DRAWING
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.4  # Much smaller text
+    font_scale = 0.4
     font_thickness = 1
-    box_thickness = 1  # Thinner box lines
+    box_thickness = 1
     text_padding = 2
     
     for i, box in enumerate(boxes):
         element_id = i + 1
-        
-        # Get coordinates
         x1, y1, x2, y2 = map(int, box[:4])
         
-        # Store in box_map
         box_map[str(element_id)] = [float(box[0]), float(box[1]), float(box[2]), float(box[3])]
         
-        # 1. DRAW THE BOX (Thinner)
+        # Draw the box
         cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), box_thickness)
         
-        # Prepare the ID text
+        # Prepare label
         label_text = str(element_id)
         (text_w, text_h), baseline = cv2.getTextSize(label_text, font, font_scale, font_thickness)
         
-        # 2. SMART LABEL POSITIONING
+        # Smart label positioning
         if y1 - text_h - text_padding * 2 > 0:
-            # Draw Outside (Above)
             text_bg_y1 = y1 - text_h - (text_padding * 2)
             text_bg_y2 = y1
         else:
-            # Draw Inside (Top-Left) - Fallback if at very top of screen
             text_bg_y1 = y1
             text_bg_y2 = y1 + text_h + (text_padding * 2)
         
         text_bg_x1 = x1
         text_bg_x2 = x1 + text_w + (text_padding * 2)
         
-        # 3. DRAW SEMI-TRANSPARENT TEXT BACKGROUND
+        # Draw semi-transparent background
         roi_y1 = max(0, text_bg_y1)
         roi_y2 = min(annotated.shape[0], text_bg_y2)
         roi_x1 = max(0, text_bg_x1)
@@ -127,14 +115,13 @@ def draw_annotations(image: np.ndarray, boxes: np.ndarray) -> tuple[np.ndarray, 
         if roi_y2 > roi_y1 and roi_x2 > roi_x1:
             overlay = annotated[roi_y1:roi_y2, roi_x1:roi_x2].copy()
             cv2.rectangle(overlay, (0, 0), (roi_x2-roi_x1, roi_y2-roi_y1), (0, 0, 255), -1)
-            
             alpha = 0.6
             annotated[roi_y1:roi_y2, roi_x1:roi_x2] = cv2.addWeighted(
                 overlay, alpha, 
                 annotated[roi_y1:roi_y2, roi_x1:roi_x2], 1 - alpha, 0
             )
         
-        # 4. DRAW TEXT
+        # Draw text
         text_x = text_bg_x1 + text_padding
         text_y = text_bg_y2 - text_padding - baseline + 2
         cv2.putText(annotated, label_text, (text_x, text_y), font, font_scale, 
@@ -143,25 +130,83 @@ def draw_annotations(image: np.ndarray, boxes: np.ndarray) -> tuple[np.ndarray, 
     return annotated, box_map
 
 
+# Vision Mapper prompts for different modes
+GENERAL_VISION_PROMPT = """You are a computer vision assistant for GUI automation.
+I am providing a screenshot with "Set-of-Mark" annotations (red boxes with ID numbers).
+
+Your task: Find the UI elements that match the target names I provide.
+
+## How to identify common UI elements:
+
+### Buttons:
+- Look for rectangular elements with text inside
+- "button_OK", "button_Cancel" - buttons with that text
+- "button_submit", "button_save" - look for Submit/Save text
+
+### Text Fields/Inputs:
+- Usually rectangular with a border, often white/light background
+- May have placeholder text or be empty
+- "search_box", "address_bar", "input_username"
+
+### Icons/Toolbar Items:
+- Small square or rectangular icons
+- "icon_chrome" - Chrome logo (colorful circle)
+- "icon_folder" - folder shape
+- "close_button_x" - X symbol, usually top-right of windows
+
+### Menu Items:
+- "menu_File", "menu_Edit" - text in menu bar
+- "menu_item_save" - items in dropdown menus
+
+### Taskbar:
+- Bottom of screen (usually)
+- "taskbar_chrome", "taskbar_explorer" - app icons in taskbar
+- "start_menu_button" - Windows logo, bottom-left
+
+### Browser Elements:
+- "chrome_address_bar" - long input field at top of browser
+- "chrome_tab_new" - + symbol for new tab
+- "back_button", "forward_button" - navigation arrows
+
+For each target, identify which numbered red box corresponds to that UI element.
+If you cannot find a matching element, use null.
+
+Respond ONLY with a valid JSON object mapping target names to box numbers (integers) or null.
+Example: {"button_OK": 45, "search_box": 12, "unknown_element": null}
+"""
+
+FLEXISIGN_VISION_PROMPT = """You are a FlexiSIGN UI element identifier.
+I am providing a screenshot with "Set-of-Mark" annotations (red boxes with ID numbers).
+
+Your task: Find the UI elements that match the target names I provide.
+
+## FlexiSIGN UI Element Guide:
+- "text_tool": The "T" or text icon in the left toolbar (capital T letter)
+- "select_tool": The arrow/pointer icon in the left toolbar
+- "canvas_center": The LARGE white/gray drawing area in the CENTER (main workspace)
+- "width_input": Input field labeled "Width" or "W" in the right panel or toolbar
+- "height_input": Input field labeled "Height" or "H" in the right panel or toolbar
+
+For each target, identify which numbered red box corresponds to that UI element.
+For "canvas_center", find the LARGEST box covering the main white workspace area.
+If you cannot find a matching element, use null.
+
+Respond ONLY with a valid JSON object mapping target names to box numbers (integers) or null.
+Example: {"text_tool": 45, "width_input": 88, "canvas_center": 12}
+"""
+
+
 class VisionService:
     """
     Vision Service for the Two-Model Pipeline.
     Handles screenshot capture, SoM detection, and Vision Mapper model.
-    
-    Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2
+    Supports both general and FlexiSIGN-specific modes.
     """
     
     def __init__(self, api_key: str = None, som_model_path: str = None):
         """
         Initialize VisionService with API key and FastSAM model.
-        
-        Args:
-            api_key: Gemini API key. If None, loads from GEMINI_API_KEY env var.
-            som_model_path: Path to FastSAM weights. Defaults to weights/FastSAM-s.pt
-        
-        Requirements: 6.2, 6.3
         """
-        # Load API key
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
         if not self.api_key:
             raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
@@ -176,7 +221,6 @@ class VisionService:
         
         # Load FastSAM model
         if som_model_path is None:
-            # Try common paths
             possible_paths = [
                 Path(__file__).parent / "weights" / "FastSAM-s.pt",
                 Path(__file__).parent.parent / "backend" / "weights" / "FastSAM-s.pt",
@@ -202,19 +246,11 @@ class VisionService:
         
         Returns:
             np.ndarray: Screenshot as BGR numpy array (OpenCV format)
-        
-        Requirements: 3.1
         """
-        # Capture screenshot using pyautogui
         screenshot = pyautogui.screenshot()
-        
-        # Convert PIL Image to numpy array (RGB)
         screenshot_np = np.array(screenshot)
-        
-        # Convert RGB to BGR for OpenCV
         screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
         
-        # Save to debug log
         if DEBUG_LOGGER_AVAILABLE:
             try:
                 get_debug_logger().log_screenshot(screenshot_bgr)
@@ -227,45 +263,31 @@ class VisionService:
         """
         Run Set-of-Mark detection on an image.
         
-        Args:
-            image: Input image as BGR numpy array
-        
         Returns:
             tuple: (annotated_image, box_map)
-                - annotated_image: Image with red boxes and ID labels
-                - box_map: Dict mapping element IDs to coordinates
-        
-        Requirements: 3.2, 3.3, 3.4
         """
         if self.som_model is None:
             raise RuntimeError("FastSAM model not loaded. Cannot run SoM detection.")
         
         img_height, img_width = image.shape[:2]
         
-        # Save image temporarily for FastSAM (it requires a file path)
         temp_path = Path(__file__).parent / "temp_screenshot.png"
         cv2.imwrite(str(temp_path), image)
         
         try:
-            # Run FastSAM inference with UI-optimized parameters
+            # Run FastSAM with optimized parameters for UI detection
             results = self.som_model(
                 str(temp_path),
-                conf=0.25,  # Lower confidence to catch faint buttons
-                iou=0.4,    # Lower IoU to reduce overlapping duplicates
+                conf=0.2,    # Lower confidence to catch more UI elements
+                iou=0.3,     # Lower IoU to reduce duplicates
                 imgsz=1024,
                 retina_masks=True
             )
             
-            # Extract bounding boxes
             boxes = results[0].boxes.xyxy.cpu().numpy() if results[0].boxes is not None else np.array([])
-            
-            # Filter boxes
             filtered_boxes = filter_boxes(boxes, img_width, img_height)
-            
-            # Draw annotations and get box_map
             annotated_image, box_map = draw_annotations(image, filtered_boxes)
             
-            # Save to debug log
             if DEBUG_LOGGER_AVAILABLE:
                 try:
                     get_debug_logger().log_annotated_image(annotated_image)
@@ -276,23 +298,20 @@ class VisionService:
             return annotated_image, box_map
             
         finally:
-            # Clean up temp file
             if temp_path.exists():
                 temp_path.unlink()
     
-    def map_targets_to_ids(self, annotated_image: np.ndarray, targets: list[str]) -> dict:
+    def map_targets_to_ids(self, annotated_image: np.ndarray, targets: list[str], mode: str = "general") -> dict:
         """
         Use Gemini 2.0 Flash Vision Mapper to map target names to element IDs.
         
         Args:
             annotated_image: SoM-annotated image with numbered boxes
-            targets: List of target names to find (e.g., ["text_tool", "width_input"])
+            targets: List of target names to find
+            mode: "general" or "flexisign" - determines which prompt to use
         
         Returns:
             dict: Mapping of target names to element IDs (or None if not found)
-                  e.g., {"text_tool": 45, "width_input": 88}
-        
-        Requirements: 4.1, 4.2
         """
         if self.vision_model is None:
             raise RuntimeError("Gemini Vision model not available. Cannot map targets.")
@@ -304,42 +323,23 @@ class VisionService:
         image_rgb = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
         pil_image = Image.fromarray(image_rgb)
         
-        # Build prompt for Vision Mapper
+        # Select appropriate prompt based on mode
+        base_prompt = FLEXISIGN_VISION_PROMPT if mode == "flexisign" else GENERAL_VISION_PROMPT
+        
+        # Build the full prompt
         targets_str = ", ".join(f'"{t}"' for t in targets)
-        prompt = f"""You are a FlexiSIGN UI element identifier. Look at this screenshot with numbered red boxes (Set-of-Mark annotations).
+        prompt = f"""{base_prompt}
 
-Your task: Find the UI elements that match these target names: {targets_str}
+Now identify these targets in the image: {targets_str}
 
-FlexiSIGN UI Element Guide:
-- "text_tool": The "T" or text icon in the left toolbar (usually a capital T letter)
-- "select_tool": The arrow/pointer icon in the left toolbar
-- "width_input": Input field labeled "Width" or "W" in the right panel or dialog
-- "height_input": Input field labeled "Height" or "H" in the right panel or dialog
-- "canvas_center": The LARGE white/gray drawing area in the CENTER of the screen (the main workspace where designs are created). This is usually the biggest rectangular area.
-
-For each target, identify which numbered box corresponds to that UI element.
-
-IMPORTANT:
-- Look at the red numbered boxes in the image
-- Match each target name to the most appropriate numbered box
-- For "canvas_center", find the LARGEST box that covers the main white drawing workspace area
-- If you cannot find a matching element, use null for that target
-
-Respond ONLY with a valid JSON object mapping target names to box numbers (integers) or null.
-Example response format:
-{{"text_tool": 45, "width_input": 88, "canvas_center": 12, "unknown_element": null}}
-
-Now identify the targets in this image:"""
+Return ONLY a JSON object with the mappings."""
 
         try:
-            # Call Gemini Vision API
             response = self.vision_model.generate_content([prompt, pil_image])
             response_text = response.text.strip()
             
-            # Parse JSON response
-            # Handle potential markdown code blocks
+            # Handle markdown code blocks
             if response_text.startswith("```"):
-                # Extract JSON from code block
                 lines = response_text.split("\n")
                 json_lines = []
                 in_json = False
@@ -369,7 +369,6 @@ Now identify the targets in this image:"""
                 else:
                     cleaned_map[target] = None
             
-            # Save to debug log
             if DEBUG_LOGGER_AVAILABLE:
                 try:
                     get_debug_logger().log_vision_mapper_output(cleaned_map, targets)
@@ -381,7 +380,6 @@ Now identify the targets in this image:"""
         except json.JSONDecodeError as e:
             print(f"⚠️ Failed to parse Vision Mapper response: {e}")
             print(f"Response was: {response_text}")
-            # Return all nulls on parse failure
             return {target: None for target in targets}
         except Exception as e:
             print(f"⚠️ Vision Mapper error: {e}")

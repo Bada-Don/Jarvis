@@ -2,8 +2,8 @@
 Gemini Planner Service for Two-Model Pipeline
 
 This module provides the GeminiPlannerService class that uses Gemini Flash Lite
-to convert natural language commands into structured execution plans for
-FlexiSIGN automation.
+to convert natural language commands into structured execution plans.
+Supports both FlexiSIGN-specific tasks and general computer automation.
 """
 
 import os
@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# Hardcoded plate dimensions knowledge base
+# Hardcoded plate dimensions knowledge base (FlexiSIGN specific)
 PLATE_DIMENSIONS = {
     "bike_iron": {
         "front": {"width": 8, "height": 1.2},
@@ -33,7 +33,94 @@ PLATE_DIMENSIONS = {
 }
 
 
-SYSTEM_PROMPT = """You are a FlexiSIGN automation planner. Your job is to convert user commands into structured execution plans.
+GENERAL_SYSTEM_PROMPT = """You are JARVIS, an AI assistant that automates computer tasks. Your job is to convert user commands into structured execution plans.
+
+## Your Capabilities:
+You can control the computer through:
+1. **Keyboard actions**: typing text, pressing keys, keyboard shortcuts
+2. **Visual clicks**: clicking on UI elements identified by their description
+
+## Output Format:
+Return a valid JSON object with a "sequence" array containing ordered steps.
+
+Each step must have:
+- "order": integer (1, 2, 3, ...)
+- "type": either "keyboard" or "visual_click"
+- "desc": brief description of the action
+
+For keyboard steps, include:
+- "value": the key or text to type
+  - For shortcuts: "ctrl+c", "alt+tab", "win+r", "ctrl+shift+esc"
+  - For special keys: "enter", "tab", "escape", "backspace", "delete", "up", "down", "left", "right", "f1"-"f12"
+  - For text: just the text string like "Hello World" or "notepad"
+- "repeats": (optional) number of times to repeat
+
+For visual_click steps, include:
+- "target_name": descriptive name of the UI element to click
+  - Be specific: "chrome_address_bar", "start_menu_button", "file_menu", "save_button", "close_button_x"
+  - For text/buttons: "button_OK", "button_Cancel", "menu_File", "tab_Settings"
+  - For icons: "icon_chrome", "icon_folder", "taskbar_chrome"
+
+## Common Patterns:
+
+### Opening Applications:
+- Press Win key, type app name, press Enter
+- Or use Win+R for Run dialog
+
+### Web Browsing:
+- Click address bar (or Ctrl+L), type URL with a SPACE at the end, press Enter
+- IMPORTANT: Always add a trailing space after URLs (e.g., "google.com ") to prevent browser autocomplete from changing the URL
+- Click on links, buttons, form fields
+
+### File Operations:
+- Ctrl+O (Open), Ctrl+S (Save), Ctrl+N (New)
+- Navigate file dialogs by clicking folders
+
+### Text Editing:
+- Click to position cursor
+- Type text
+- Use Ctrl+A (select all), Ctrl+C (copy), Ctrl+V (paste)
+
+## Example - Open Notepad and type:
+{
+  "sequence": [
+    {"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"},
+    {"order": 2, "type": "keyboard", "value": "notepad", "desc": "Type notepad"},
+    {"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Notepad"},
+    {"order": 4, "type": "keyboard", "value": "Hello World!", "desc": "Type the message"}
+  ]
+}
+
+## Example - Open Chrome and go to Google:
+{
+  "sequence": [
+    {"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"},
+    {"order": 2, "type": "keyboard", "value": "chrome", "desc": "Search for Chrome"},
+    {"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Chrome"},
+    {"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"},
+    {"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"},
+    {"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}
+  ]
+}
+
+## Example - Click on a specific button:
+{
+  "sequence": [
+    {"order": 1, "type": "visual_click", "target_name": "button_submit", "desc": "Click Submit button"},
+    {"order": 2, "type": "visual_click", "target_name": "dropdown_options", "desc": "Open dropdown menu"}
+  ]
+}
+
+IMPORTANT:
+- Prefer keyboard shortcuts when possible (faster and more reliable)
+- Use visual_click only when keyboard shortcuts aren't available
+- Return ONLY valid JSON, no markdown formatting or extra text
+- Each step must be atomic and executable
+- Add small waits implicitly between steps (the executor handles this)
+"""
+
+
+FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN automation planner. Your job is to convert user commands into structured execution plans.
 
 ## Plate Dimensions Knowledge Base (ALWAYS use these exact values):
 - Bike Iron Plate: Front (8 x 1.2 inches), Back (10 x 1.5 inches)
@@ -88,8 +175,9 @@ class GeminiPlannerService:
     """
     Service class for generating execution plans using Gemini Flash Lite.
     
-    This service converts natural language commands into structured JSON
-    execution plans that can be executed by the local client.
+    Supports two modes:
+    - General: For any computer automation task
+    - FlexiSIGN: For number plate creation with domain knowledge
     """
     
     def __init__(self, api_key: str = None):
@@ -114,23 +202,54 @@ class GeminiPlannerService:
         # Configure the Gemini API
         genai.configure(api_key=self.api_key)
         
-        # Initialize the model (using gemini-flash-lite-latest for the planner)
-        self.model = genai.GenerativeModel(
+        # Initialize models for different modes
+        self.general_model = genai.GenerativeModel(
             model_name='gemini-2.0-flash-lite',
-            system_instruction=SYSTEM_PROMPT
+            system_instruction=GENERAL_SYSTEM_PROMPT
+        )
+        
+        self.flexisign_model = genai.GenerativeModel(
+            model_name='gemini-2.0-flash-lite',
+            system_instruction=FLEXISIGN_SYSTEM_PROMPT
         )
     
-    def generate_plan(self, user_command: str) -> dict:
+    def detect_mode(self, user_command: str) -> str:
+        """
+        Detect whether the command is for FlexiSIGN or general use.
+        
+        Args:
+            user_command: The user's natural language command
+            
+        Returns:
+            str: "flexisign" or "general"
+        """
+        command_lower = user_command.lower()
+        
+        # FlexiSIGN keywords
+        flexisign_keywords = [
+            "plate", "number plate", "numberplate", 
+            "bike", "car", "iron", "glass",
+            "flexisign", "flexi sign", "flexi-sign",
+            "nameplate", "name plate"
+        ]
+        
+        for keyword in flexisign_keywords:
+            if keyword in command_lower:
+                return "flexisign"
+        
+        return "general"
+    
+    def generate_plan(self, user_command: str, mode: str = None) -> dict:
         """
         Generate an execution plan from a user command.
         
         Args:
             user_command: Natural language command from the user
-                         (e.g., "Make iron number plate set for bike, PB12W3998")
+            mode: Optional mode override ("general" or "flexisign")
+                  If not provided, auto-detects based on command content.
         
         Returns:
-            dict: Parsed execution plan with "sequence" array containing
-                  ordered steps with type, value/target_name, and description.
+            dict: Parsed execution plan with "sequence" array and "mode" field.
         
         Raises:
             ValueError: If the model returns invalid JSON.
@@ -139,20 +258,24 @@ class GeminiPlannerService:
         if not user_command or not user_command.strip():
             raise ValueError("User command cannot be empty")
         
+        # Auto-detect mode if not specified
+        if mode is None:
+            mode = self.detect_mode(user_command)
+        
+        # Select appropriate model
+        model = self.flexisign_model if mode == "flexisign" else self.general_model
+        
         try:
             # Generate the plan using Gemini
-            response = self.model.generate_content(user_command)
+            response = model.generate_content(user_command)
             
             # Extract the text response
             response_text = response.text.strip()
             
             # Clean up response if it contains markdown code blocks
             if response_text.startswith('```'):
-                # Remove markdown code block formatting
                 lines = response_text.split('\n')
-                # Remove first line (```json or ```)
                 lines = lines[1:]
-                # Remove last line if it's ```
                 if lines and lines[-1].strip() == '```':
                     lines = lines[:-1]
                 response_text = '\n'.join(lines)
@@ -162,6 +285,9 @@ class GeminiPlannerService:
             
             # Validate the plan structure
             self._validate_plan(plan)
+            
+            # Add mode to the plan for downstream processing
+            plan['mode'] = mode
             
             return plan
             

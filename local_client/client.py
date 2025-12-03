@@ -1,3 +1,9 @@
+"""
+JARVIS Local Client
+Connects to the backend server and executes automation commands on the local machine.
+Supports both general computer automation and FlexiSIGN-specific tasks.
+"""
+
 import socketio
 import pyautogui
 import time
@@ -14,22 +20,16 @@ try:
 except ImportError:
     print("⚠️ Warning: config.py not found, using default settings")
     SERVER_URL = 'http://localhost:5000'
-    STARTUP_MODAL_ENABLED = True
-    STARTUP_MODAL_TITLE = "FlexiSIGN"
-    STARTUP_MODAL_BUTTON = "OK"
-    STARTUP_MODAL_TIMEOUT = 30
-    MODAL_CHECK_INTERVAL = 1
 
-# Import FlexiSign Manager
+# Import FlexiSign Manager (for FlexiSIGN mode)
 try:
     from flexisign_manager import FlexiSignManager
     FLEXISIGN_MANAGER_AVAILABLE = True
 except ImportError:
-    print("⚠️ Warning: flexisign_manager.py not found, using legacy mode")
+    print("⚠️ Warning: flexisign_manager.py not found")
     FLEXISIGN_MANAGER_AVAILABLE = False
 
 # Import Two-Model Pipeline components
-# Requirements: 1.3, 1.4, 7.2, 7.3, 7.4, 7.5
 try:
     from vision_service import VisionService
     from plan_executor import PlanExecutor
@@ -38,7 +38,7 @@ except ImportError as e:
     print(f"⚠️ Warning: Two-Model Pipeline components not available: {e}")
     TWO_MODEL_PIPELINE_AVAILABLE = False
 
-# Import debug logger (optional)
+# Import debug logger
 try:
     from debug_logger import create_new_session, get_debug_logger
     DEBUG_LOGGER_AVAILABLE = True
@@ -48,496 +48,239 @@ except ImportError:
 # Initialize SocketIO Client
 sio = socketio.Client()
 
+
 @sio.event
 def connect():
-    print('Connected to Server')
+    print('✅ Connected to JARVIS Server')
+
 
 @sio.event
 def disconnect():
-    print('Disconnected from Server')
+    print('❌ Disconnected from Server')
+
 
 @sio.event
 def command(data):
-    print('Received command:', data)
+    print(f'📥 Received command: {data.get("action", "unknown")}')
     execute_command(data)
 
+
 def send_status(message, status_type="info"):
-    """Send status update to server.
-    
-    Args:
-        message: Either a string message or a dict with progress data:
-                 {'message': str, 'progress': int, 'status': str, 'error': str}
-        status_type: Type of status (info, success, error, warning)
-    """
+    """Send status update to server."""
     try:
-        # Handle dict messages (progress updates from FlexiSignManager)
         if isinstance(message, dict):
             sio.emit('status_update', {
-                'message': message,  # Pass the entire progress dict
+                'message': message,
                 'type': message.get('status', status_type),
                 'timestamp': time.time()
             })
-            print(f"📤 Progress sent: {message.get('message', '')} ({message.get('progress', 0)}%)")
+            print(f"📤 Progress: {message.get('message', '')} ({message.get('progress', 0)}%)")
         else:
             sio.emit('status_update', {
                 'message': message,
                 'type': status_type,
                 'timestamp': time.time()
             })
-            print(f"📤 Status sent: {message}")
+            print(f"📤 Status: {message}")
     except Exception as e:
         print(f"Failed to send status: {e}")
 
-def is_process_running(process_name):
-    """Check if a process is running by name."""
-    for proc in psutil.process_iter(['name']):
-        try:
-            if process_name.lower() in proc.info['name'].lower():
-                return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
-    return False
-
-
-def find_window_by_title(title, exact_match=False):
-    """Find a window by its title (partial or exact match)."""
-    def callback(hwnd, windows):
-        if win32gui.IsWindowVisible(hwnd):
-            window_text = win32gui.GetWindowText(hwnd)
-            if window_text:  # Only check non-empty titles
-                # Debug: print all visible windows
-                # print(f"DEBUG: Found window: '{window_text}'")
-                if exact_match:
-                    if window_text.lower() == title.lower():
-                        print(f"✓ EXACT MATCH FOUND: '{window_text}'")
-                        windows.append(hwnd)
-                else:
-                    if title.lower() in window_text.lower():
-                        print(f"✓ MATCH FOUND: '{window_text}'")
-                        windows.append(hwnd)
-        return True
-    
-    windows = []
-    print(f"Searching for window containing: '{title}' (exact={exact_match})")
-    win32gui.EnumWindows(callback, windows)
-    
-    if windows:
-        print(f"Found {len(windows)} matching window(s)")
-    else:
-        print(f"No windows found matching '{title}'")
-    
-    return windows[0] if windows else None
-
-def wait_for_modal_and_click(modal_title, button_text="OK", timeout=30, check_interval=None):
-    """
-    Wait for a modal dialog to appear and click a button on it.
-    
-    Args:
-        modal_title: The title of the modal window to look for
-        button_text: The text of the button to click (default: "OK")
-        timeout: Maximum time to wait in seconds
-        check_interval: How often to check for the modal in seconds
-    
-    Returns:
-        True if modal was found and clicked, False if timeout
-    """
-    if check_interval is None:
-        check_interval = MODAL_CHECK_INTERVAL if 'MODAL_CHECK_INTERVAL' in globals() else 1
-    
-    print(f"Waiting for modal: '{modal_title}' (timeout: {timeout}s)...")
-    start_time = time.time()
-    
-    while (time.time() - start_time) < timeout:
-        # Look for the modal window
-        modal_hwnd = find_window_by_title(modal_title, exact_match=False)
-        
-        if modal_hwnd:
-            print(f"✓ Modal found: '{modal_title}'")
-            send_status(f"Modal detected, clicking {button_text}...", "info")
-            
-            # Bring modal to front
-            bring_window_to_front(modal_hwnd)
-            time.sleep(0.5)
-            
-            # Try to find the button by text using pyautogui
-            try:
-                # Take a screenshot and look for the button
-                # For now, we'll use a simple approach: press Enter or click center
-                # You can enhance this with OCR or image recognition
-                
-                # Method 1: Press Enter (works for most OK buttons)
-                print(f"Pressing Enter to click {button_text}...")
-                pyautogui.press('enter')
-                time.sleep(0.5)
-                
-                # Verify modal is gone
-                if not find_window_by_title(modal_title, exact_match=False):
-                    print(f"✓ Modal closed successfully")
-                    send_status(f"Modal handled successfully", "success")
-                    return True
-                else:
-                    # Method 2: Try clicking center of modal
-                    print(f"Enter didn't work, trying to click center...")
-                    rect = win32gui.GetWindowRect(modal_hwnd)
-                    center_x = (rect[0] + rect[2]) // 2
-                    center_y = (rect[1] + rect[3]) // 2
-                    pyautogui.click(center_x, center_y)
-                    time.sleep(0.5)
-                    return True
-                    
-            except Exception as e:
-                print(f"Error clicking modal button: {e}")
-                return False
-        
-        # Wait before checking again
-        time.sleep(check_interval)
-    
-    print(f"⚠️ Timeout: Modal '{modal_title}' not found within {timeout}s")
-    return False
-
-def bring_window_to_front(hwnd):
-    """Bring a window to the front."""
-    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-    win32gui.SetForegroundWindow(hwnd)
-
-def get_screen_center():
-    """Get the center coordinates of the screen."""
-    screen_width, screen_height = pyautogui.size()
-    return screen_width // 2, screen_height // 2
 
 def execute_command(command_data):
     """
-    Executes the command received from the server.
+    Execute commands received from the server.
+    Supports:
+    - execute_plan: Two-Model Pipeline (general or FlexiSIGN)
+    - flexisign_workflow: Legacy FlexiSIGN workflow
     """
     action = command_data.get('action')
     
-    if action == 'flexisign_workflow':
-        # Use new FlexiSign Manager if available
-        if FLEXISIGN_MANAGER_AVAILABLE:
-            try:
-                send_status("Starting FlexiSign automation (new manager)...", "info")
-                
-                # Create manager with status callback
-                manager = FlexiSignManager(status_callback=send_status)
-                success = manager.ensure_proper_state()
-                
-                if success:
-                    send_status("FlexiSign Pro is ready!", "success")
-                    
-                    # Execute remaining workflow steps (after FlexiSign is ready)
-                    steps = command_data.get('steps', [])
-                    for step in steps:
-                        step_type = step.get('type')
-                        
-                        # Skip process/window checks (already handled by manager)
-                        if step_type in ['check_process', 'check_window', 'wait_for_modal']:
-                            continue
-                        
-                        # Execute other steps
-                        if step_type == 'notification':
-                            message = step.get('message')
-                            print(f"NOTIFICATION: {message}")
-                            send_status(message, "info")
-                        
-                        elif step_type == 'press_key':
-                            key = step.get('key')
-                            print(f"Pressing key: {key}")
-                            pyautogui.press(key)
-                        
-                        elif step_type == 'click_center':
-                            print("Clicking at screen center...")
-                            center_x, center_y = get_screen_center()
-                            pyautogui.click(center_x, center_y)
-                        
-                        elif step_type == 'type_text':
-                            text = step.get('text')
-                            print(f"Typing text: {text}")
-                            pyautogui.write(text, interval=0.05)
-                        
-                        time.sleep(0.5)
-                else:
-                    send_status("Failed to start FlexiSign Pro", "error")
-                
-                return  # Exit after using new manager
-                
-            except Exception as e:
-                print(f"Error using FlexiSign Manager: {e}")
-                send_status(f"Manager error: {e}, falling back to legacy mode", "warning")
-                # Fall through to legacy mode
-        
-        # Legacy mode (original implementation)
-        steps = command_data.get('steps', [])
-        for step in steps:
-            step_type = step.get('type')
-            
-            if step_type == 'notification':
-                message = step.get('message')
-                print(f"NOTIFICATION: {message}")
-                send_status(message, "info")
-            
-            elif step_type == 'check_process':
-                process_name = step.get('process_name')
-                exe_path = step.get('exe_path')
-                wait_for_modal = step.get('wait_for_modal', False)
-                modal_title = step.get('modal_title', '')
-                modal_button = step.get('modal_button', 'OK')
-                
-                print(f"Checking if process '{process_name}' is running...")
-                process_was_started = False
-                
-                if not is_process_running(process_name):
-                    print(f"Process not found. Starting: {exe_path}")
-                    send_status(f"Starting {process_name}...", "info")
-                    try:
-                        subprocess.Popen([exe_path])
-                        process_was_started = True
-                        print("Waiting for process to start...")
-                        time.sleep(5)  # Wait for the process to initialize
-                    except Exception as e:
-                        print(f"Error starting process: {e}")
-                        send_status(f"Error starting process: {e}", "error")
-                else:
-                    print(f"Process '{process_name}' is already running.")
-                    send_status(f"{process_name} is ready", "success")
-                
-                # If we just started the process and need to handle a modal
-                if process_was_started and wait_for_modal and modal_title:
-                    print(f"Process was just started, waiting for modal...")
-                    modal_timeout = step.get('modal_timeout', 30)
-                    if wait_for_modal_and_click(modal_title, modal_button, timeout=modal_timeout):
-                        print(f"✓ Modal handled successfully")
-                    else:
-                        print(f"⚠️ Modal not found or couldn't be handled")
-                        send_status(f"Warning: Expected modal not found", "warning")
-            
-            elif step_type == 'check_window':
-                window_title = step.get('window_title')
-                
-                print(f"Checking for window: '{window_title}'...")
-                hwnd = find_window_by_title(window_title)
-                
-                if hwnd:
-                    print(f"Window found. Bringing to front...")
-                    send_status(f"Found {window_title}, switching to it...", "success")
-                    bring_window_to_front(hwnd)
-                    time.sleep(1)  # Wait for window to come to front
-                else:
-                    print(f"Window '{window_title}' not found. Opening via Windows search...")
-                    send_status(f"Opening {window_title}...", "info")
-                    
-                    # Press Windows key
-                    pyautogui.press('win')
-                    time.sleep(1)
-                    
-                    # Type the program name (extract first part of window title)
-                    search_term = window_title.split()[0]  # e.g., "FlexiSIGN-PRO" -> "FlexiSIGN-PRO"
-                    pyautogui.write(search_term, interval=0.05)
-                    time.sleep(2)
-                    
-                    # Press Enter to open
-                    pyautogui.press('enter')
-                    print(f"Waiting for '{window_title}' to open...")
-                    time.sleep(30)  # Wait for FlexiSIGN to load (takes ~20 seconds)
-                    
-                    # Try to find the window again
-                    hwnd = find_window_by_title(window_title)
-                    if hwnd:
-                        print(f"Window opened successfully. Bringing to front...")
-                        send_status(f"{window_title} opened successfully!", "success")
-                        bring_window_to_front(hwnd)
-                        time.sleep(1)
-                    else:
-                        print(f"Warning: Could not find window after opening. Continuing anyway...")
-            
-            elif step_type == 'press_key':
-                key = step.get('key')
-                print(f"Pressing key: {key}")
-                pyautogui.press(key)
-            
-            elif step_type == 'click_center':
-                print("Clicking at screen center...")
-                center_x, center_y = get_screen_center()
-                pyautogui.click(center_x, center_y)
-            
-            elif step_type == 'type_text':
-                text = step.get('text')
-                print(f"Typing text: {text}")
-                pyautogui.write(text, interval=0.05)
-            
-            elif step_type == 'wait_for_modal':
-                modal_title = step.get('modal_title')
-                button_text = step.get('button_text', 'OK')
-                timeout = step.get('timeout', 30)
-                print(f"Waiting for modal: '{modal_title}'...")
-                send_status(f"Waiting for modal: {modal_title}...", "info")
-                if wait_for_modal_and_click(modal_title, button_text, timeout):
-                    print(f"✓ Modal handled")
-                else:
-                    print(f"⚠️ Modal timeout")
-            
-            time.sleep(0.5)
+    if action == 'execute_plan':
+        execute_two_model_plan(command_data)
+    
+    elif action == 'flexisign_workflow':
+        # Legacy support
+        execute_flexisign_legacy(command_data)
     
     elif action == 'two_model_workflow':
-        # Two-Model Pipeline: Execute plan from Planner Model with vision-guided clicks
-        # Requirements: 1.3, 1.4, 7.2, 7.3, 7.4, 7.5
-        if not TWO_MODEL_PIPELINE_AVAILABLE:
-            send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
-            return
-        
-        plan = command_data.get('plan')
-        user_command = command_data.get('user_command', '')
-        
-        if not plan:
-            send_status("No execution plan received", "error")
-            return
-        
-        # Initialize debug logger for this session
-        debug_logger = None
-        if DEBUG_LOGGER_AVAILABLE:
-            try:
-                debug_logger = create_new_session()
-                debug_logger.set_user_command(user_command)
-                debug_logger.log_planner_output(plan)
-                print(f"📁 Debug session started: {debug_logger.session_id}")
-            except Exception as e:
-                print(f"⚠️ Failed to initialize debug logger: {e}")
-        
+        # Backward compatibility alias
+        execute_two_model_plan(command_data)
+    
+    else:
+        print(f"⚠️ Unknown action: {action}")
+        send_status(f"Unknown action: {action}", "error")
+
+
+def execute_two_model_plan(command_data):
+    """
+    Execute a plan using the Two-Model Pipeline.
+    Works for both general tasks and FlexiSIGN-specific tasks.
+    """
+    if not TWO_MODEL_PIPELINE_AVAILABLE:
+        send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
+        return
+    
+    plan = command_data.get('plan')
+    user_command = command_data.get('user_command', '')
+    mode = command_data.get('mode', plan.get('mode', 'general'))
+    
+    if not plan:
+        send_status("No execution plan received", "error")
+        return
+    
+    # Initialize debug logger
+    debug_logger = None
+    if DEBUG_LOGGER_AVAILABLE:
         try:
-            # Send initial status update (Requirement 7.2)
+            debug_logger = create_new_session()
+            debug_logger.set_user_command(user_command)
+            debug_logger.log_planner_output(plan)
+            print(f"📁 Debug session: {debug_logger.session_id}")
+        except Exception as e:
+            print(f"⚠️ Debug logger error: {e}")
+    
+    try:
+        send_status({
+            'message': f'Starting execution (mode: {mode})...',
+            'progress': 5,
+            'status': 'info'
+        }, "info")
+        
+        # For FlexiSIGN mode, ensure the app is ready
+        if mode == 'flexisign' and FLEXISIGN_MANAGER_AVAILABLE:
             send_status({
-                'message': 'Initializing Two-Model Pipeline...',
-                'progress': 5,
+                'message': 'Preparing FlexiSIGN...',
+                'progress': 8,
                 'status': 'info'
             }, "info")
             
-            # STEP 0: Ensure FlexiSIGN is open and ready before executing the plan
-            if FLEXISIGN_MANAGER_AVAILABLE:
+            manager = FlexiSignManager(status_callback=send_status)
+            if not manager.ensure_proper_state():
                 send_status({
-                    'message': 'Ensuring FlexiSIGN is ready...',
-                    'progress': 8,
-                    'status': 'info'
-                }, "info")
-                
-                manager = FlexiSignManager(status_callback=send_status)
-                if not manager.ensure_proper_state():
-                    send_status({
-                        'message': 'Failed to start FlexiSIGN Pro',
-                        'progress': 0,
-                        'status': 'error'
-                    }, "error")
-                    return
-                
-                send_status({
-                    'message': 'FlexiSIGN Pro is ready!',
-                    'progress': 10,
-                    'status': 'success'
-                }, "success")
-            else:
-                print("⚠️ FlexiSignManager not available - assuming FlexiSIGN is already open")
-            
-            # Initialize VisionService
-            # Requirement 6.2: Load API key from environment
-            try:
-                vision_service = VisionService()
-                send_status({
-                    'message': 'Vision service initialized',
-                    'progress': 15,
-                    'status': 'info'
-                }, "info")
-            except ValueError as e:
-                send_status(f"Vision service error: {e}", "error")
+                    'message': 'Failed to start FlexiSIGN Pro',
+                    'progress': 0,
+                    'status': 'error'
+                }, "error")
                 return
-            except Exception as e:
-                send_status(f"Failed to initialize vision service: {e}", "error")
-                return
+        
+        # For general mode, just wait a moment for any app to be ready
+        elif mode == 'general':
+            time.sleep(0.5)
+        
+        # Initialize Vision Service
+        try:
+            vision_service = VisionService()
+            send_status({
+                'message': 'Vision service ready',
+                'progress': 15,
+                'status': 'info'
+            }, "info")
+        except Exception as e:
+            send_status(f"Vision service error: {e}", "error")
+            return
+        
+        # Initialize Plan Executor
+        executor = PlanExecutor(vision_service, status_callback=send_status)
+        
+        # Log execution start
+        sequence = plan.get('sequence', [])
+        print(f"📋 Executing {len(sequence)} steps for: {user_command}")
+        
+        # Execute the plan
+        success = executor.execute_plan(plan)
+        
+        if success:
+            send_status({
+                'message': 'Task completed successfully!',
+                'progress': 100,
+                'status': 'success'
+            }, "success")
             
-            # Initialize PlanExecutor with status callback
-            # The status_callback sends progress updates throughout execution
-            # Requirements: 7.3, 7.4, 7.5
-            executor = PlanExecutor(vision_service, status_callback=send_status)
+            if debug_logger:
+                debug_logger.complete(success=True)
+        else:
+            send_status({
+                'message': 'Task completed with warnings',
+                'progress': 100,
+                'status': 'warning'
+            }, "warning")
             
-            # Log the plan being executed
-            sequence = plan.get('sequence', [])
-            print(f"📋 Executing plan with {len(sequence)} steps for: {user_command}")
-            
-            # Execute the plan
-            # Requirement 1.3: Execute keyboard actions and visual clicks in order
-            success = executor.execute_plan(plan)
+            if debug_logger:
+                debug_logger.complete(success=False)
+                
+    except Exception as e:
+        print(f"❌ Execution error: {e}")
+        send_status({
+            'message': f'Error: {str(e)}',
+            'progress': 0,
+            'status': 'error',
+            'error': str(e)
+        }, "error")
+        
+        if debug_logger:
+            debug_logger.log_error(str(e))
+            debug_logger.complete(success=False)
+
+
+def execute_flexisign_legacy(command_data):
+    """Legacy FlexiSIGN workflow execution."""
+    if FLEXISIGN_MANAGER_AVAILABLE:
+        try:
+            send_status("Starting FlexiSign automation...", "info")
+            manager = FlexiSignManager(status_callback=send_status)
+            success = manager.ensure_proper_state()
             
             if success:
-                # Requirement 1.4: Send success status
-                send_status({
-                    'message': 'Workflow completed successfully!',
-                    'progress': 100,
-                    'status': 'success'
-                }, "success")
+                send_status("FlexiSign Pro is ready!", "success")
                 
-                # Complete debug session
-                if debug_logger:
-                    debug_logger.complete(success=True)
+                steps = command_data.get('steps', [])
+                for step in steps:
+                    step_type = step.get('type')
+                    
+                    if step_type in ['check_process', 'check_window', 'wait_for_modal']:
+                        continue
+                    
+                    if step_type == 'notification':
+                        send_status(step.get('message'), "info")
+                    elif step_type == 'press_key':
+                        pyautogui.press(step.get('key'))
+                    elif step_type == 'click_center':
+                        cx, cy = pyautogui.size()
+                        pyautogui.click(cx // 2, cy // 2)
+                    elif step_type == 'type_text':
+                        pyautogui.write(step.get('text'), interval=0.05)
+                    
+                    time.sleep(0.5)
             else:
-                send_status({
-                    'message': 'Workflow completed with warnings',
-                    'progress': 100,
-                    'status': 'warning'
-                }, "warning")
-                
-                # Complete debug session with warnings
-                if debug_logger:
-                    debug_logger.complete(success=False)
+                send_status("Failed to start FlexiSign Pro", "error")
                 
         except Exception as e:
-            print(f"❌ Two-Model Pipeline error: {e}")
-            send_status({
-                'message': f'Pipeline error: {str(e)}',
-                'progress': 0,
-                'status': 'error',
-                'error': str(e)
-            }, "error")
-            
-            # Log error to debug session
-            if debug_logger:
-                debug_logger.log_error(str(e))
-                debug_logger.complete(success=False)
-    
-    elif action == 'sequence':
-        # Legacy support for old sequence commands
-        steps = command_data.get('steps', [])
-        for step in steps:
-            step_type = step.get('type')
-            
-            if step_type == 'notification':
-                print(f"NOTIFICATION: {step.get('message')}")
-            
-            elif step_type == 'open_app':
-                app_path = step.get('path')
-                print(f"Opening app: {app_path}")
-                if "notepad" in app_path.lower():
-                    subprocess.Popen(['notepad.exe'])
-                    time.sleep(1)
-            
-            elif step_type == 'type_text':
-                text = step.get('text')
-                print(f"Typing text: {text}")
-                pyautogui.write(text, interval=0.05)
+            print(f"Error: {e}")
+            send_status(f"Error: {e}", "error")
 
-            time.sleep(0.5)
 
 def main():
-    print("Starting Jarvis Local Client...")
-    print("Auto-reload enabled. Edit this file and save to reload.")
+    print("=" * 50)
+    print("🤖 JARVIS Local Client Starting...")
+    print("=" * 50)
+    print(f"Server URL: {SERVER_URL}")
+    print(f"FlexiSign Manager: {'✅' if FLEXISIGN_MANAGER_AVAILABLE else '❌'}")
+    print(f"Two-Model Pipeline: {'✅' if TWO_MODEL_PIPELINE_AVAILABLE else '❌'}")
+    print(f"Debug Logger: {'✅' if DEBUG_LOGGER_AVAILABLE else '❌'}")
+    print("=" * 50)
     
     try:
         sio.connect(SERVER_URL)
         sio.wait()
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("\n👋 Shutting down...")
         sio.disconnect()
     except Exception as e:
         print(f"Connection failed: {e}")
         print("Retrying in 5 seconds...")
         time.sleep(5)
         main()
+
 
 if __name__ == '__main__':
     main()

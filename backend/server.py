@@ -16,7 +16,6 @@ socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=50 * 102
 UPLOAD_FOLDER = 'uploads'
 LOG_FILE = 'logs.txt'
 
-# Ensure upload directory exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -28,34 +27,6 @@ try:
 except ValueError as e:
     print(f"⚠ Gemini Planner Service not available: {e}")
 
-# --- Mock AI Logic ---
-def mock_router(text):
-    """
-    Analyzes text and returns an intent.
-    For MVP, we look for keywords.
-    """
-    text = text.lower()
-    
-    # FlexiSIGN keywords
-    flexisign_keywords = ["nameplate", "numberplate", "sticker", "logo"]
-    
-    if any(keyword in text for keyword in flexisign_keywords):
-        return {
-            "intent": "create_draft",
-            "software": "flexisign",
-            "params": {"size": "15x10", "color": "silver"} # Extracted from text in real scenario
-        }
-    
-    return {"intent": "unknown", "message": "I didn't understand that."}
-
-
-def mock_vision_ocr(image_path):
-    """
-    Mock OCR. In real life, sends to ChatGPT/Vision API.
-    """
-    return "Dr. A.K. Sharma"
-
-# --- Endpoints ---
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -72,6 +43,7 @@ def chat():
         return jsonify({"status": "success", "message": "Message logged"}), 200
     return jsonify({"status": "error", "message": "No message provided"}), 400
 
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -80,9 +52,7 @@ def upload_file():
     file = request.files['file']
     
     if not file or file.filename == '' or file.filename is None:
-        # Generate a filename if none provided
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Detect file type from content type
         content_type = request.files['file'].content_type
         if 'audio' in content_type:
             filename = f"voice_{timestamp}.m4a"
@@ -99,12 +69,6 @@ def upload_file():
         file_size = os.path.getsize(filepath)
         print(f"✓ File saved: {filename} ({file_size} bytes)")
         
-        # If it's an audio file, we could transcribe it here (future feature)
-        if 'audio' in (request.files['file'].content_type or ''):
-            print(f"🎤 Audio file detected: {filename}")
-            # TODO: Add speech-to-text transcription here
-            # transcribed_text = transcribe_audio(filepath)
-        
         return jsonify({
             "status": "success", 
             "message": f"File {filename} uploaded",
@@ -115,16 +79,17 @@ def upload_file():
         print(f"✗ Upload error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.route('/api/process', methods=['POST'])
 def process_instruction():
     """
-    Main entry point for the Agent.
-    Receives: { "text": "...", "image": "..." (optional base64 or filename) }
+    Main entry point for JARVIS.
+    Receives: { "text": "...", "image": "..." (optional) }
     
     Uses the Two-Model Pipeline:
-    1. Planner Model (Gemini Flash Lite) generates execution plan
+    1. Planner Model generates execution plan (auto-detects mode)
     2. Sends plan to Local Client via WebSocket
-    3. Local Client uses Vision Mapper Model for UI element identification
+    3. Local Client uses Vision Mapper for UI element identification
     """
     data = request.json
     text = data.get('text', '')
@@ -132,60 +97,53 @@ def process_instruction():
     
     print(f"Received instruction: {text}")
     
-    # Check if Planner Service is available
     if planner_service is None:
-        print("⚠ Planner service not available, falling back to legacy flow")
-        return _legacy_process_instruction(text, image_data)
-    
-    # Check if this looks like a number plate command (for two-model pipeline)
-    text_lower = text.lower()
-    plate_keywords = ["plate", "number", "bike", "car", "iron", "glass"]
-    is_plate_command = any(keyword in text_lower for keyword in plate_keywords)
-    
-    if not is_plate_command:
-        # Fall back to legacy flow for non-plate commands
-        return _legacy_process_instruction(text, image_data)
+        return jsonify({
+            "status": "error",
+            "response": "Planner service not available. Check GEMINI_API_KEY."
+        }), 500
     
     try:
-        # Emit status update: Processing request
+        # Emit status update
         socketio.emit('jarvis_status', {
             'message': 'Processing your request...',
             'status': 'running',
-            'progress': 10
+            'progress': 5
         })
-        print("📤 Status: Processing your request...")
         
-        # Generate execution plan using Planner Model
+        # Generate execution plan (auto-detects mode: general vs flexisign)
         print("🤖 Calling Planner Model...")
         plan = planner_service.generate_plan(text)
-        print(f"✓ Plan generated with {len(plan.get('sequence', []))} steps")
+        mode = plan.get('mode', 'general')
+        step_count = len(plan.get('sequence', []))
+        print(f"✓ Plan generated: {step_count} steps (mode: {mode})")
         
-        # Emit status update: Plan generated
         socketio.emit('jarvis_status', {
-            'message': 'Plan generated, sending to local client...',
+            'message': f'Plan ready ({step_count} steps), sending to executor...',
             'status': 'running',
-            'progress': 30
+            'progress': 20
         })
         
-        # Construct the command payload for two-model workflow
+        # Construct command payload
         command_payload = {
-            "action": "two_model_workflow",
+            "action": "execute_plan",
             "plan": plan,
-            "user_command": text
+            "user_command": text,
+            "mode": mode
         }
         
         # Send to Local Client via WebSocket
-        print("📤 Sending two_model_workflow command to local client...")
+        print(f"📤 Sending execute_plan command (mode: {mode})...")
         socketio.emit('command', command_payload)
         
         return jsonify({
             "status": "success",
-            "response": f"Processing your request: {text}",
-            "plan_steps": len(plan.get('sequence', []))
+            "response": f"Processing: {text}",
+            "mode": mode,
+            "plan_steps": step_count
         })
         
     except ValueError as e:
-        # Handle validation errors (invalid JSON, missing fields, etc.)
         error_msg = f"Failed to generate plan: {e}"
         print(f"✗ {error_msg}")
         socketio.emit('jarvis_status', {
@@ -199,7 +157,6 @@ def process_instruction():
         }), 500
         
     except Exception as e:
-        # Handle unexpected errors
         error_msg = f"Error processing request: {e}"
         print(f"✗ {error_msg}")
         socketio.emit('jarvis_status', {
@@ -213,47 +170,12 @@ def process_instruction():
         }), 500
 
 
-def _legacy_process_instruction(text, image_data):
-    """
-    Legacy processing flow for non-plate commands.
-    Maintains backward compatibility with existing functionality.
-    """
-    # 1. Router Analysis
-    intent_data = mock_router(text)
-    
-    if intent_data['intent'] == 'create_draft':
-        # 2. If there's an image (handwritten note), do OCR
-        extracted_text = mock_vision_ocr("dummy_path")
-        
-        # 3. Construct the Command for the Local Client
-        command_payload = {
-            "action": "flexisign_workflow",
-            "steps": [
-                {"type": "notification", "message": f"Yes sir! On it. Creating draft for {extracted_text}..."},
-                {"type": "press_key", "key": "t"},
-                {"type": "click_center"},
-                {"type": "type_text", "text": extracted_text}
-            ],
-            "extracted_text": extracted_text
-        }
-        
-        # 4. Send to Local Client via WebSocket
-        print("Sending command to local client...")
-        socketio.emit('command', command_payload)
-        
-        return jsonify({
-            "status": "success", 
-            "response": f"Yes sir! On it. Creating draft for {extracted_text} with size {intent_data['params']['size']}."
-        })
-
-    return jsonify({"status": "success", "response": "I didn't understand that."})
-
 # --- SocketIO Events ---
 
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')
-    emit('status', {'data': 'Connected to Brain'})
+    emit('status', {'data': 'Connected to JARVIS Brain'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -262,8 +184,6 @@ def handle_disconnect():
 @socketio.on('screen_update')
 def handle_screen_update(data):
     print("Received screen update (size: {})".format(len(data.get('image', ''))))
-    # Here we would pass the image to SpiritSight
-    pass
 
 @socketio.on('status_update')
 def handle_status_update(data):
@@ -271,10 +191,8 @@ def handle_status_update(data):
     message = data.get('message', '')
     status_type = data.get('type', 'info')
     
-    # Check if message is a dict with progress data
     if isinstance(message, dict) and 'progress' in message:
-        print(f"📱 Progress Update: {message.get('message')} ({message.get('progress')}%)")
-        # Send progress data directly
+        print(f"📱 Progress: {message.get('message')} ({message.get('progress')}%)")
         socketio.emit('jarvis_status', {
             'progress': message.get('progress'),
             'message': message.get('message'),
@@ -283,16 +201,16 @@ def handle_status_update(data):
             'timestamp': data.get('timestamp')
         })
     else:
-        print(f"📱 Status Update [{status_type}]: {message}")
-        # Send regular status message
+        print(f"📱 Status [{status_type}]: {message}")
         socketio.emit('jarvis_status', {
             'message': message,
             'type': status_type,
             'timestamp': data.get('timestamp')
         })
 
+
 if __name__ == '__main__':
-    # Host 0.0.0.0 allows access from other devices/emulator
-    # socketio.run replaces app.run
-    # use_reloader=True enables auto-reload on code changes
+    print("=" * 50)
+    print("🤖 JARVIS Backend Server Starting...")
+    print("=" * 50)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=True)

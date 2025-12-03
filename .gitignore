@@ -5,3 +5,4 @@ local_client/debug_logs/
 *.pyc
 venv/
 node_modules/
+self-operating-computer-main/
