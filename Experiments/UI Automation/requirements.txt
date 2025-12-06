@@ -1,0 +1,4 @@
+psutil
+comtypes
+pyautogui
+uiautomation 
