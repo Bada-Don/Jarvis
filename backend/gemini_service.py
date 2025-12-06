@@ -127,30 +127,94 @@ FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN automation planner. Your job is
 - Bike Glass Plate: Front (6 x 1.2 inches), Back (10 x 1.5 inches)  
 - Car Normal Plate: Front (14 x 2.3 inches), Back (14 x 2.4 inches)
 
+## EXECUTION MODES:
+You must choose the appropriate execution mode for each task:
+
+1. **direct**: Use for standard number plate tasks. Commands execute via UI Automation (faster, more reliable).
+   - Use when: Creating standard number plates, setting dimensions, changing fonts, applying styles
+   - Benefits: No screenshots needed, faster execution, more reliable
+
+2. **vision**: Use for complex or non-standard tasks requiring visual element detection.
+   - Use when: Custom layouts, unusual UI interactions, tasks requiring visual verification
+   - Benefits: Can handle any UI element visible on screen
+
+## MODE SELECTION GUIDANCE:
+- Standard number plate requests (e.g., "Make iron plate set for bike PB12W3998") → Use "direct" mode
+- Simple dimension/font/style changes → Use "direct" mode
+- Complex layouts, custom designs, or unfamiliar UI elements → Use "vision" mode
+- When in doubt about UI element locations → Use "vision" mode
+
 ## Output Format:
-You MUST return a valid JSON object with a "sequence" array containing ordered steps.
+You MUST return a valid JSON object with:
+- "mode": either "direct" or "vision"
+- "sequence": array containing ordered steps
 
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": either "keyboard" or "visual_click"
+- "type": the command type (see below)
 - "desc": brief description of the action
 
-For keyboard steps, include:
-- "value": the key or text to type (e.g., "ctrl+n", "PB12W3998", "8")
-- "repeats": (optional) number of times to repeat the action
+## DIRECT MODE COMMAND TYPES:
 
-For visual_click steps, include:
-- "target_name": the UI element to click (e.g., "text_tool", "width_input", "canvas_center")
+### keyboard
+Raw keyboard input for hotkeys and typing.
+- "value": the key or text to type (e.g., "ctrl+n", "enter", "PB12W3998")
+- "repeats": (optional) number of times to repeat
 
-## Common UI Elements in FlexiSIGN:
+### create_text
+Create a text object with specified content.
+- "text": the text content to create (e.g., "PB12W3998")
+
+### set_dimensions
+Set width and height of the selected object.
+- "width": width value as string (e.g., "8")
+- "height": height value as string (e.g., "1.2")
+
+### set_font
+Change the font of selected text.
+- "font_name": name of the font to apply (e.g., "Blackberry")
+
+### apply_style
+Apply a predefined style (opens Apply Styles window with Shift+S).
+- "style_name": (optional) name of style to search and apply
+
+### move_object
+Move the selected object using arrow keys with Shift modifier.
+- "direction": one of "up", "down", "left", "right"
+- "distance": number of key presses (integer)
+
+## VISION MODE COMMAND TYPES:
+
+### keyboard
+Same as direct mode.
+
+### visual_click
+Click on a UI element identified visually.
+- "target_name": descriptive name of the UI element to click
+
+## Common UI Elements (for vision mode):
 - "text_tool": The text tool in the toolbar
 - "select_tool": The selection tool
 - "canvas_center": Center of the canvas area
 - "width_input": Width input field in properties
 - "height_input": Height input field in properties
 
-## Example Output:
+## EXAMPLE - Direct Mode (Standard Number Plate):
 {
+  "mode": "direct",
+  "sequence": [
+    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "Open new page"},
+    {"order": 2, "type": "create_text", "text": "PB12W3998", "desc": "Create plate text"},
+    {"order": 3, "type": "set_font", "font_name": "Blackberry", "desc": "Set plate font"},
+    {"order": 4, "type": "set_dimensions", "width": "8", "height": "1.2", "desc": "Set front plate size"},
+    {"order": 5, "type": "apply_style", "style_name": "Iron Plate", "desc": "Apply iron plate style"},
+    {"order": 6, "type": "move_object", "direction": "up", "distance": 10, "desc": "Move plate up"}
+  ]
+}
+
+## EXAMPLE - Vision Mode (Complex Task):
+{
+  "mode": "vision",
   "sequence": [
     {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "Open new page"},
     {"order": 2, "type": "visual_click", "target_name": "text_tool", "desc": "Select text tool"},
@@ -166,6 +230,8 @@ For visual_click steps, include:
 
 IMPORTANT:
 - Always use the exact plate dimensions from the knowledge base
+- Choose "direct" mode for standard tasks (faster and more reliable)
+- Choose "vision" mode only when direct automation cannot handle the task
 - Return ONLY valid JSON, no markdown formatting or extra text
 - Each step must be atomic and executable
 """
@@ -315,6 +381,14 @@ class GeminiPlannerService:
         if not isinstance(plan['sequence'], list):
             raise ValueError("'sequence' must be an array")
         
+        # Valid step types for each mode
+        # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object
+        # Vision mode types: keyboard, visual_click
+        valid_types = {
+            'keyboard', 'visual_click',
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object'
+        }
+        
         for i, step in enumerate(plan['sequence']):
             if not isinstance(step, dict):
                 raise ValueError(f"Step {i+1} must be a dictionary")
@@ -326,14 +400,38 @@ class GeminiPlannerService:
                 raise ValueError(f"Step {i+1} missing 'type' field")
             
             step_type = step['type']
-            if step_type not in ('keyboard', 'visual_click'):
+            if step_type not in valid_types:
                 raise ValueError(
                     f"Step {i+1} has invalid type '{step_type}'. "
-                    "Must be 'keyboard' or 'visual_click'"
+                    f"Must be one of: {', '.join(sorted(valid_types))}"
                 )
             
+            # Validate required fields for each step type
             if step_type == 'keyboard' and 'value' not in step:
                 raise ValueError(f"Keyboard step {i+1} missing 'value' field")
             
             if step_type == 'visual_click' and 'target_name' not in step:
                 raise ValueError(f"Visual click step {i+1} missing 'target_name' field")
+            
+            if step_type == 'create_text' and 'text' not in step:
+                raise ValueError(f"Create text step {i+1} missing 'text' field")
+            
+            if step_type == 'set_dimensions':
+                if 'width' not in step:
+                    raise ValueError(f"Set dimensions step {i+1} missing 'width' field")
+                if 'height' not in step:
+                    raise ValueError(f"Set dimensions step {i+1} missing 'height' field")
+            
+            if step_type == 'set_font' and 'font_name' not in step:
+                raise ValueError(f"Set font step {i+1} missing 'font_name' field")
+            
+            if step_type == 'move_object':
+                if 'direction' not in step:
+                    raise ValueError(f"Move object step {i+1} missing 'direction' field")
+                if 'distance' not in step:
+                    raise ValueError(f"Move object step {i+1} missing 'distance' field")
+                if step['direction'] not in ('up', 'down', 'left', 'right'):
+                    raise ValueError(
+                        f"Move object step {i+1} has invalid direction '{step['direction']}'. "
+                        "Must be 'up', 'down', 'left', or 'right'"
+                    )

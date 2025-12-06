@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\guarded_eval.py
+# hypothesis_version: 6.148.7
+
+['Call for', 'DataFrame', 'EvaluationContext', 'Forbidden mode', 'GuardRejection', 'Series', 'Unhandled node', '[', ']', '_LocIndexer', '__add__', '__and__', '__contains__', '__dict__', '__eq__', '__floordiv__', '__ge__', '__getattr__', '__getattribute__', '__getitem__', '__gt__', '__inv__', '__invert__', '__le__', '__lshift__', '__lt__', '__matmul__', '__mod__', '__mul__', '__name__', '__ne__', '__neg__', '__not__', '__or__', '__pos__', '__pow__', '__rshift__', '__self__', '__sub__', '__truediv__', '__xor__', '_iLocIndexer', '_is_protocol', '_unbind_method', 'copy', 'core', 'count', 'dangerous', 'eval', 'eval_node', 'forbidden', 'guarded_eval', 'index', 'indexing', 'is_', 'items', 'keys', 'limited', 'locals', 'minimal', 'ndarray', 'numpy', 'pandas', 'unsafe', 'values', 'void']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\gradual\base.py
+# hypothesis_version: 6.148.7
+
+['%s(%s%s)', '%s(%s)', '<%s %s -> %s>', '<%s: %s%s>', '<%s: %s>', 'Dict', 'Generator', 'Iterable', 'Iterator', 'List', 'None', 'Set', 'Tuple', 'Type[%s]', 'class', 'object', 'type']

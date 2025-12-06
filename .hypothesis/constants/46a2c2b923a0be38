@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\executing\executing.py
+# hypothesis_version: 6.148.7
+
+['.', '<lambda>', '<locals>', '@py', 'ASTText', 'BINARY_', 'BINARY_POWER', 'BINARY_SUBSCR', 'CALL_', 'CALL_FUNCTION', 'CALL_METHOD', 'COMPARE_OP', 'CONTAINS_OP', 'EXTENDED_ARG', 'IS_OP', 'JUMP', 'JUMP_IF_NOT_DEBUG', 'LOAD_ATTR', 'LOAD_CLASSDEREF', 'LOAD_CONST', 'LOAD_DEREF', 'LOAD_FAST', 'LOAD_GLOBAL', 'LOAD_METHOD', 'LOAD_NAME', 'LOOKUP_METHOD', 'MatMult', 'NOP', 'POP_BLOCK', 'POP_TOP', 'PRINT_EXPR', 'RAISE_VARARGS', 'RETURN_VALUE', 'SLICE+', 'STORE_', 'STORE_ATTR', 'STORE_SLICE', 'STORE_SUBSCR', 'T', 'UNARY_', 'UNARY_NOT', '^_\\w+%s$', '__', '__executing_cache', '_copied', 'body', 'co_cellvars', 'co_firstlineno', 'co_freevars', 'co_names', 'co_varnames', 'ctx', 'decorator_list', 'end_lineno', 'exec', 'lineno', 'parent']

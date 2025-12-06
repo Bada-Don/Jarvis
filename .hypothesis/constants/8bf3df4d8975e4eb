@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\magics\packaging.py
+# hypothesis_version: 6.148.7
+
+['"', '--name', '--prefix', '--y', '--yes', '-m', '-n', '-p', '-y', 'CONDA_EXE', 'MAMBA_EXE', 'command', 'conda', 'conda-meta', 'history', 'install', 'kernel', 'list', 'mamba', 'micromamba', 'pip', 'remove', 'uninstall', 'update', 'upgrade', 'utf-8', 'uv', 'win32']

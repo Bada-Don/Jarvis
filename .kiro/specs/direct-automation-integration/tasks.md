@@ -143,7 +143,12 @@
     - **Property 7: Move Object Direction Mapping**
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5**
 
-- [ ] 5. Checkpoint - Ensure UIA module works
+- [x] 5. Checkpoint - Ensure UIA module works
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Extend Plan Executor for direct mode
@@ -169,8 +174,15 @@
     - Send status updates for each step
     - _Requirements: 2.1, 3.1, 4.1, 5.1, 6.1_
 
-- [ ] 7. Update Planner Model for direct mode
-  - [ ] 7.1 Update gemini_service.py planner prompt
+- [x] 7. Update Planner Model for direct mode
+
+
+
+
+
+  - [x] 7.1 Update gemini_service.py planner prompt
+
+
     - Add direct mode documentation to system prompt
     - Add direct command types (create_text, set_dimensions, set_font, apply_style, move_object)
     - Add example output for direct mode plans

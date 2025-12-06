@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\terminal\prompts.py
+# hypothesis_version: 6.148.7
+
+['-', '... ', '...:', '> ', '>>> ', 'In [', 'InputMode.', 'Out[', '[', '] ', ']: ', 'editing_mode', 'vi-', '⋮ ']

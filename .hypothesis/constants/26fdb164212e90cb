@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\filters\app.py
+# hypothesis_version: 6.148.7
+
+['buffer_has_focus', 'emacs_insert_mode', 'emacs_mode', 'emacs_selection_mode', 'has_arg', 'has_completions', 'has_focus', 'has_selection', 'has_suggestion', 'has_validation_error', 'in_editing_mode', 'in_paste_mode', 'is_done', 'is_multiline', 'is_read_only', 'is_searching', 'shift_selection_mode', 'vi_digraph_mode', 'vi_insert_mode', 'vi_mode', 'vi_navigation_mode', 'vi_recording_macro', 'vi_replace_mode', 'vi_selection_mode']

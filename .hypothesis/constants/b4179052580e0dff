@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\stack_data\core.py
+# hypothesis_version: 6.148.7
+
+['(', ')', ', ', '.', ';', '<', '>', 'FrameInfo', 'LINE_GAP', 'MarkerInLine', 'RangeInLine', '_Variable', 'data', 'end', 'for_executing_node', 'is_start', 'match_case', 'name', 'nodes', 'position', 'start', 'string', 'value', '{}({})', '{}={!r}']

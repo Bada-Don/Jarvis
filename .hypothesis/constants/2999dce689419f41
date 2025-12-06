@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\terminal\shortcuts\auto_suggest.py
+# hypothesis_version: 6.148.7
+
+['(\\S+\\s+)', 'Inf', 'error %s', 'noop: no suggestions', 'noop:before cursor', 'noop:not eol', 'noop:oneline', 'prefix: %s', 'python', 'red', 'shift-last-line', 'text/x-python', 'wrong']

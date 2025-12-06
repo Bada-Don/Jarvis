@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\pygments\styles\monokai.py
+# hypothesis_version: 6.148.7
+
+['#272822', '#49483e', '#66d9ef', '#959077', '#a6e22e', '#ae81ff', '#e6db74', '#ed007e bg:#1e0010', '#f8f8f2', '#ff4689', 'MonokaiStyle', 'bold', 'bold #ff4689', 'bold italic', 'italic', 'monokai']

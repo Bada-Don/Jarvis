@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\utils\terminal.py
+# hypothesis_version: 6.148.7
+
+['\x1b[22;0t', '\x1b[23;0t', '\x1b]0;%s\x07', 'TERM', 'clear', 'cls', 'posix', 'win32', 'xterm']

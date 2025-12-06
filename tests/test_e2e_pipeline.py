@@ -290,7 +290,7 @@ class TestFullPipelineE2E(unittest.TestCase):
                 print(f"  - {target_name}: SKIPPED (not found)")
                 continue
             
-            coords = self.get_click_coordinates(element_id, box_map)
+            coords = self.__class__.get_click_coordinates(element_id, box_map)
             
             if coords is None:
                 print(f"  - {target_name}: SKIPPED (ID {element_id} not in box_map)")

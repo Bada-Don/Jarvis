@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\names.py
+# hypothesis_version: 6.148.7
+
+['%s(%s)', '*', '**', '-', '.', '/', ': ', '<%s: %s>', '<%s: string_name=%s>', '=', '__', 'arglist', 'argument', 'await', 'class', 'classdef', 'decorator', 'dotted_name', 'expr_stmt', 'exprlist', 'function', 'goto_anonymous_param', 'import_from', 'import_name', 'lambdef', 'module', 'param', 'power', 'property', 'star_expr', 'statement', 'sync_comp_for', 'sys', 'testlist', 'testlist_comp', 'testlist_star_expr', 'trailer', 'version_info']

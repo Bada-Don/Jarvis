@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\input\vt100_parser.py
+# hypothesis_version: 6.148.7
+
+['\x1b[', '\x1b[201~', '(<?[\\d;]*|M.{0,2})\\Z', 'Vt100Parser', '[\\d;]*\\Z', '\\d+;\\d+R\\Z', '^']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\lib\pretty.py
+# hypothesis_version: 6.148.7
+
+[23424.234234, 1000, ' ...', ' at 0x%x', '%s.%s', '(', '()', ')', ',', '.', '...', ': ', '<', '<function %s>', '<super: ', '<unknown type>', '=', '>', 'CallExpression', 'Counter', 'DEBUG', 'DOTALL', 'IGNORECASE', 'LOCALE', 'MULTILINE', 'OrderedDict', 'PrettyPrinter', 'RawStringLiteral', 'RawText', 'Try __name__', 'UNICODE', 'UserList', 'VERBOSE', '[', '\\', '\\\\', '\\s+', ']', '_', '__builtin__', '__class__', '__main__', '__module__', '__mro__', '__name__', '__qualname__', '__repr__', '_repr_pretty_', 'args', 'blah', 'blub', 'builtins', 'collections', 'defaultdict', 'deque', 'environ{', 'exceptions', 'foo', 'for_type', 'for_type_by_name', 'frozenset({', 'mappingproxy({', 'namespace', 'pprint', 'pretty', 'r', 're.', 're.compile', 'uU', 'ur', '{', '{...}', '|', '}', '})']

@@ -31,11 +31,11 @@ class TestFilterBoxes(unittest.TestCase):
     """
     
     def test_filter_removes_tiny_boxes(self):
-        """Test that boxes smaller than 15x15 are filtered out."""
+        """Test that boxes smaller than 10x10 are filtered out."""
         img_width, img_height = 1920, 1080
         
         boxes = np.array([
-            [100, 100, 110, 110],  # 10x10 - too small
+            [100, 100, 109, 109],  # 9x9 - too small (< 10)
             [200, 200, 250, 250],  # 50x50 - valid
             [300, 300, 305, 305],  # 5x5 - too small
         ])

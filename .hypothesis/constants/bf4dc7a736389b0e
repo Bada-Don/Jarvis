@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\key_binding\bindings\vi.py
+# hypothesis_version: 6.148.7
+
+[100, '"', '#', '$', '%', "'", '(', ')', '*', '+', ',', '-', '/', '0', '0123456789', '123456789', ';', '<', '>', '?', '@', 'A', 'B', 'BLOCK', 'C', 'D', 'E', 'EXCLUSIVE', 'F', 'G', 'H', 'I', 'INCLUSIVE', 'J', 'L', 'LINEWISE', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', '[', ']', '^', '_', '_OF', '_TOF', '`', 'a', 'accept-line', 'ai', 'b', 'backspace', 'c', 'c-c', 'c-d', 'c-e', 'c-f', 'c-g', 'c-k', 'c-l', 'c-n', 'c-o', 'c-p', 'c-r', 'c-s', 'c-t', 'c-v', 'c-x', 'c-y', 'cd', 'd', 'delete', 'down', 'e', 'enter', 'escape', 'f', 'g', 'h', 'i', 'insert', 'j', 'k', 'l', 'left', 'load_vi_bindings', 'm', 'n', 'o', 'p', 'q', 'quoted-insert', 'r', 'right', 'rot_13', 's', 't', 'u', 'up', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\formatted_text\ansi.py
+# hypothesis_version: 6.148.7
+
+[9999, '\x01', '\x02', '\x08', '\x1b', ';', '?', 'ANSI', 'C', '[', '[ZeroWidthEscape]', 'ansi_escape', 'bg:', 'blink', 'bold', 'hidden', 'italic', 'm', 'reverse', 'strike', 'underline', '\x9b']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\parser_utils.py
+# hypothesis_version: 6.148.7
+
+[' ->', '#', '(', ')', '.', '.setter', ':', '<lambda>', '=', '\\s+', 'and_expr', 'and_test', 'arith_expr', 'atom', 'atom_expr', 'await', 'cached_property', 'classdef', 'classmethod', 'comp_for', 'comp_if', 'comparison', 'decorator', 'elif', 'else', 'except', 'expr', 'expr_stmt', 'f', 'factor', 'file_input', 'finally', 'for', 'for_stmt', 'fr', 'funcdef', 'if', 'if_stmt', 'import_from', 'import_name', 'lambdef', 'name', 'not_test', 'or_test', 'param', 'power', 'property', 'rf', 'shift_expr', 'simple_stmt', 'staticmethod', 'string', 'sync_comp_for', 'term', 'test', 'tfpdef', 'try', 'while', 'with', 'with_stmt', 'xor_expr']

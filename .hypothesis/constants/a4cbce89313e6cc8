@@ -1,0 +1,4 @@
+# file: G:\Documents\Codes\Jarvis\local_client\plan_executor.py
+# hypothesis_version: 6.148.7
+
+[0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 3.0, 10.0, 100, '+', 'Capturing screen...', 'Empty execution plan', 'Execution complete!', '^ctrl\\+n$', '^enter$', '^win$', '^win\\+r$', 'alt', 'backspace', 'canvas', 'capslock', 'cmd', 'command', 'control', 'ctrl', 'del', 'delete', 'desc', 'down', 'end', 'enter', 'error', 'esc', 'escape', 'f1', 'f10', 'f11', 'f12', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'general', 'home', 'info', 'insert', 'keyboard', 'launch', 'left', 'message', 'meta', 'mode', 'new tab', 'new window', 'numlock', 'open', 'order', 'pagedown', 'pageup', 'pause', 'pgdn', 'pgup', 'printscreen', 'progress', 'prtsc', 'prtscr', 'repeats', 'return', 'right', 'run', 'scrolllock', 'sequence', 'shift', 'space', 'start', 'status', 'success', 'super', 'tab', 'target_name', 'type', 'up', 'value', 'visual_click', 'warning', 'win', 'win+r', 'windows']

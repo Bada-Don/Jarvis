@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\traitlets\config\configurable.py
+# hypothesis_version: 6.148.7
+
+['\n#  ', ' : ', '#', '#  Choices: %s', '#  Default: %s', '## ', ', ', '-', '.', '...', '<%s-item-1>', '<key-1>=<value-1>', 'CT', 'Choices: %s', 'Default: %s', 'Default: ``%s``', 'Enum', 'No description', '\\\\n', '\\n', '__doc__', '_instance', 'append', 'config', 'description', 'handlers', 'log', 'multiplicity', 'parent']

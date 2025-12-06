@@ -45,7 +45,8 @@ class TestPlannerModelIntegration(unittest.TestCase):
         # Requirement 6.1: Load API key from environment
         service = GeminiPlannerService()
         self.assertIsNotNone(service.api_key)
-        self.assertIsNotNone(service.model)
+        self.assertIsNotNone(service.general_model)
+        self.assertIsNotNone(service.flexisign_model)
     
     def test_plan_generation_returns_valid_json(self):
         """
@@ -75,13 +76,19 @@ class TestPlannerModelIntegration(unittest.TestCase):
         service = GeminiPlannerService()
         plan = service.generate_plan(self.sample_command)
         
+        # Valid types for both direct and vision modes
+        valid_types = [
+            'keyboard', 'visual_click',
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object'
+        ]
+        
         for i, step in enumerate(plan['sequence']):
             # Each step must have 'order' and 'type'
             self.assertIn('order', step, f"Step {i+1} missing 'order' field")
             self.assertIn('type', step, f"Step {i+1} missing 'type' field")
             
-            # Type must be 'keyboard' or 'visual_click'
-            self.assertIn(step['type'], ['keyboard', 'visual_click'],
+            # Type must be one of the valid types
+            self.assertIn(step['type'], valid_types,
                          f"Step {i+1} has invalid type: {step['type']}")
             
             # Type-specific field validation
@@ -89,6 +96,16 @@ class TestPlannerModelIntegration(unittest.TestCase):
                 self.assertIn('value', step, f"Keyboard step {i+1} missing 'value' field")
             elif step['type'] == 'visual_click':
                 self.assertIn('target_name', step, f"Visual click step {i+1} missing 'target_name' field")
+            elif step['type'] == 'create_text':
+                self.assertIn('text', step, f"Create text step {i+1} missing 'text' field")
+            elif step['type'] == 'set_dimensions':
+                self.assertIn('width', step, f"Set dimensions step {i+1} missing 'width' field")
+                self.assertIn('height', step, f"Set dimensions step {i+1} missing 'height' field")
+            elif step['type'] == 'set_font':
+                self.assertIn('font_name', step, f"Set font step {i+1} missing 'font_name' field")
+            elif step['type'] == 'move_object':
+                self.assertIn('direction', step, f"Move object step {i+1} missing 'direction' field")
+                self.assertIn('distance', step, f"Move object step {i+1} missing 'distance' field")
     
     def test_plan_contains_plate_number(self):
         """
@@ -99,18 +116,29 @@ class TestPlannerModelIntegration(unittest.TestCase):
         service = GeminiPlannerService()
         plan = service.generate_plan(self.sample_command)
         
-        # Find keyboard steps that type the plate number
         plate_number = "PB12W3998"
+        
+        # Check for plate number in keyboard steps (vision mode)
         keyboard_values = [
             step.get('value', '') 
             for step in plan['sequence'] 
             if step.get('type') == 'keyboard'
         ]
         
-        # The plate number should appear in one of the keyboard steps
-        found_plate = any(plate_number in str(val) for val in keyboard_values)
-        self.assertTrue(found_plate, 
-                       f"Plate number '{plate_number}' not found in keyboard steps: {keyboard_values}")
+        # Check for plate number in create_text steps (direct mode)
+        create_text_values = [
+            step.get('text', '') 
+            for step in plan['sequence'] 
+            if step.get('type') == 'create_text'
+        ]
+        
+        # The plate number should appear in either keyboard or create_text steps
+        found_in_keyboard = any(plate_number in str(val) for val in keyboard_values)
+        found_in_create_text = any(plate_number in str(val) for val in create_text_values)
+        
+        self.assertTrue(found_in_keyboard or found_in_create_text, 
+                       f"Plate number '{plate_number}' not found in keyboard steps: {keyboard_values} "
+                       f"or create_text steps: {create_text_values}")
     
     def test_plan_uses_correct_bike_iron_dimensions(self):
         """
@@ -121,23 +149,39 @@ class TestPlannerModelIntegration(unittest.TestCase):
         service = GeminiPlannerService()
         plan = service.generate_plan(self.sample_command)
         
-        # Get all keyboard values
+        # Get all keyboard values (vision mode)
         keyboard_values = [
             str(step.get('value', '')) 
             for step in plan['sequence'] 
             if step.get('type') == 'keyboard'
         ]
         
+        # Get all set_dimensions steps (direct mode)
+        dimension_steps = [
+            step for step in plan['sequence'] 
+            if step.get('type') == 'set_dimensions'
+        ]
+        
         # Check for expected dimensions (at least front plate dimensions)
         # Front: 8 x 1.2
         expected_dims = ['8', '1.2']
         
-        # At least some dimension values should be present
-        found_dims = [dim for dim in expected_dims if any(dim in val for val in keyboard_values)]
+        # Check in keyboard values (vision mode)
+        found_in_keyboard = [dim for dim in expected_dims if any(dim in val for val in keyboard_values)]
         
-        # We expect at least the width to be present
-        self.assertGreater(len(found_dims), 0,
-                          f"Expected dimensions {expected_dims} not found in keyboard values: {keyboard_values}")
+        # Check in set_dimensions steps (direct mode)
+        found_in_dimensions = False
+        for step in dimension_steps:
+            width = str(step.get('width', ''))
+            height = str(step.get('height', ''))
+            if '8' in width or '1.2' in height:
+                found_in_dimensions = True
+                break
+        
+        # We expect at least some dimension values to be present in either mode
+        self.assertTrue(len(found_in_keyboard) > 0 or found_in_dimensions,
+                       f"Expected dimensions {expected_dims} not found in keyboard values: {keyboard_values} "
+                       f"or set_dimensions steps: {dimension_steps}")
 
 
 class TestPlanValidation(unittest.TestCase):

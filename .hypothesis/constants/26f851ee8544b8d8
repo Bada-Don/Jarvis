@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\ultratb.py
+# hypothesis_version: 6.148.7
+
+[10000, '\nKeyboardInterrupt', ' in ', '%s\n', ', ', '.', ':', ': ', '<module>', '<string>', '= ', '>\nValid modes: ', '?', 'Context', 'Docs', 'IPython', 'Minimal', 'Plain', 'Python ', 'Raw frame', 'Traceback', 'Verbose', '^', '__notes__', '__tracebackhide__', 'bg:ansiyellow', 'default', 'filename', 'in ', 'last_exc', 'lineno', 'linux', 'msg', 'note', 'offset', 'str', 'tb', 'tb_next', 'text', 'top_line', 'unknown', 'utf-8']

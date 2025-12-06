@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\prefilter.py
+# hypothesis_version: 6.148.7
+
+[100, 250, 300, 600, 700, 900, 1000, '!=()<>,+*/%^&|', '"', '", "', '# PYTHON-MODE', '%s("%s")', '%s(%s)', '%s(%s);', "'", '(', ',', '.', ';', '<%s(name=%s)>', '=,', '[', '[^\\W\\d]([\\w.]*) *$', '__getitem__', 'auto', 'b', 'br', 'builtin', 'emacs', 'f', 'fr', 'macro', 'magic', 'normal', 'r', 'rb', 'rf', 'u']
