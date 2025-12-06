@@ -20,13 +20,14 @@ from elements import (
     get_scale_width_input,
     get_scale_height_input,
     get_proportional_checkbox,
-    get_font_dropdown,
     get_character_tab_item,
     get_scale_tab_item,
     invoke,
     set_value,
     toggle_checkbox,
     get_bounding_rect,
+    find_first,
+    _get_designcentral,
 )
 
 # ============================================
@@ -119,6 +120,46 @@ def click_element_center(element):
     return False
 
 
+def ensure_designcentral_open(uia, root):
+    """Ensure DesignCentral window is open. Opens it with Ctrl+I if not found."""
+    dc = _get_designcentral(uia, root)
+    if dc:
+        return True
+    
+    print("DesignCentral not found, opening with Ctrl+I...")
+    pyautogui.hotkey('ctrl', 'i')
+    time.sleep(0.5)
+    
+    # Check again
+    dc = _get_designcentral(uia, root)
+    if dc:
+        print("DesignCentral opened successfully")
+        return True
+    
+    print("WARNING: Could not open DesignCentral")
+    return False
+
+
+def get_font_family_combobox(uia, root):
+    """Get font family combobox (AutomationId 10825) from Character tab."""
+    dc = _get_designcentral(uia, root)
+    if not dc:
+        return None
+    # ComboBox with AutomationId 10825 is the font family selector
+    UIA_ComboBoxControlTypeId = 50003
+    return find_first(uia, dc, automation_id="10825", control_type=UIA_ComboBoxControlTypeId)
+
+
+def get_font_style_combobox(uia, root):
+    """Get font style combobox (AutomationId 10826) from Character tab."""
+    dc = _get_designcentral(uia, root)
+    if not dc:
+        return None
+    # ComboBox with AutomationId 10826 is the font style selector (Regular, Bold, etc.)
+    UIA_ComboBoxControlTypeId = 50003
+    return find_first(uia, dc, automation_id="10826", control_type=UIA_ComboBoxControlTypeId)
+
+
 def main():
     print("=== FlexiSIGN Automation Sample ===\n")
     
@@ -190,7 +231,7 @@ def main():
     time.sleep(0.5)
     
     # Type the text
-    text_to_write = "John Doe"
+    text_to_write = "Harshit Singla"
     print(f"Typing: '{text_to_write}'")
     pyautogui.write(text_to_write, interval=0.08)
     time.sleep(0.8)
@@ -217,37 +258,40 @@ def main():
     pyautogui.click(canvas_x, canvas_y)
     time.sleep(0.5)
     
-    # FlexiSIGN quirk: Must switch away from Character tab first, then back to it
-    # This auto-focuses the font dropdown
-    print("Switching to Scale tab first...")
-    scale_tab = get_scale_tab_item(uia, root)
-    if scale_tab:
-        click_element_center(scale_tab)
-        time.sleep(0.5)
+    # Ensure DesignCentral is open
+    if not ensure_designcentral_open(uia, root):
+        print("ERROR: DesignCentral window not available")
+        return
     
+    # Click Character tab to access font controls
     print("Switching to Character tab...")
     char_tab = get_character_tab_item(uia, root)
     if char_tab:
-        if click_element_center(char_tab):
-            print("Character tab clicked - font dropdown is now auto-focused")
-            time.sleep(0.5)
-            
-            # Type font name directly (font dropdown is already focused)
-            pyautogui.hotkey('ctrl', 'a')  # Select all existing text
-            time.sleep(0.2)
-            pyautogui.write('Blackberry', interval=0.08)
+        click_element_center(char_tab)
+        time.sleep(0.5)
+    else:
+        print("WARNING: Could not find Character tab")
+        return
+    
+    # Get font family combobox (AutomationId 10825)
+    print("Finding font family combobox...")
+    font_combobox = get_font_family_combobox(uia, root)
+    if font_combobox:
+        # Click the combobox to focus it
+        if click_element_center(font_combobox):
+            print("Font combobox clicked")
             time.sleep(0.3)
-            
-            # Press left then right arrow to apply changes (FlexiSIGN quirk)
-            print("Applying font change (left-right arrow trick)...")
-            pyautogui.press('left')
-            time.sleep(0.2)
-            pyautogui.press('right')
+            # Type the font name
+            pyautogui.write("Blackberry", interval=0.08)
+            time.sleep(0.3)
+            # Press Enter to select and apply the font
+            pyautogui.press("enter")
             time.sleep(0.5)
-            
             print("Font changed to Blackberry")
         else:
-            print("WARNING: Could not click Character tab")
+            print("WARNING: Could not click font combobox")
+    else:
+        print("WARNING: Font family combobox not found")
     
     # Step 8: Set dimensions (5.0 width, 1.0 height)
     print("\nStep 8: Setting dimensions...")
