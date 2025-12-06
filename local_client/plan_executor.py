@@ -131,7 +131,8 @@ class PlanExecutor:
         mode = plan.get('mode', 'vision')
         
         # Route to appropriate execution mode
-        if mode == 'direct':
+        # 'direct' or 'flexisign' both use direct automation
+        if mode in ('direct', 'flexisign'):
             return self._execute_direct_plan(plan)
         else:
             return self._execute_vision_plan(plan)

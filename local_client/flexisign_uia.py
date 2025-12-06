@@ -10,6 +10,7 @@ enabling direct automation without vision-based element detection.
 import time
 from typing import Optional, Tuple
 
+import comtypes
 import comtypes.client
 import psutil
 import pyautogui
@@ -61,11 +62,20 @@ class FlexiSignUIA:
         self._uia: Optional[IUIAutomation] = None
         self._root = None
         self._pid: Optional[int] = None
+        self._com_initialized = False
         self._initialize_uia()
 
     def _initialize_uia(self):
         """Create the UIA COM object."""
         try:
+            # Initialize COM for this thread if not already done
+            try:
+                comtypes.CoInitialize()
+                self._com_initialized = True
+            except OSError:
+                # COM already initialized in this thread, that's fine
+                self._com_initialized = False
+            
             self._uia = comtypes.client.CreateObject(
                 "{ff48dba4-60ef-4201-aa87-54103eef594e}",
                 interface=IUIAutomation
@@ -78,6 +88,14 @@ class FlexiSignUIA:
         self._root = None
         self._pid = None
         self._uia = None
+        
+        # Uninitialize COM if we initialized it
+        if self._com_initialized:
+            try:
+                comtypes.CoUninitialize()
+                self._com_initialized = False
+            except:
+                pass
 
     # =========================================================================
     # Window Detection and Activation
@@ -85,16 +103,17 @@ class FlexiSignUIA:
 
     def find_flexisign_window(self) -> Optional[object]:
         """
-        Detect FlexiSIGN window by window title containing 'FlexiSIGN' or 'flexi'.
+        Detect FlexiSIGN window by window title containing 'FlexiSIGN'.
         
         Returns:
             pygetwindow Window object if found, None otherwise.
         """
         try:
             for window in gw.getAllWindows():
-                # Check both "FlexiSIGN" and "flexi" (case-insensitive)
+                # Only match windows with "FlexiSIGN" (not just "flexi")
+                # This avoids matching IDE windows with flexisign files open
                 title_lower = window.title.lower()
-                if "flexisign" in title_lower or "flexi" in title_lower:
+                if "flexisign-pro" in title_lower:
                     print(f"Found FlexiSIGN window: {window.title}")
                     return window
         except Exception as e:
@@ -153,11 +172,17 @@ class FlexiSignUIA:
             pid = self.get_pid_from_window(window)
             if pid:
                 self._pid = pid
+                print(f"Found FlexiSIGN with PID: {pid}")
                 if self.activate_window(window):
                     self._refresh_root()
-                    return True
+                    if self._root is not None:
+                        print("Window activated and root element found successfully")
+                        return True
+                    else:
+                        print("Window activated but root element not found, retrying...")
         
         # Wait 5 seconds and retry once
+        print("Waiting 5 seconds before retry...")
         time.sleep(5)
         
         window = self.find_flexisign_window()
@@ -165,10 +190,16 @@ class FlexiSignUIA:
             pid = self.get_pid_from_window(window)
             if pid:
                 self._pid = pid
+                print(f"Retry: Found FlexiSIGN with PID: {pid}")
                 if self.activate_window(window):
                     self._refresh_root()
-                    return True
+                    if self._root is not None:
+                        print("Window activated and root element found successfully on retry")
+                        return True
+                    else:
+                        print("ERROR: Window activated but root element still not found")
         
+        print("ERROR: Failed to find and activate FlexiSIGN window")
         return False
 
     def _refresh_root(self):
@@ -177,6 +208,10 @@ class FlexiSignUIA:
             root = self._uia.GetRootElement()
             cond = self._uia.CreatePropertyCondition(UIA_ProcessIdPropertyId, self._pid)
             self._root = root.FindFirst(TreeScope_Subtree, cond)
+            if self._root is None:
+                print(f"WARNING: Could not find root element for PID {self._pid}")
+            else:
+                print(f"Root element refreshed successfully for PID {self._pid}")
 
     # =========================================================================
     # UIA Helper Methods
@@ -194,6 +229,7 @@ class FlexiSignUIA:
                     control_type=None, scope=TreeScope_Subtree):
         """Generic first-match finder using provided property filters."""
         if root is None:
+            print("DEBUG: _find_first called with None root")
             return None
             
         props = []
@@ -202,14 +238,17 @@ class FlexiSignUIA:
         if class_name is not None:
             props.append(self._uia.CreatePropertyCondition(UIA_ClassNamePropertyId, class_name))
         if automation_id is not None:
-            props.append(self._uia.CreatePropertyCondition(UIA_AutomationIdPropertyId, automation_id))
+            # Ensure automation_id is a string
+            aid = str(automation_id) if not isinstance(automation_id, str) else automation_id
+            props.append(self._uia.CreatePropertyCondition(UIA_AutomationIdPropertyId, aid))
         if control_type is not None:
             props.append(self._uia.CreatePropertyCondition(UIA_ControlTypePropertyId, control_type))
 
         cond = self._make_and_condition(props)
         if cond is None:
             return None
-        return root.FindFirst(scope, cond)
+        result = root.FindFirst(scope, cond)
+        return result
 
     def get_bounding_rect(self, element) -> Optional[Tuple[float, float, float, float]]:
         """
@@ -347,13 +386,17 @@ class FlexiSignUIA:
     def _get_main_toolbar(self):
         """Get the main tool toolbar (AutomationId 60272)."""
         if self._root is None:
+            print("ERROR: _get_main_toolbar called but _root is None")
             return None
-        return self._find_first(
+        toolbar = self._find_first(
             self._root,
             class_name="ToolbarWindow32",
             automation_id="60272",
             control_type=UIA_ToolBarControlTypeId
         )
+        if toolbar is None:
+            print("WARNING: Main toolbar (AutomationId 60272) not found")
+        return toolbar
 
     def _get_button_in_toolbar(self, toolbar_elem, button_name: str):
         """Find a button by its visible name under a toolbar element."""
