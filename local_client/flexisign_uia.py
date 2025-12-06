@@ -847,8 +847,8 @@ class FlexiSignUIA:
         Orchestrates the full sequence:
         1. Navigate to Scale tab in DesignCentral
         2. Disable proportional scaling
-        3. Set width input field
-        4. Set height input field
+        3. Set width input field using UIA ValuePattern
+        4. Set height input field using UIA ValuePattern
         5. Press Enter to confirm
         
         Args:
@@ -869,29 +869,33 @@ class FlexiSignUIA:
         if not self._disable_proportional_scaling():
             raise FlexiSignUIAError("Failed to disable proportional scaling")
         
-        # Step 3: Set width input field
+        # Step 3: Set width using UIA ValuePattern (cleanly replaces existing value)
         width_input = self.get_scale_width_input(ensure_tab_active=False)
-        # Click to focus, then clear and type
-        self.click_element_center(width_input)
-        time.sleep(0.1)
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.05)
-        pyautogui.typewrite(width, interval=0.02)
-        time.sleep(0.1)
+        if not self.set_value(width_input, width):
+            # Fallback: click, select all, and type
+            self.click_element_center(width_input)
+            time.sleep(0.2)
+            pyautogui.hotkey('ctrl', 'a')
+            time.sleep(0.1)
+            pyautogui.typewrite(width, interval=0.02)
         
-        # Step 4: Set height input field
-        height_input = self.get_scale_height_input(ensure_tab_active=False)
-        # Click to focus, then clear and type
-        self.click_element_center(height_input)
-        time.sleep(0.1)
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.05)
-        pyautogui.typewrite(height, interval=0.02)
-        time.sleep(0.1)
-        
-        # Step 5: Press Enter to confirm
+        # Confirm width value
         pyautogui.press('enter')
-        time.sleep(0.2)
+        time.sleep(0.4)
+        
+        # Step 4: Set height using UIA ValuePattern
+        height_input = self.get_scale_height_input(ensure_tab_active=False)
+        if not self.set_value(height_input, height):
+            # Fallback: click, select all, and type
+            self.click_element_center(height_input)
+            time.sleep(0.2)
+            pyautogui.hotkey('ctrl', 'a')
+            time.sleep(0.1)
+            pyautogui.typewrite(height, interval=0.02)
+        
+        # Confirm height value
+        pyautogui.press('enter')
+        time.sleep(0.4)
         
         return True
 
