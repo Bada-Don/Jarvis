@@ -85,16 +85,20 @@ class FlexiSignUIA:
 
     def find_flexisign_window(self) -> Optional[object]:
         """
-        Detect FlexiSIGN window by window title containing 'FlexiSIGN'.
+        Detect FlexiSIGN window by window title containing 'FlexiSIGN' or 'flexi'.
         
         Returns:
             pygetwindow Window object if found, None otherwise.
         """
         try:
             for window in gw.getAllWindows():
-                if "FlexiSIGN" in window.title:
+                # Check both "FlexiSIGN" and "flexi" (case-insensitive)
+                title_lower = window.title.lower()
+                if "flexisign" in title_lower or "flexi" in title_lower:
+                    print(f"Found FlexiSIGN window: {window.title}")
                     return window
-        except Exception:
+        except Exception as e:
+            print(f"Error finding window: {e}")
             pass
         return None
 
@@ -126,11 +130,14 @@ class FlexiSignUIA:
             True if activation successful, False otherwise.
         """
         try:
+            print(f"Activating window: {window.title}")
             window.activate()
-            time.sleep(0.3)
+            time.sleep(0.5)  # Critical: wait for window to come to foreground
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Could not bring window to foreground: {e}")
             return False
+
 
     def find_and_activate_window(self) -> bool:
         """
