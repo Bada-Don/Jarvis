@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\crashhandler.py
+# hypothesis_version: 6.148.7
+
+['%config ', '*', 'Crash traceback:\n\n', 'Crash_report_%s.txt', 'c.', 'crash_report_fname', 'ipython_dir', 'nocolor', 'utf-8', 'w']

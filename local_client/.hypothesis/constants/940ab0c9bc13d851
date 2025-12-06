@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\value\module.py
+# hypothesis_version: 6.148.7
+
+['.', '.pyi', 'ModuleType', '__doc__', '__file__', '__name__', '__package__', 'extend_path(__path__', 'instance', 'module', 'types']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\compiled\value.py
+# hypothesis_version: 6.148.7
+
+[' ?\\[([^\\[\\]]+)\\]', '(', '(,\\n|[^\\n-])+', ')', ',', '-', '-[>-]* ', '.', ': ', '<%s: %s>', '<%s: (%s).%s>', "<class 'NoneType'>", '=', '=None', 'None', 'Union', '[nN]ew (.*)', '\\1()', '_', '__call__', 'character', 'dict', 'dictionary', 'float', 'function', 'instance', 'int', 'integer', 'self', 'str', 'string', 'type']

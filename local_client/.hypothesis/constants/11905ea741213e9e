@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\flow_analysis.py
+# hypothesis_version: 6.148.7
+
+['<%s: %s>', 'Status', 'else', 'except', 'if_stmt', 'reachable', 'try_stmt', 'unreachable', 'unsure', 'while_stmt']

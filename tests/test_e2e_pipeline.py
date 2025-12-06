@@ -90,22 +90,44 @@ class TestFullPipelineE2E(unittest.TestCase):
         
         print(f"✓ Plan generated with {len(plan['sequence'])} steps")
         
+        # Valid types for both direct and vision modes
+        valid_types = [
+            'keyboard', 'visual_click',
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object'
+        ]
+        
         # Verify each step has required fields
         for i, step in enumerate(plan['sequence']):
             self.assertIn('order', step, f"Step {i+1} missing 'order'")
             self.assertIn('type', step, f"Step {i+1} missing 'type'")
-            self.assertIn(step['type'], ['keyboard', 'visual_click'])
+            self.assertIn(step['type'], valid_types, f"Step {i+1} has invalid type: {step['type']}")
             
+            # Type-specific field validation
             if step['type'] == 'keyboard':
                 self.assertIn('value', step, f"Keyboard step {i+1} missing 'value'")
-            else:
+            elif step['type'] == 'visual_click':
                 self.assertIn('target_name', step, f"Visual click step {i+1} missing 'target_name'")
+            elif step['type'] == 'create_text':
+                self.assertIn('text', step, f"Create text step {i+1} missing 'text'")
+            elif step['type'] == 'set_dimensions':
+                self.assertIn('width', step, f"Set dimensions step {i+1} missing 'width'")
+                self.assertIn('height', step, f"Set dimensions step {i+1} missing 'height'")
+            elif step['type'] == 'set_font':
+                self.assertIn('font_name', step, f"Set font step {i+1} missing 'font_name'")
+            elif step['type'] == 'move_object':
+                self.assertIn('direction', step, f"Move object step {i+1} missing 'direction'")
+                self.assertIn('distance', step, f"Move object step {i+1} missing 'distance'")
         
         print("✓ All steps have required fields")
         
-        # Verify plate number is in the plan
+        # Verify plate number is in the plan (check both keyboard and create_text steps)
         keyboard_values = [s.get('value', '') for s in plan['sequence'] if s.get('type') == 'keyboard']
-        found_plate = any(self.PLATE_NUMBER in str(v) for v in keyboard_values)
+        create_text_values = [s.get('text', '') for s in plan['sequence'] if s.get('type') == 'create_text']
+        
+        found_in_keyboard = any(self.PLATE_NUMBER in str(v) for v in keyboard_values)
+        found_in_create_text = any(self.PLATE_NUMBER in str(v) for v in create_text_values)
+        found_plate = found_in_keyboard or found_in_create_text
+        
         self.assertTrue(found_plate, f"Plate number '{self.PLATE_NUMBER}' not found in plan")
         
         print(f"✓ Plate number '{self.PLATE_NUMBER}' found in plan")
@@ -114,13 +136,26 @@ class TestFullPipelineE2E(unittest.TestCase):
         self.__class__.generated_plan = plan
         
         # Print plan summary
-        print("\nGenerated Plan:")
+        mode = plan.get('mode', 'vision')
+        print(f"\nGenerated Plan (mode: {mode}):")
         for step in plan['sequence']:
             step_type = step['type']
             if step_type == 'keyboard':
                 print(f"  {step['order']}. [KEYBOARD] {step.get('value', '')} - {step.get('desc', '')}")
-            else:
+            elif step_type == 'visual_click':
                 print(f"  {step['order']}. [CLICK] {step.get('target_name', '')} - {step.get('desc', '')}")
+            elif step_type == 'create_text':
+                print(f"  {step['order']}. [CREATE_TEXT] {step.get('text', '')} - {step.get('desc', '')}")
+            elif step_type == 'set_dimensions':
+                print(f"  {step['order']}. [SET_DIMS] {step.get('width', '')}x{step.get('height', '')} - {step.get('desc', '')}")
+            elif step_type == 'set_font':
+                print(f"  {step['order']}. [SET_FONT] {step.get('font_name', '')} - {step.get('desc', '')}")
+            elif step_type == 'apply_style':
+                print(f"  {step['order']}. [APPLY_STYLE] {step.get('style_name', 'default')} - {step.get('desc', '')}")
+            elif step_type == 'move_object':
+                print(f"  {step['order']}. [MOVE] {step.get('direction', '')} x{step.get('distance', 1)} - {step.get('desc', '')}")
+            else:
+                print(f"  {step['order']}. [{step_type.upper()}] - {step.get('desc', '')}")
     
     def test_step2_screenshot_capture(self):
         """
@@ -213,6 +248,9 @@ class TestFullPipelineE2E(unittest.TestCase):
         Step 4: Verify Vision Mapper identifies UI elements.
         
         Requirements: 4.1, 4.2
+        
+        Note: This test is only relevant for vision mode plans.
+        Direct mode plans use UIA and don't need vision mapping.
         """
         print("\n" + "="*60)
         print("STEP 4: Testing Vision Mapper")
@@ -224,6 +262,14 @@ class TestFullPipelineE2E(unittest.TestCase):
         if not hasattr(self.__class__, 'generated_plan'):
             self.skipTest("Generated plan not available from previous test")
         
+        # Check if this is a direct mode plan
+        plan_mode = self.__class__.generated_plan.get('mode', 'vision')
+        if plan_mode == 'direct':
+            print("✓ Plan uses direct mode (UIA) - Vision Mapper not needed")
+            # Set id_map to empty dict so subsequent tests don't fail
+            self.__class__.id_map = {}
+            return
+        
         # Collect visual targets from plan
         targets = []
         for step in self.__class__.generated_plan['sequence']:
@@ -234,6 +280,8 @@ class TestFullPipelineE2E(unittest.TestCase):
         
         if not targets:
             print("⚠ No visual targets in plan - skipping Vision Mapper test")
+            # Set id_map to empty dict so subsequent tests don't fail
+            self.__class__.id_map = {}
             return
         
         print(f"Visual targets to identify: {targets}")

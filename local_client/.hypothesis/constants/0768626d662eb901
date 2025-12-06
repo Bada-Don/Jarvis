@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\utils.py
+# hypothesis_version: 6.148.7
+
+[b'(?:[^\\r\\n]*(?:\\r\\n|\\r|\\n)){0,2}', b'coding[=:]\\s*([-\\w.]+)', '%s.%s', '6', '7', '[a-z]+|\\d+', '\\n|\\r\\n|\\r', 'ascii', "b'\\xef\\xbb\\xbf'", 'replace', 'strict', 'utf-8']

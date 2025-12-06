@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\magics\basic.py
+# hypothesis_version: 6.148.7
+
+['"', '%s%s:\n%s\n', "'", '**%s%s**::\n\n%s\n\n', '--cell', '--hide', '--line', '--params', '--show', '-c', '-l', '-p', 'Doctest mode is:', 'No documentation', 'OFF', 'ON', 'Other', 'Plain', '_', 'brief', 'cell', 'display_data', 'doctest_mode', 'err_stream', 'error', 'execute_result', 'false', 'filename', 'latex', 'line', 'mode', 'name', 'off', 'on', 'out_stream', 'r', 'rc_active_types', 'rc_pprint', 'rc_separate_in', 'rc_separate_out', 'rc_separate_out2', 'rest', 'stderr', 'store_true', 'stream', 'target', 'text/plain', 'true', 'user', 'utf-8', 'w', 'xmode']

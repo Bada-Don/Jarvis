@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\styles\style.py
+# hypothesis_version: 6.148.7
+
+['#', ',', '.', 'KEY_ORDER', 'MOST_PRECISE', 'Priority', 'Style', '[', ']', '^[a-z0-9.\\s_-]*$', '_T', 'bg:', 'blink', 'bold', 'border:', 'class:', 'default', 'fg:', 'hidden', 'italic', 'merge_styles', 'mono', 'noblink', 'nobold', 'nohidden', 'noinherit', 'noitalic', 'noreverse', 'nostrike', 'nounderline', 'parse_color', 'reverse', 'roman', 'sans', 'strike', 'underline']

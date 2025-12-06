@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\references.py
+# hypothesis_version: 6.148.7
+
+[b'!', b'#', b'*', 2000, '.gitignore', '.mypy_cache', '.py', '.pyi', '.tox', '.venv', '/', '\\b', '__pycache__', 'ignore', 'module', 'param', 'replace', 'trailer', 'utf-8', 'venv']

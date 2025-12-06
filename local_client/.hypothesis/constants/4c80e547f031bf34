@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\project.py
+# hypothesis_version: 6.148.7
+
+[b'DJANGO_SETTINGS_MODULE', '-stubs', '.git', '.hg', '.jedi', '.py', '.pyi', '<%s: %s>', 'MANIFEST.in', '_', '__init__.py', '__init__.pyi', '_django', '_environment', 'manage.py', 'module', 'namespace', 'path', 'project.json', 'pyproject.toml', 'rb', 'requirements.txt', 'setup.py', 'w']

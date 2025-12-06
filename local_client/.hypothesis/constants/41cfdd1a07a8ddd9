@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\pygments\formatters\terminal256.py
+# hypothesis_version: 6.148.7
+
+[127, 135, 175, 205, 215, 217, 229, 238, 254, 255, 257, '\x1b[', '%i', '%s%04d: ', '00', '01', '03', '04', '16m', '2', '256', '38', '39', '48', '49', '5', ';', ';01m', 'Terminal256', 'Terminal256Formatter', 'TerminalTrueColor', 'ansi', 'ansicolor', 'bgansicolor', 'bgcolor', 'bold', 'color', 'console16m', 'console256', 'italic', 'linenos', 'm', 'nobold', 'noitalic', 'nounderline', 'terminal16m', 'terminal256', 'underline']

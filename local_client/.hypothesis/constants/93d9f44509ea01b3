@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\cache.py
+# hypothesis_version: 6.148.7
+
+[600, '%s-%s%s-%s', '%s-%s.pkl', 'Caches', 'LOCALAPPDATA', 'Library', 'PARSO-CACHE-LOCK', 'Parso', 'XDG_CACHE_HOME', 'a', 'darwin', 'parso', 'pickle loaded: %s', 'rb', 'utf-8', 'wb', 'windows', '~', '~/.cache']

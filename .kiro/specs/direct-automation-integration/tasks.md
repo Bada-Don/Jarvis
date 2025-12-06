@@ -198,7 +198,12 @@
     - Update mode selection guidance (standard tasks → direct, complex → vision)
     - _Requirements: 7.1, 7.2_
 
-- [ ] 8. Checkpoint - Ensure integration works
+- [x] 8. Checkpoint - Ensure integration works
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Integration testing

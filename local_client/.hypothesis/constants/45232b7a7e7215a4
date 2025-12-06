@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\python\diff.py
+# hypothesis_version: 6.148.7
+
+['(%s != %s) ', ':', '<%s: %s>', 'DEDENT', 'ERROR_DEDENT', 'INDENT', '[^\\n\\r]+\\Z', '_ChildrenGroup', 'async_funcdef', 'async_stmt', 'children', 'class', 'classdef', 'decorated', 'decorator', 'def', 'delete', 'diff parser end', 'diff parser start', 'endmarker', 'equal', 'error_leaf', 'error_node', 'file_input', 'for', 'for_stmt', 'funcdef', 'if', 'if_stmt', 'insert', 'newline', 'parser issue:\n%s\n%s', 'replace', 'suite', 'try', 'try_stmt', 'while', 'while_stmt', 'with']

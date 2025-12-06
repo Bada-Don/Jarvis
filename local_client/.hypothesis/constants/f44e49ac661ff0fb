@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\history.py
+# hypothesis_version: 6.148.7
+
+[100, 16384, ' GROUP BY {0}', '%s#%s', '*', '-', '-%i', '-corrupt', '-corrupt-', '.', '0', ':', ':memory:', 'WHERE %s GLOB ?', '_i', '_i%s', '_ii', '_iii', 'connection_options', 'db', 'default', 'dir_hist', 'display_data', 'end', 'endsess', 'err_stream', 'execute_result', 'history', 'history.', 'history.sqlite', 'inf', 'line>=?', 'new', 'out_stream', 'sep', 'source', 'source_raw', 'start', 'startsess', 'timestamp', '~']

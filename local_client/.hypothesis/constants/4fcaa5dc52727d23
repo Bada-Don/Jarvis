@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\document.py
+# hypothesis_version: 6.148.7
+
+['()', '([^\\s]+)', '0123456789_', '<>', 'Document', '[]', '^([^\\s]+)', '^([^\\s]+\\s*)', '_DocumentCache', '_cache', '_cursor_position', '_selection', '_text', '{}']

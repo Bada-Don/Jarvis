@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\environment.py
+# hypothesis_version: 6.148.7
+
+['%s.%s', '.', '/usr/bin', '/usr/local/bin', '3.10', '3.11', '3.12', '3.13', '3.6', '3.7', '3.8', '3.9', '<%s: %s in %s>', 'CONDA_PREFIX', 'InferenceState', 'Scripts', 'Scripts\\python.exe', 'VIRTUAL_ENV', 'VersionInfo', 'bin', 'bin/python', 'bin/python%s', 'bin/python%s.%s', 'major minor micro', 'nt', 'python', 'python.exe', 'rb']

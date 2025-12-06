@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\python\parser.py
+# hypothesis_version: 6.148.7
+
+['assert_stmt', 'break_stmt', 'classdef', 'continue_stmt', 'decorator', 'del_stmt', 'expr_stmt', 'file_input', 'for_stmt', 'funcdef', 'global_stmt', 'if_stmt', 'import_from', 'import_name', 'lambdef', 'lambdef_nocond', 'namedexpr_test', 'nonlocal_stmt', 'pass_stmt', 'print_stmt', 'raise_stmt', 'return_stmt', 'simple_stmt', 'stmt', 'suite', 'sync_comp_for', 'try_stmt', 'while_stmt', 'with_stmt', 'yield_expr']

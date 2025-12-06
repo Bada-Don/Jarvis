@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\compiled\mixed.py
+# hypothesis_version: 6.148.7
+
+['.', '<%s: %s; %s>', '<lambda>', 'classdef', 'funcdef', 'instance']

@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\pure_eval\my_getattr_static.py
+# hypothesis_version: 6.148.7
+
+['__add__', '__delete__', '__dict__', '__get__', '__mro__', '__set__', 'foo', 'method', 'startswith']

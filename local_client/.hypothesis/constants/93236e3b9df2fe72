@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\logger.py
+# hypothesis_version: 6.148.7
+
+['#[Out]# %s', '%s\n', '.', '.*~', '.001~', 'Filename       :', 'Logger.log', 'Logging is already', 'Mode           :', 'OFF', 'ON', 'Output logging :', 'Raw input log  :', 'State          :', 'Switching logging', 'Timestamping   :', 'a', 'active', 'append', 'backup', 'global', 'input', 'output', 'over', 'parso', 'rotate', 'utf-8', 'w', '~']

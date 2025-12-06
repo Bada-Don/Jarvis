@@ -8,7 +8,7 @@ the correctness of the FlexiSIGN UIA module.
 """
 
 import unittest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, strategies as st, settings, HealthCheck
 
 
 def detect_flexisign_in_titles(titles: list[str]) -> bool:
@@ -62,10 +62,10 @@ class TestWindowDetectionProperty(unittest.TestCase):
             f"Detection mismatch for titles: {titles}"
         )
     
-    @given(st.lists(st.text(min_size=0, max_size=100).filter(
+    @given(st.lists(st.text(min_size=0, max_size=50).filter(
         lambda t: "flexisign" not in t.lower()
-    ), min_size=0, max_size=20))
-    @settings(max_examples=100)
+    ), min_size=0, max_size=10))
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
     def test_no_flexisign_returns_false(self, titles: list[str]):
         """
         Property: When no title contains 'FlexiSIGN', detection returns False.

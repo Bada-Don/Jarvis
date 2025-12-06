@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\terminal\embed.py
+# hypothesis_version: 6.148.7
+
+['%s:%s', '--exit', '--instance', '--yes', '-i', '-x', '-y', '__name__', '_call_location_id', '_init_location_id', 'autoawait', 'colors', 'config', 'loop_runner', 'n', 'nocolor', 'store_true', 'sync', 'unknown module', 'user_global_ns', 'using']

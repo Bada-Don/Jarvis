@@ -1,0 +1,4 @@
+# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\debugger.py
+# hypothesis_version: 6.148.7
+
+[999, 1024, '\n-> ', '  -', '%*s', '%s%s', '(', '(%s) ', '()', '(?<=\\n)\\s+', ')', '.', '...', '0', '1', ':', ': ', '<lambda>', '<string>', '>', '?', '??', 'Globals', 'Locals', 'Newest frame', 'Oldest frame', '__args__', '__debuggerskip__', '__ipython_bottom__', '__main__', '__return__', '__tracebackhide__', '_exec_filename', 'curframe', 'current predicates:', 'debuggerskip', 'f_back', 'false', 'initial_frame', 'ipdb> ', 'ipython_internal', 'list', 'longlist', 'no', 'pdef', 'pdoc', 'pfile', 'pinfo', 'pinfo ', 'pinfo2', 'pinfo2 ', 'psource', 'readonly', 'str', 'tbhide', 'true', 'yes']
