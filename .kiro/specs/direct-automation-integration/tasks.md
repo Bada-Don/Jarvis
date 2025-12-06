@@ -151,8 +151,15 @@
 
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Extend Plan Executor for direct mode
-  - [ ] 6.1 Add direct mode routing to PlanExecutor
+- [x] 6. Extend Plan Executor for direct mode
+
+
+
+
+
+  - [x] 6.1 Add direct mode routing to PlanExecutor
+
+
     - Add `_flexisign_uia` attribute to `__init__`
     - Modify `execute_plan()` to check mode and route accordingly
     - Implement `_execute_direct_plan()` for direct mode execution
@@ -167,7 +174,9 @@
     - **Property 3: Vision Mode Command Routing**
     - **Validates: Requirements 7.4**
 
-  - [ ] 6.4 Implement direct step execution
+  - [x] 6.4 Implement direct step execution
+
+
     - Implement `_execute_direct_step()` to dispatch to UIA actions
     - Handle create_text, set_dimensions, set_font, apply_style, move_object types
     - Handle keyboard type using existing keyboard execution logic

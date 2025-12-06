@@ -34,6 +34,13 @@ try:
 except ImportError:
     DEBUG_LOGGER_AVAILABLE = False
 
+try:
+    from flexisign_uia import FlexiSignUIA, FlexiSignUIAError
+    FLEXISIGN_UIA_AVAILABLE = True
+except ImportError:
+    FLEXISIGN_UIA_AVAILABLE = False
+    print("⚠️ Warning: flexisign_uia not available")
+
 
 class PlanExecutor:
     """
@@ -81,6 +88,9 @@ class PlanExecutor:
         # Window manager for activation
         self.window_manager = get_window_manager(verbose=True) if WINDOW_MANAGER_AVAILABLE else None
         
+        # FlexiSIGN UIA module for direct automation
+        self._flexisign_uia: Optional['FlexiSignUIA'] = None
+        
         # Cached vision data (single-pass architecture)
         self._id_map: Optional[dict] = None
         self._box_map: Optional[dict] = None
@@ -105,6 +115,7 @@ class PlanExecutor:
     def execute_plan(self, plan: dict) -> bool:
         """
         Execute an execution plan from the Planner Model.
+        Routes to direct or vision mode based on plan['mode'].
         
         Args:
             plan: Execution plan dict with "sequence" array and optional "mode"
@@ -117,6 +128,98 @@ class PlanExecutor:
             self._send_status("Empty execution plan", "warning")
             return False
         
+        mode = plan.get('mode', 'vision')
+        
+        # Route to appropriate execution mode
+        if mode == 'direct':
+            return self._execute_direct_plan(plan)
+        else:
+            return self._execute_vision_plan(plan)
+    
+    def _execute_direct_plan(self, plan: dict) -> bool:
+        """
+        Execute plan using UIA (no vision/screenshots).
+        
+        Args:
+            plan: Execution plan dict with "sequence" array
+            
+        Returns:
+            bool: True if all steps completed successfully
+        """
+        if not FLEXISIGN_UIA_AVAILABLE:
+            self._send_status("FlexiSIGN UIA module not available", "error")
+            return False
+        
+        sequence = plan.get('sequence', [])
+        total_steps = len(sequence)
+        
+        self._send_status(f"Starting direct automation of {total_steps} steps", "info", progress=0)
+        
+        # Initialize UIA if needed
+        if self._flexisign_uia is None:
+            try:
+                self._flexisign_uia = FlexiSignUIA()
+            except Exception as e:
+                self._send_status(f"Failed to initialize FlexiSIGN UIA: {e}", "error")
+                return False
+        
+        # Activate FlexiSIGN window
+        if not self._flexisign_uia.find_and_activate_window():
+            self._send_status("Failed to activate FlexiSIGN window", "error")
+            return False
+        
+        self._send_status("FlexiSIGN window activated", "info", progress=5)
+        
+        # Execute each step
+        for i, step in enumerate(sequence):
+            step_order = step.get('order', i + 1)
+            step_desc = step.get('desc', f"Step {step_order}")
+            
+            progress = int(((i + 1) / total_steps) * 90) + 5
+            self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
+            
+            try:
+                success = self._execute_direct_step(step, sequence, i)
+                if not success:
+                    self._send_status(f"Step {step_order} failed", "warning")
+                    
+                if DEBUG_LOGGER_AVAILABLE:
+                    get_debug_logger().log_step_execution(
+                        step_order, step.get('type', 'unknown'),
+                        f"desc='{step_desc}' success={success}"
+                    )
+                    
+            except FlexiSignUIAError as e:
+                self._send_status(f"UIA Error in step {step_order}: {e}", "error")
+                if DEBUG_LOGGER_AVAILABLE:
+                    get_debug_logger().log_step_execution(
+                        step_order, step.get('type', 'unknown'),
+                        f"UIA ERROR: {e}", success=False
+                    )
+                continue
+            except Exception as e:
+                self._send_status(f"Error in step {step_order}: {e}", "error")
+                if DEBUG_LOGGER_AVAILABLE:
+                    get_debug_logger().log_step_execution(
+                        step_order, step.get('type', 'unknown'),
+                        f"ERROR: {e}", success=False
+                    )
+                continue
+        
+        self._send_status("Direct automation complete!", "success", progress=100)
+        return True
+    
+    def _execute_vision_plan(self, plan: dict) -> bool:
+        """
+        Execute plan using vision-based pipeline (existing logic).
+        
+        Args:
+            plan: Execution plan dict with "sequence" array
+            
+        Returns:
+            bool: True if all steps completed successfully
+        """
+        sequence = plan.get('sequence', [])
         self._mode = plan.get('mode', 'general')
         
         total_steps = len(sequence)
@@ -180,6 +283,66 @@ class PlanExecutor:
         
         self._send_status("Execution complete!", "success", progress=100)
         return True
+    
+    def _execute_direct_step(self, step: dict, sequence: list, current_index: int) -> bool:
+        """
+        Execute a single direct automation step.
+        Dispatches to UIA actions based on step type.
+        
+        Supports: create_text, set_dimensions, set_font, apply_style, move_object, keyboard
+        
+        Args:
+            step: Step dict with 'type' and type-specific parameters
+            sequence: Full sequence list (for keyboard step context)
+            current_index: Current step index in sequence
+            
+        Returns:
+            bool: True if step executed successfully
+        """
+        step_type = step.get('type')
+        
+        if step_type == 'keyboard':
+            # Use existing keyboard execution logic
+            self._execute_keyboard_step(step, sequence, current_index)
+            return True
+        
+        elif step_type == 'create_text':
+            text = step.get('text', '')
+            if not text:
+                self._send_status("create_text: missing 'text' parameter", "warning")
+                return False
+            return self._flexisign_uia.create_text(text)
+        
+        elif step_type == 'set_dimensions':
+            width = step.get('width', '')
+            height = step.get('height', '')
+            if not width or not height:
+                self._send_status("set_dimensions: missing 'width' or 'height' parameter", "warning")
+                return False
+            return self._flexisign_uia.set_dimensions(str(width), str(height))
+        
+        elif step_type == 'set_font':
+            font_name = step.get('font_name', '')
+            if not font_name:
+                self._send_status("set_font: missing 'font_name' parameter", "warning")
+                return False
+            return self._flexisign_uia.set_font(font_name)
+        
+        elif step_type == 'apply_style':
+            style_name = step.get('style_name')  # Optional
+            return self._flexisign_uia.apply_style(style_name)
+        
+        elif step_type == 'move_object':
+            direction = step.get('direction', '')
+            distance = step.get('distance', 1)
+            if not direction:
+                self._send_status("move_object: missing 'direction' parameter", "warning")
+                return False
+            return self._flexisign_uia.move_object(direction, int(distance))
+        
+        else:
+            self._send_status(f"Unknown direct step type: {step_type}", "warning")
+            return False
     
     def _collect_visual_targets(self, sequence: list) -> list[str]:
         """Collect all unique visual target names from the sequence."""
