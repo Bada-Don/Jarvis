@@ -20,3 +20,6 @@ google-generativeai
 
 # Environment variable management
 python-dotenv
+
+# Property-based testing
+hypothesis>=6.0.0
