@@ -290,7 +290,7 @@ class PlanExecutor:
         Execute a single direct automation step.
         Dispatches to UIA actions based on step type.
         
-        Supports: create_text, set_dimensions, set_font, apply_style, move_object, keyboard
+        Supports: create_text, set_dimensions, set_font, apply_style, move_object, keyboard, ensure_designcentral
         
         Args:
             step: Step dict with 'type' and type-specific parameters
@@ -305,6 +305,13 @@ class PlanExecutor:
         if step_type == 'keyboard':
             # Use existing keyboard execution logic
             self._execute_keyboard_step(step, sequence, current_index)
+            return True
+        
+        elif step_type == 'ensure_designcentral':
+            # Ensure DesignCentral panel is open
+            if not self._flexisign_uia.ensure_designcentral_open():
+                self._send_status("ensure_designcentral: failed to open DesignCentral panel", "warning")
+                return False
             return True
         
         elif step_type == 'create_text':

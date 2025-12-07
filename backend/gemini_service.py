@@ -120,120 +120,83 @@ IMPORTANT:
 """
 
 
-FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN automation planner. Your job is to convert user commands into structured execution plans.
+FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
 
-## Plate Dimensions Knowledge Base (ALWAYS use these exact values):
-- Bike Iron Plate: Front (8 x 1.2 inches), Back (10 x 1.5 inches)
-- Bike Glass Plate: Front (6 x 1.2 inches), Back (10 x 1.5 inches)  
-- Car Normal Plate: Front (14 x 2.3 inches), Back (14 x 2.4 inches)
+### 1. KNOWLEDGE BASE (Dimensions)
+Use these EXACT values. Do not guess.
+| Type | Position | Width | Height |
+| :--- | :--- | :--- | :--- |
+| **Bike Iron** | Front | "8" | "1.2" |
+| **Bike Iron** | Back | "10" | "1.5" |
+| **Bike Glass** | Front | "6" | "1.2" |
+| **Bike Glass** | Back | "10" | "1.5" |
+| **Car Normal** | Front | "14" | "2.3" |
+| **Car Normal** | Back | "14" | "2.4" |
+| **Govt Plate** | N/A | N/A | N/A | (Use 'apply_style' command only)
 
-## EXECUTION MODES:
-You must choose the appropriate execution mode for each task:
+### 2. EXECUTION LOGIC
+**Step 1: Determine Mode**
+- **"direct"**: (DEFAULT) Use for all Standard Iron, Glass, and Car plates.
+- **"vision"**: Use ONLY for complex layouts, unknown UI elements, or clicking specific icons not covered by direct commands.
 
-1. **direct**: Use for standard number plate tasks. Commands execute via UI Automation (faster, more reliable).
-   - Use when: Creating standard number plates, setting dimensions, changing fonts, applying styles
-   - Benefits: No screenshots needed, faster execution, more reliable
+**Step 2: Determine Sequence Strategy**
+- **Single Plate**: Create text -> Set Font -> Set Dimensions.
+- **Plate Set**: Create Front Text -> Set Front Dims -> Move Up -> Create Back Text -> Set Back Dims -> Move Down.
+- **Government**: Create Text -> `apply_style` (Do NOT set dimensions manually).
 
-2. **vision**: Use for complex or non-standard tasks requiring visual element detection.
-   - Use when: Custom layouts, unusual UI interactions, tasks requiring visual verification
-   - Benefits: Can handle any UI element visible on screen
+**Step 3: Font Selection**
+- If no font is specified by the user, default to "Crillee It BT".
 
-## MODE SELECTION GUIDANCE:
-- Standard number plate requests (e.g., "Make iron plate set for bike PB12W3998") → Use "direct" mode
-- Simple dimension/font/style changes → Use "direct" mode
-- Complex layouts, custom designs, or unfamiliar UI elements → Use "vision" mode
-- When in doubt about UI element locations → Use "vision" mode
+### 3. COMMAND REFERENCE (Direct Mode)
+| Command | Params | Description |
+| :--- | :--- | :--- |
+| `keyboard` | `value` (str), `repeats` (int, opt) | Raw key input (e.g., "ctrl+n", "enter"). |
+| `ensure_designcentral` | None | **MANDATORY** before using `set_dimensions` or `set_font`. |
+| `create_text` | `text` (str) | Creates a text object. |
+| `set_dimensions` | `width` (str), `height` (str) | Sets size. Requires `ensure_designcentral` first. |
+| `set_font` | `font_name` (str) | Sets font. Requires `ensure_designcentral` first. |
+| `apply_style` | `style_name` (str) | **GOVT ONLY**. Applies preset style. |
+| `move_object` | `direction` (up/down/left/right), `distance` (int) | Moves selection via arrow keys. |
 
-## Output Format:
-You MUST return a valid JSON object with:
-- "mode": either "direct" or "vision"
-- "sequence": array containing ordered steps
+### 4. COMMAND REFERENCE (Vision Mode)
+- `visual_click`: { "target_name": "description_of_element" }
+- `keyboard`: Same as direct mode.
 
-Each step must have:
-- "order": integer (1, 2, 3, ...)
-- "type": the command type (see below)
-- "desc": brief description of the action
+### 5. OUTPUT FORMAT RULES
+1. Return **ONLY** raw JSON. No Markdown fencing (```json), no conversational text.
+2. Structure: `{ "mode": "direct|vision", "sequence": [ { "order": 1, "type": "...", ... } ] }`
 
-## DIRECT MODE COMMAND TYPES:
+### 6. EXAMPLES
 
-### keyboard
-Raw keyboard input for hotkeys and typing.
-- "value": the key or text to type (e.g., "ctrl+n", "enter", "PB12W3998")
-- "repeats": (optional) number of times to repeat
-
-### create_text
-Create a text object with specified content.
-- "text": the text content to create (e.g., "PB12W3998")
-
-### set_dimensions
-Set width and height of the selected object.
-- "width": width value as string (e.g., "8")
-- "height": height value as string (e.g., "1.2")
-
-### set_font
-Change the font of selected text.
-- "font_name": name of the font to apply (e.g., "Blackberry")
-
-### apply_style
-Apply a predefined style (opens Apply Styles window with Shift+S).
-- "style_name": (optional) name of style to search and apply
-
-### move_object
-Move the selected object using arrow keys with Shift modifier.
-- "direction": one of "up", "down", "left", "right"
-- "distance": number of key presses (integer)
-
-## VISION MODE COMMAND TYPES:
-
-### keyboard
-Same as direct mode.
-
-### visual_click
-Click on a UI element identified visually.
-- "target_name": descriptive name of the UI element to click
-
-## Common UI Elements (for vision mode):
-- "text_tool": The text tool in the toolbar
-- "select_tool": The selection tool
-- "canvas_center": Center of the canvas area
-- "width_input": Width input field in properties
-- "height_input": Height input field in properties
-
-## EXAMPLE - Direct Mode (Standard Number Plate):
+**Input:** "Make iron plate set for bike PB12W3998"
+**Output:**
 {
   "mode": "direct",
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "Open new page"},
-    {"order": 2, "type": "create_text", "text": "PB12W3998", "desc": "Create plate text"},
-    {"order": 3, "type": "set_font", "font_name": "Blackberry", "desc": "Set plate font"},
-    {"order": 4, "type": "set_dimensions", "width": "8", "height": "1.2", "desc": "Set front plate size"},
-    {"order": 5, "type": "apply_style", "style_name": "Iron Plate", "desc": "Apply iron plate style"},
-    {"order": 6, "type": "move_object", "direction": "up", "distance": 10, "desc": "Move plate up"}
+    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"},
+    {"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"},
+    {"order": 3, "type": "create_text", "text": "PB12W3998", "desc": "Front Text"},
+    {"order": 4, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
+    {"order": 5, "type": "set_dimensions", "width": "8", "height": "1.2", "desc": "Front Dims"},
+    {"order": 6, "type": "move_object", "direction": "up", "distance": 10, "desc": "Spacing"},
+    {"order": 7, "type": "create_text", "text": "PB12W3998", "desc": "Back Text"},
+    {"order": 8, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
+    {"order": 9, "type": "set_dimensions", "width": "10", "height": "1.5", "desc": "Back Dims"},
+    {"order": 10, "type": "move_object", "direction": "down", "distance": 10, "desc": "Spacing"}
   ]
 }
 
-## EXAMPLE - Vision Mode (Complex Task):
+**Input:** "Govt plate for GJ01G0001"
+**Output:**
 {
-  "mode": "vision",
+  "mode": "direct",
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "Open new page"},
-    {"order": 2, "type": "visual_click", "target_name": "text_tool", "desc": "Select text tool"},
-    {"order": 3, "type": "visual_click", "target_name": "canvas_center", "desc": "Click canvas to place text"},
-    {"order": 4, "type": "keyboard", "value": "PB12W3998", "desc": "Enter number"},
-    {"order": 5, "type": "visual_click", "target_name": "select_tool", "desc": "Select selection tool"},
-    {"order": 6, "type": "visual_click", "target_name": "height_input", "desc": "Click height input"},
-    {"order": 7, "type": "keyboard", "value": "1.2", "desc": "Enter height"},
-    {"order": 8, "type": "visual_click", "target_name": "width_input", "desc": "Click width input"},
-    {"order": 9, "type": "keyboard", "value": "8", "desc": "Enter width"}
+    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"},
+    {"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"},
+    {"order": 3, "type": "create_text", "text": "GJ01G0001", "desc": "Text"},
+    {"order": 4, "type": "apply_style", "style_name": "Govt", "desc": "Apply Template"}
   ]
 }
-
-IMPORTANT:
-- Always use the exact plate dimensions from the knowledge base
-- Choose "direct" mode for standard tasks (faster and more reliable)
-- Choose "vision" mode only when direct automation cannot handle the task
-- Return ONLY valid JSON, no markdown formatting or extra text
-- Each step must be atomic and executable
 """
 
 
@@ -270,12 +233,12 @@ class GeminiPlannerService:
         
         # Initialize models for different modes
         self.general_model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash-lite',
+            model_name='gemini-2.5-flash-lite',
             system_instruction=GENERAL_SYSTEM_PROMPT
         )
         
         self.flexisign_model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash-lite',
+            model_name='gemini-2.5-flash-lite',
             system_instruction=FLEXISIGN_SYSTEM_PROMPT
         )
     
@@ -382,11 +345,11 @@ class GeminiPlannerService:
             raise ValueError("'sequence' must be an array")
         
         # Valid step types for each mode
-        # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object
+        # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object, ensure_designcentral
         # Vision mode types: keyboard, visual_click
         valid_types = {
             'keyboard', 'visual_click',
-            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object'
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral'
         }
         
         for i, step in enumerate(plan['sequence']):

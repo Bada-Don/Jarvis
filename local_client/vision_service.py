@@ -214,7 +214,7 @@ class VisionService:
         # Configure Gemini
         if GEMINI_AVAILABLE:
             genai.configure(api_key=self.api_key)
-            self.vision_model = genai.GenerativeModel('gemini-2.0-flash')
+            self.vision_model = genai.GenerativeModel('gemini-2.5-flash')
         else:
             self.vision_model = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")

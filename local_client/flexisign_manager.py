@@ -15,8 +15,12 @@ from typing import Optional, List, Dict, Tuple
 
 
 class FlexiSignManager:
-    def __init__(self, config_path='local_client\\flexisign_config.json', status_callback=None):
+    def __init__(self, config_path=None, status_callback=None):
         """Initialize the FlexiSign Manager with configuration."""
+        if config_path is None:
+            # Default to flexisign_config.json in the same directory as this script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(script_dir, 'flexisign_config.json')
         self.config = self._load_config(config_path)
         self.verbose = self.config['debug']['verbose_logging']
         self.status_callback = status_callback
