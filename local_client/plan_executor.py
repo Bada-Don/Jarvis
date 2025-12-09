@@ -11,7 +11,7 @@ from typing import Callable, Optional
 import pyautogui
 
 # Safety settings
-pyautogui.FAILSAFE = True  # Move mouse to corner to abort
+pyautogui.FAILSAFE = False  # Disable fail-safe (corner abort) for uninterrupted automation
 pyautogui.PAUSE = 0.05  # Minimal pause, we handle timing ourselves
 
 try:

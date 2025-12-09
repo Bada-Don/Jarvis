@@ -4,31 +4,20 @@ echo    Starting JARVIS - AI Assistant
 echo ========================================
 echo.
 
-:: Terminal 1: Frontend (ChatInterface)
-echo Starting Frontend...
-start "JARVIS Frontend" cmd /k "cd ChatInterface && npm start"
+:: Use Windows Terminal with tabs (wt command)
+:: All three services open as tabs in a single Windows Terminal window
 
-:: Wait a moment before starting backend
-timeout /t 2 /nobreak >nul
+echo Starting all services in Windows Terminal tabs...
 
-:: Terminal 2: Backend Server (with venv)
-echo Starting Backend Server...
-start "JARVIS Backend" cmd /k "cd backend && call venv\Scripts\activate && python server.py"
-
-:: Wait a moment before starting local client
-timeout /t 2 /nobreak >nul
-
-:: Terminal 3: Local Client (using backend venv)
-echo Starting Local Client...
-start "JARVIS Local Client" cmd /k "cd local_client && call ..\backend\venv\Scripts\activate && python client.py"
+wt -w 0 new-tab --title "JARVIS Frontend" -d "%~dp0ChatInterface" cmd /k "npm start" ; ^
+   new-tab --title "JARVIS Backend" -d "%~dp0backend" cmd /k "call venv\Scripts\activate && python server.py" ; ^
+   new-tab --title "JARVIS Local Client" -d "%~dp0local_client" cmd /k "call ..\backend\venv\Scripts\activate && python client.py"
 
 echo.
 echo ========================================
-echo    All services starting...
+echo    All services started in tabs!
 echo ========================================
 echo.
 echo Frontend:     http://localhost:19006
 echo Backend:      http://localhost:5000
 echo.
-echo Close this window or press any key to exit.
-pause >nul

@@ -68,12 +68,15 @@ For visual_click steps, include:
 - Or use Win+R for Run dialog
 
 ### Web Browsing:
-- Click address bar (or Ctrl+L), type URL with a SPACE at the end, press Enter
-- IMPORTANT: Always add a trailing space after URLs (e.g., "google.com ") to prevent browser autocomplete from changing the URL
-- Click on links, buttons, form fields
+- To navigate to a URL: Ctrl+L (focus address bar), type URL with a SPACE at the end, press Enter
+- IMPORTANT: Always add a trailing space after URLs (e.g., "youtube.com ") to prevent browser autocomplete
+- To search on a website: Use the website's search shortcut (e.g., "/" on YouTube) or visual_click on search box
+- YouTube shortcuts: "/" focuses the search bar, then type query and press Enter
+- Google shortcuts: Just type in the search box (auto-focused on google.com)
+- DO NOT use the browser address bar to search within a website - use the website's own search feature
 
 ### File Operations:
-- Ctrl+O (Open), Ctrl+S (Save), Ctrl+N (New)
+- Ctrl+O (Open), Ctrl+S (Save), Ctrl+N (New), Ctrl+L (Focus Address Bar)
 - Navigate file dialogs by clicking folders
 
 ### Text Editing:
@@ -113,6 +116,7 @@ For visual_click steps, include:
 
 IMPORTANT:
 - Prefer keyboard shortcuts when possible (faster and more reliable)
+- Use website-specific search features, NOT the browser address bar for searching within sites
 - Use visual_click only when keyboard shortcuts aren't available
 - Return ONLY valid JSON, no markdown formatting or extra text
 - Each step must be atomic and executable
