@@ -111,11 +111,18 @@ def execute_command(command_data):
         send_status(f"Unknown action: {action}", "error")
 
 
-def execute_two_model_plan(command_data):
+def execute_two_model_plan(command_data, retry_count: int = 0):
     """
     Execute a plan using the Two-Model Pipeline.
     Works for both general tasks and FlexiSIGN-specific tasks.
+    Includes verification and automatic retry on failure.
+    
+    Args:
+        command_data: Command data from server
+        retry_count: Current retry attempt (max 2 retries)
     """
+    MAX_RETRIES = 2
+    
     if not TWO_MODEL_PIPELINE_AVAILABLE:
         send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
         return
@@ -123,6 +130,7 @@ def execute_two_model_plan(command_data):
     plan = command_data.get('plan')
     user_command = command_data.get('user_command', '')
     mode = command_data.get('mode', plan.get('mode', 'general'))
+    enable_verification = command_data.get('verify', True)  # Enable by default
     
     if not plan:
         send_status("No execution plan received", "error")
@@ -140,8 +148,9 @@ def execute_two_model_plan(command_data):
             print(f"⚠️ Debug logger error: {e}")
     
     try:
+        retry_msg = f" (retry {retry_count}/{MAX_RETRIES})" if retry_count > 0 else ""
         send_status({
-            'message': f'Starting execution (mode: {mode})...',
+            'message': f'Starting execution (mode: {mode}){retry_msg}...',
             'progress': 5,
             'status': 'info'
         }, "info")
@@ -184,26 +193,71 @@ def execute_two_model_plan(command_data):
         
         # Log execution start
         sequence = plan.get('sequence', [])
+        expected_state = plan.get('expected_final_state', '')
         print(f"📋 Executing {len(sequence)} steps for: {user_command}")
+        if expected_state:
+            print(f"📋 Expected final state: {expected_state}")
         
-        # Execute the plan
-        success = executor.execute_plan(plan)
+        # Execute the plan with verification
+        result = executor.execute_plan(plan, verify=enable_verification)
         
-        if success:
+        exec_success = result.get("success", False)
+        verified = result.get("verified", True)
+        verification_result = result.get("verification_result")
+        
+        # Handle verification failure with retry
+        if exec_success and not verified and retry_count < MAX_RETRIES:
+            corrective_actions = []
+            if verification_result:
+                corrective_actions = verification_result.get("corrective_actions", [])
+                current_state = verification_result.get("current_state", "Unknown")
+                print(f"⚠️ Verification failed. Current: {current_state}")
+                print(f"⚠️ Suggested corrections: {corrective_actions}")
+            
             send_status({
-                'message': 'Task completed successfully!',
+                'message': f'Verification failed, retrying... ({retry_count + 1}/{MAX_RETRIES})',
+                'progress': 50,
+                'status': 'warning'
+            }, "warning")
+            
+            # Log retry attempt
+            if debug_logger:
+                debug_logger.log_error(f"Verification failed, retry {retry_count + 1}")
+            
+            # Wait before retry
+            time.sleep(1.5)
+            
+            # Retry execution
+            execute_two_model_plan(command_data, retry_count + 1)
+            return
+        
+        # Final status
+        if exec_success and verified:
+            send_status({
+                'message': 'Task completed and verified successfully!',
                 'progress': 100,
                 'status': 'success'
             }, "success")
             
             if debug_logger:
                 debug_logger.complete(success=True)
-        else:
+                
+        elif exec_success and not verified:
+            # Verification failed after all retries
             send_status({
-                'message': 'Task completed with warnings',
+                'message': 'Task executed but verification failed after retries',
                 'progress': 100,
                 'status': 'warning'
             }, "warning")
+            
+            if debug_logger:
+                debug_logger.complete(success=False)
+        else:
+            send_status({
+                'message': 'Task execution failed',
+                'progress': 100,
+                'status': 'error'
+            }, "error")
             
             if debug_logger:
                 debug_logger.complete(success=False)

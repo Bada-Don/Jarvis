@@ -29,8 +29,9 @@
 
 5. **Verification Mechanism**
    - Ask the planner model to give a description of expected final state
-   - Example: "FlexiSIGN window with Harshit Singla written in it" 
-   -          "Google docs opened and Hello World written in it" 
+   - Example: 
+   -          "FlexiSIGN window with Harshit Singla written in it" 
+              "Google docs opened and Hello World written in it" 
    - Take a screenshot of the final state and send that to the planner model
    - Compare the two and perform operations if needed
 

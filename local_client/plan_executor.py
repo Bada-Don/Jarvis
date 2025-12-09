@@ -112,30 +112,74 @@ class PlanExecutor:
         else:
             self.status_callback(message, status_type)
 
-    def execute_plan(self, plan: dict) -> bool:
+    def execute_plan(self, plan: dict, verify: bool = True) -> dict:
         """
         Execute an execution plan from the Planner Model.
         Routes to direct or vision mode based on plan['mode'].
         
         Args:
             plan: Execution plan dict with "sequence" array and optional "mode"
+            verify: Whether to verify task completion after execution
         
         Returns:
-            bool: True if all steps completed successfully
+            dict: Execution result with keys:
+                - success: bool - whether execution completed
+                - verified: bool - whether verification passed (if verify=True)
+                - verification_result: dict - full verification details (if verify=True)
         """
         sequence = plan.get('sequence', [])
         if not sequence:
             self._send_status("Empty execution plan", "warning")
-            return False
+            return {"success": False, "verified": False, "verification_result": None}
         
         mode = plan.get('mode', 'vision')
+        expected_state = plan.get('expected_final_state', '')
         
         # Route to appropriate execution mode
         # 'direct' or 'flexisign' both use direct automation
         if mode in ('direct', 'flexisign'):
-            return self._execute_direct_plan(plan)
+            exec_success = self._execute_direct_plan(plan)
         else:
-            return self._execute_vision_plan(plan)
+            exec_success = self._execute_vision_plan(plan)
+        
+        # Perform verification if requested and expected_state is provided
+        verification_result = None
+        verified = True  # Default to True if no verification
+        
+        if verify and expected_state and exec_success:
+            self._send_status("Verifying task completion...", "info", progress=92)
+            time.sleep(1.0)  # Wait for UI to settle
+            
+            try:
+                verification_result = self.vision_service.verify_task_completion(expected_state)
+                verified = verification_result.get("success", False)
+                confidence = verification_result.get("confidence", 0)
+                
+                if verified:
+                    self._send_status(
+                        f"✓ Task verified successfully (confidence: {confidence:.0%})", 
+                        "success", progress=98
+                    )
+                else:
+                    current_state = verification_result.get("current_state", "Unknown")
+                    missing = verification_result.get("missing_elements", [])
+                    self._send_status(
+                        f"⚠ Verification failed: {current_state}", 
+                        "warning", progress=95
+                    )
+                    if missing:
+                        self._send_status(f"Missing: {', '.join(missing)}", "warning")
+                        
+            except Exception as e:
+                self._send_status(f"Verification error: {e}", "warning")
+                verification_result = {"success": False, "error": str(e)}
+                verified = False
+        
+        return {
+            "success": exec_success,
+            "verified": verified,
+            "verification_result": verification_result
+        }
     
     def _execute_direct_plan(self, plan: dict) -> bool:
         """

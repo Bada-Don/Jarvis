@@ -175,6 +175,34 @@ Respond ONLY with a valid JSON object mapping target names to box numbers (integ
 Example: {"button_OK": 45, "search_box": 12, "unknown_element": null}
 """
 
+VERIFICATION_PROMPT = """You are a task verification assistant. Your job is to compare a screenshot of the current screen state against an expected outcome description.
+
+## Your Task:
+1. Analyze the provided screenshot carefully
+2. Compare it against the expected final state description
+3. Determine if the task was completed successfully
+
+## Response Format:
+Return ONLY a valid JSON object with these fields:
+- "success": boolean - true if the expected state matches the screenshot, false otherwise
+- "confidence": float (0.0 to 1.0) - how confident you are in your assessment
+- "current_state": string - brief description of what you actually see on screen
+- "missing_elements": array of strings - what's missing or wrong (empty if success is true)
+- "corrective_actions": array of strings - suggested actions to fix the issue (empty if success is true)
+
+## Examples:
+
+Expected: "Notepad window open with 'Hello World!' typed in the text area"
+Screenshot shows: Notepad with "Hello World!" text
+Response: {"success": true, "confidence": 0.95, "current_state": "Notepad window open with 'Hello World!' text visible", "missing_elements": [], "corrective_actions": []}
+
+Expected: "Chrome browser showing Google homepage"
+Screenshot shows: Chrome with YouTube open
+Response: {"success": false, "confidence": 0.9, "current_state": "Chrome browser showing YouTube homepage", "missing_elements": ["Google homepage not visible"], "corrective_actions": ["Navigate to google.com"]}
+
+Be strict but reasonable - minor visual differences are OK, but the core task must be completed.
+"""
+
 FLEXISIGN_VISION_PROMPT = """You are a FlexiSIGN UI element identifier.
 I am providing a screenshot with "Set-of-Mark" annotations (red boxes with ID numbers).
 
@@ -384,3 +412,102 @@ Return ONLY a JSON object with the mappings."""
         except Exception as e:
             print(f"⚠️ Vision Mapper error: {e}")
             raise
+
+    def verify_task_completion(self, expected_state: str) -> dict:
+        """
+        Verify if the task was completed successfully by comparing
+        the current screen state against the expected final state.
+        
+        Args:
+            expected_state: Description of what the screen should look like
+        
+        Returns:
+            dict: Verification result with keys:
+                - success: bool
+                - confidence: float (0.0 to 1.0)
+                - current_state: str
+                - missing_elements: list[str]
+                - corrective_actions: list[str]
+        """
+        if self.vision_model is None:
+            raise RuntimeError("Gemini Vision model not available. Cannot verify task.")
+        
+        if not expected_state:
+            return {
+                "success": True,
+                "confidence": 0.0,
+                "current_state": "No expected state provided - skipping verification",
+                "missing_elements": [],
+                "corrective_actions": []
+            }
+        
+        # Capture current screen
+        screenshot = self.capture_screenshot()
+        
+        # Convert to PIL for Gemini
+        image_rgb = cv2.cvtColor(screenshot, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(image_rgb)
+        
+        # Build verification prompt
+        prompt = f"""{VERIFICATION_PROMPT}
+
+Expected Final State: "{expected_state}"
+
+Analyze the screenshot and determine if this expected state has been achieved.
+Return ONLY a JSON object with your assessment."""
+
+        try:
+            response = self.vision_model.generate_content([prompt, pil_image])
+            response_text = response.text.strip()
+            
+            # Handle markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                json_lines = []
+                in_json = False
+                for line in lines:
+                    if line.startswith("```") and not in_json:
+                        in_json = True
+                        continue
+                    elif line.startswith("```") and in_json:
+                        break
+                    elif in_json:
+                        json_lines.append(line)
+                response_text = "\n".join(json_lines)
+            
+            result = json.loads(response_text)
+            
+            # Ensure all required fields exist
+            result.setdefault("success", False)
+            result.setdefault("confidence", 0.5)
+            result.setdefault("current_state", "Unknown")
+            result.setdefault("missing_elements", [])
+            result.setdefault("corrective_actions", [])
+            
+            if DEBUG_LOGGER_AVAILABLE:
+                try:
+                    get_debug_logger().log_verification_result(result, expected_state)
+                except Exception as e:
+                    print(f"⚠️ Debug log error: {e}")
+            
+            return result
+            
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Failed to parse verification response: {e}")
+            print(f"Response was: {response_text}")
+            return {
+                "success": False,
+                "confidence": 0.0,
+                "current_state": f"Failed to parse verification: {e}",
+                "missing_elements": ["Verification parsing failed"],
+                "corrective_actions": ["Retry the task"]
+            }
+        except Exception as e:
+            print(f"⚠️ Verification error: {e}")
+            return {
+                "success": False,
+                "confidence": 0.0,
+                "current_state": f"Verification error: {e}",
+                "missing_elements": ["Verification failed"],
+                "corrective_actions": ["Retry the task"]
+            }

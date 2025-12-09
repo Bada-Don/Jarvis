@@ -91,7 +91,8 @@ For visual_click steps, include:
     {"order": 2, "type": "keyboard", "value": "notepad", "desc": "Type notepad"},
     {"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Notepad"},
     {"order": 4, "type": "keyboard", "value": "Hello World!", "desc": "Type the message"}
-  ]
+  ],
+  "expected_final_state": "Notepad window open with 'Hello World!' typed in the text area"
 }
 
 ## Example - Open Chrome and go to Google:
@@ -103,7 +104,8 @@ For visual_click steps, include:
     {"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"},
     {"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"},
     {"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}
-  ]
+  ],
+  "expected_final_state": "Chrome browser open showing Google homepage with search box visible"
 }
 
 ## Example - Click on a specific button:
@@ -111,8 +113,15 @@ For visual_click steps, include:
   "sequence": [
     {"order": 1, "type": "visual_click", "target_name": "button_submit", "desc": "Click Submit button"},
     {"order": 2, "type": "visual_click", "target_name": "dropdown_options", "desc": "Open dropdown menu"}
-  ]
+  ],
+  "expected_final_state": "Form submitted with dropdown menu expanded showing options"
 }
+
+## Output Requirements:
+You MUST include an "expected_final_state" field in your response. This is a brief description of what the screen should look like after all steps complete successfully. Be specific about:
+- Which application/window should be visible
+- What content should be displayed
+- Any UI elements that should be in a specific state
 
 IMPORTANT:
 - Prefer keyboard shortcuts when possible (faster and more reliable)
@@ -187,7 +196,8 @@ Use these EXACT values. Do not guess.
     {"order": 8, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
     {"order": 9, "type": "set_dimensions", "width": "10", "height": "1.5", "desc": "Back Dims"},
     {"order": 10, "type": "move_object", "direction": "down", "distance": 10, "desc": "Spacing"}
-  ]
+  ],
+  "expected_final_state": "FlexiSIGN window showing two text objects with 'PB12W3998' - front plate (8x1.2 inches) and back plate (10x1.5 inches) in Crillee It BT font"
 }
 
 **Input:** "Govt plate for GJ01G0001"
@@ -199,8 +209,12 @@ Use these EXACT values. Do not guess.
     {"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"},
     {"order": 3, "type": "create_text", "text": "GJ01G0001", "desc": "Text"},
     {"order": 4, "type": "apply_style", "style_name": "Govt", "desc": "Apply Template"}
-  ]
+  ],
+  "expected_final_state": "FlexiSIGN window showing government plate with 'GJ01G0001' text with Govt style applied"
 }
+
+### 7. IMPORTANT
+You MUST include an "expected_final_state" field describing what the screen should look like after successful execution.
 """
 
 

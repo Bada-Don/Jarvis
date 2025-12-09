@@ -129,6 +129,33 @@ class DebugLogger:
         with open(filepath, 'a', encoding='utf-8') as f:
             f.write(f"{datetime.now().strftime('%H:%M:%S')} {entry}\n")
     
+    def log_verification_result(self, result: dict, expected_state: str):
+        """Save the verification result."""
+        if not self.enabled:
+            return
+        
+        output = {
+            "expected_state": expected_state,
+            "verification_result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        filepath = self.session_dir / "verification_result.json"
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(output, f, indent=2)
+        
+        success = result.get("success", False)
+        confidence = result.get("confidence", 0)
+        status = "✓ PASSED" if success else "✗ FAILED"
+        self._log(f"Verification {status} (confidence: {confidence:.0%})")
+        
+        # Also log to execution log
+        self.log_step_execution(
+            999, "verification", 
+            f"Expected: {expected_state[:50]}... | Result: {status}",
+            success=success
+        )
+    
     def log_error(self, error: str):
         """Log an error."""
         self.session_info["errors"].append({
