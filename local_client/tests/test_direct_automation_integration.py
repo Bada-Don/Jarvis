@@ -283,8 +283,11 @@ class TestDirectModeExecution(unittest.TestCase):
         # Execute the plan
         result = executor.execute_plan(plan)
         
-        # Verify execution failed
-        self.assertFalse(result, "Should fail when window activation fails")
+        # Verify execution failed - result can be dict with 'success' key or boolean
+        if isinstance(result, dict):
+            self.assertFalse(result.get('success', True), "Should fail when window activation fails")
+        else:
+            self.assertFalse(result, "Should fail when window activation fails")
         
         # Verify error message
         error_messages = [

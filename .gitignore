@@ -6,3 +6,26 @@ local_client/debug_logs/
 venv/
 node_modules/
 self-operating-computer-main/
+
+# Hypothesis test cache
+.hypothesis/
+*/.hypothesis/
+
+# Pytest cache
+.pytest_cache/
+*/.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Uploads and outputs
+uploads/
+backend/uploads/
+backend/outputs/
+backend/inputs/

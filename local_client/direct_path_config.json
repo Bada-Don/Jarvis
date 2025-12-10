@@ -1,0 +1,8 @@
+{
+  "direct_path_config": {
+    "default_save_directory": "C:\\Users\\harsh\\OneDrive\\Desktop",
+    "default_open_directory": "C:\\Users\\harsh\\Documents",
+    "overwrite_policy": "prompt",
+    "dialog_wait_timeout": 2.0
+  }
+}

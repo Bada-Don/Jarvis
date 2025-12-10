@@ -2,6 +2,7 @@
 Plan Executor for Two-Model Pipeline
 Executes execution plans using keyboard/mouse actions with vision-guided clicking.
 Includes robust window activation and timing management.
+Supports direct path automation for file operations.
 """
 
 import time
@@ -40,6 +41,28 @@ try:
 except ImportError:
     FLEXISIGN_UIA_AVAILABLE = False
     print("⚠️ Warning: flexisign_uia not available")
+
+# Direct Path Automation imports
+try:
+    from direct_path_executor import DirectPathExecutor, ExecutionResult
+    DIRECT_PATH_EXECUTOR_AVAILABLE = True
+except ImportError:
+    DIRECT_PATH_EXECUTOR_AVAILABLE = False
+    print("⚠️ Warning: direct_path_executor not available")
+
+try:
+    from text_clicker import TextBasedClicker, ClickResult
+    TEXT_CLICKER_AVAILABLE = True
+except ImportError:
+    TEXT_CLICKER_AVAILABLE = False
+    print("⚠️ Warning: text_clicker not available")
+
+try:
+    from path_config import PathConfig
+    PATH_CONFIG_AVAILABLE = True
+except ImportError:
+    PATH_CONFIG_AVAILABLE = False
+    print("⚠️ Warning: path_config not available")
 
 
 class PlanExecutor:
@@ -90,6 +113,35 @@ class PlanExecutor:
         
         # FlexiSIGN UIA module for direct automation
         self._flexisign_uia: Optional['FlexiSignUIA'] = None
+        
+        # Direct Path Automation components
+        self._path_config: Optional['PathConfig'] = None
+        self._direct_path_executor: Optional['DirectPathExecutor'] = None
+        self._text_clicker: Optional['TextBasedClicker'] = None
+        
+        # Initialize path config if available
+        if PATH_CONFIG_AVAILABLE:
+            try:
+                self._path_config = PathConfig.load()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not load path config: {e}")
+        
+        # Initialize direct path executor if available
+        if DIRECT_PATH_EXECUTOR_AVAILABLE:
+            try:
+                self._direct_path_executor = DirectPathExecutor(
+                    config=self._path_config,
+                    status_callback=self.status_callback
+                )
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize DirectPathExecutor: {e}")
+        
+        # Initialize text clicker if available
+        if TEXT_CLICKER_AVAILABLE:
+            try:
+                self._text_clicker = TextBasedClicker()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize TextBasedClicker: {e}")
         
         # Cached vision data (single-pass architecture)
         self._id_map: Optional[dict] = None
@@ -314,6 +366,39 @@ class PlanExecutor:
                             )
                     else:
                         self._send_status(f"Missing target_name in step {step_order}", "warning")
+                
+                # Direct Path Automation step types
+                elif step_type == 'save_file':
+                    result = self._execute_save_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "save_file",
+                            f"path='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'open_file':
+                    result = self._execute_open_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "open_file",
+                            f"path='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'navigate_explorer':
+                    result = self._execute_navigate_explorer_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "navigate_explorer",
+                            f"directory='{step.get('directory', '')}' success={result.success} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'click_text':
+                    result = self._execute_click_text_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "click_text",
+                            f"text='{step.get('text', '')}' success={result.success} desc='{step_desc}'"
+                        )
                 
                 else:
                     self._send_status(f"Unknown step type: {step_type}", "warning")
@@ -651,6 +736,195 @@ class PlanExecutor:
         self._send_status(f"Clicking '{target_name}' at ({int(cx)}, {int(cy)})", "info")
         pyautogui.click(int(cx), int(cy))
         time.sleep(self.DELAY_AFTER_STEP)
+    
+    # =========================================================================
+    # Direct Path Automation Step Handlers
+    # Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 3.3, 4.1
+    # =========================================================================
+    
+    def _execute_save_file_step(self, step: dict) -> 'ExecutionResult':
+        """
+        Execute a save_file step using direct path typing.
+        
+        Args:
+            step: Step dict with 'path' and optional 'overwrite_policy'
+        
+        Returns:
+            ExecutionResult with success status and any error details
+        
+        Requirements: 1.1, 1.2
+        """
+        if not DIRECT_PATH_EXECUTOR_AVAILABLE or self._direct_path_executor is None:
+            self._send_status("DirectPathExecutor not available for save_file step", "error")
+            # Return a mock error result
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="save",
+                path=step.get('path', ''),
+                error_type="executor_unavailable",
+                error_message="DirectPathExecutor is not available"
+            )
+        
+        path = step.get('path', '')
+        if not path:
+            self._send_status("save_file: missing 'path' parameter", "warning")
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="save",
+                path='',
+                error_type="invalid_path",
+                error_message="Path parameter is required"
+            )
+        
+        # Execute the save operation
+        self._send_status(f"Executing save_file: {path}", "info")
+        result = self._direct_path_executor.execute_save(path)
+        
+        if result.success:
+            self._send_status(f"save_file completed: {path}", "success")
+        else:
+            self._send_status(f"save_file failed: {result.error_message}", "warning")
+        
+        return result
+    
+    def _execute_open_file_step(self, step: dict) -> 'ExecutionResult':
+        """
+        Execute an open_file step using direct path typing.
+        
+        Args:
+            step: Step dict with 'path'
+        
+        Returns:
+            ExecutionResult with success status and any error details
+        
+        Requirements: 2.1, 2.2
+        """
+        if not DIRECT_PATH_EXECUTOR_AVAILABLE or self._direct_path_executor is None:
+            self._send_status("DirectPathExecutor not available for open_file step", "error")
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="open",
+                path=step.get('path', ''),
+                error_type="executor_unavailable",
+                error_message="DirectPathExecutor is not available"
+            )
+        
+        path = step.get('path', '')
+        if not path:
+            self._send_status("open_file: missing 'path' parameter", "warning")
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="open",
+                path='',
+                error_type="invalid_path",
+                error_message="Path parameter is required"
+            )
+        
+        # Execute the open operation
+        self._send_status(f"Executing open_file: {path}", "info")
+        result = self._direct_path_executor.execute_open(path)
+        
+        if result.success:
+            self._send_status(f"open_file completed: {path}", "success")
+        else:
+            self._send_status(f"open_file failed: {result.error_message}", "warning")
+        
+        return result
+    
+    def _execute_navigate_explorer_step(self, step: dict) -> 'ExecutionResult':
+        """
+        Execute a navigate_explorer step using address bar navigation.
+        
+        Args:
+            step: Step dict with 'directory'
+        
+        Returns:
+            ExecutionResult with success status and any error details
+        
+        Requirements: 3.1, 3.2
+        """
+        if not DIRECT_PATH_EXECUTOR_AVAILABLE or self._direct_path_executor is None:
+            self._send_status("DirectPathExecutor not available for navigate_explorer step", "error")
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="navigate",
+                path=step.get('directory', ''),
+                error_type="executor_unavailable",
+                error_message="DirectPathExecutor is not available"
+            )
+        
+        directory = step.get('directory', '')
+        if not directory:
+            self._send_status("navigate_explorer: missing 'directory' parameter", "warning")
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="navigate",
+                path='',
+                error_type="invalid_path",
+                error_message="Directory parameter is required"
+            )
+        
+        # Execute the navigation
+        self._send_status(f"Executing navigate_explorer: {directory}", "info")
+        result = self._direct_path_executor.navigate_explorer(directory)
+        
+        if result.success:
+            self._send_status(f"navigate_explorer completed: {directory}", "success")
+        else:
+            self._send_status(f"navigate_explorer failed: {result.error_message}", "warning")
+        
+        return result
+    
+    def _execute_click_text_step(self, step: dict) -> 'ClickResult':
+        """
+        Execute a click_text step using OCR-based text detection.
+        
+        Args:
+            step: Step dict with 'text', optional 'double_click', and optional 'region'
+        
+        Returns:
+            ClickResult with success status and click location
+        
+        Requirements: 3.3, 4.1
+        """
+        if not TEXT_CLICKER_AVAILABLE or self._text_clicker is None:
+            self._send_status("TextBasedClicker not available for click_text step", "error")
+            from text_clicker import create_failure_result
+            return create_failure_result(
+                target_text=step.get('text', ''),
+                error_message="TextBasedClicker is not available"
+            )
+        
+        text = step.get('text', '')
+        if not text:
+            self._send_status("click_text: missing 'text' parameter", "warning")
+            from text_clicker import create_failure_result
+            return create_failure_result(
+                target_text='',
+                error_message="Text parameter is required"
+            )
+        
+        double_click = step.get('double_click', False)
+        region = step.get('region')
+        
+        # Convert region from list to tuple if needed
+        if region and isinstance(region, list):
+            region = tuple(region)
+        
+        # Execute the click
+        self._send_status(f"Executing click_text: '{text}' (double_click={double_click})", "info")
+        
+        if double_click:
+            result = self._text_clicker.double_click_text(text, region=region)
+        else:
+            result = self._text_clicker.click_text(text, region=region)
+        
+        if result.success:
+            self._send_status(f"click_text completed: '{text}' at {result.clicked_location}", "success")
+        else:
+            self._send_status(f"click_text failed: {result.error_message}", "warning")
+        
+        return result
 
 
 def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float] | None:

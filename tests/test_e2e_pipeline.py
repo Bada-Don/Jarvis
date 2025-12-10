@@ -93,7 +93,8 @@ class TestFullPipelineE2E(unittest.TestCase):
         # Valid types for both direct and vision modes
         valid_types = [
             'keyboard', 'visual_click',
-            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object'
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object',
+            'ensure_designcentral', 'save_file', 'open_file', 'navigate_explorer', 'click_text'
         ]
         
         # Verify each step has required fields

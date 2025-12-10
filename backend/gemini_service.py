@@ -117,6 +117,80 @@ For visual_click steps, include:
   "expected_final_state": "Form submitted with dropdown menu expanded showing options"
 }
 
+## Direct Path Operations:
+For file save/open operations, use direct path typing instead of UI navigation. This is faster and more reliable.
+
+### Save File:
+Use the "save_file" step type to save files by typing the full path directly into the Save dialog.
+{
+  "type": "save_file",
+  "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\document.txt",
+  "overwrite_policy": "prompt",
+  "desc": "Save file to Desktop"
+}
+- "path": Full absolute path including filename and extension (use double backslashes in JSON)
+- "overwrite_policy": (optional) How to handle existing files - "overwrite", "rename", "abort", or "prompt" (default)
+
+### Open File:
+Use the "open_file" step type to open files by typing the full path directly into the Open dialog.
+{
+  "type": "open_file",
+  "path": "C:\\\\Users\\\\harsh\\\\Documents\\\\report.pdf",
+  "desc": "Open report PDF"
+}
+- "path": Full absolute path to the file to open (use double backslashes in JSON)
+
+### Navigate Explorer:
+Use the "navigate_explorer" step type to navigate File Explorer to a specific directory using the address bar.
+{
+  "type": "navigate_explorer",
+  "directory": "C:\\\\Users\\\\harsh\\\\Downloads",
+  "desc": "Navigate to Downloads folder"
+}
+- "directory": Full absolute path to the directory (use double backslashes in JSON)
+
+### Click Text (OCR-based):
+Use the "click_text" step type to find and click on text visible on screen using OCR.
+{
+  "type": "click_text",
+  "text": "report.pdf",
+  "double_click": true,
+  "desc": "Double-click to open report.pdf"
+}
+- "text": The text to find on screen
+- "double_click": (optional) Set to true for double-click (e.g., opening files)
+- "region": (optional) Screen region to search in [x1, y1, x2, y2]
+
+## Example - Save a file to Desktop:
+{
+  "sequence": [
+    {"order": 1, "type": "save_file", "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\notes.txt", "desc": "Save notes to Desktop"}
+  ],
+  "expected_final_state": "File saved to Desktop as notes.txt"
+}
+
+## Example - Open a file from Documents:
+{
+  "sequence": [
+    {"order": 1, "type": "open_file", "path": "C:\\\\Users\\\\harsh\\\\Documents\\\\report.docx", "desc": "Open report document"}
+  ],
+  "expected_final_state": "Document opened in default application"
+}
+
+## Example - Navigate to folder and click on file:
+{
+  "sequence": [
+    {"order": 1, "type": "navigate_explorer", "directory": "C:\\\\Users\\\\harsh\\\\Downloads", "desc": "Navigate to Downloads"},
+    {"order": 2, "type": "click_text", "text": "installer.exe", "double_click": true, "desc": "Double-click to run installer"}
+  ],
+  "expected_final_state": "File Explorer showing Downloads folder with installer.exe opened"
+}
+
+IMPORTANT for Direct Path Operations:
+- Always use full absolute paths with proper escaping (double backslashes in JSON)
+- Prefer direct path operations over manual UI navigation for file operations
+- Use click_text for selecting files in File Explorer after navigating to the directory
+
 ## Output Requirements:
 You MUST include an "expected_final_state" field in your response. This is a brief description of what the screen should look like after all steps complete successfully. Be specific about:
 - Which application/window should be visible
@@ -250,13 +324,14 @@ class GeminiPlannerService:
         genai.configure(api_key=self.api_key)
         
         # Initialize models for different modes
+        # Using gemini-2.5-flash for better quota limits
         self.general_model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash-lite',
+            model_name='gemini-2.5-flash',
             system_instruction=GENERAL_SYSTEM_PROMPT
         )
         
         self.flexisign_model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash-lite',
+            model_name='gemini-2.5-flash',
             system_instruction=FLEXISIGN_SYSTEM_PROMPT
         )
     
@@ -365,9 +440,11 @@ class GeminiPlannerService:
         # Valid step types for each mode
         # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object, ensure_designcentral
         # Vision mode types: keyboard, visual_click
+        # Direct path types: save_file, open_file, navigate_explorer, click_text
         valid_types = {
             'keyboard', 'visual_click',
-            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral'
+            'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
+            'save_file', 'open_file', 'navigate_explorer', 'click_text'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -416,3 +493,16 @@ class GeminiPlannerService:
                         f"Move object step {i+1} has invalid direction '{step['direction']}'. "
                         "Must be 'up', 'down', 'left', or 'right'"
                     )
+            
+            # Validate direct path operation step types
+            if step_type == 'save_file' and 'path' not in step:
+                raise ValueError(f"Save file step {i+1} missing 'path' field")
+            
+            if step_type == 'open_file' and 'path' not in step:
+                raise ValueError(f"Open file step {i+1} missing 'path' field")
+            
+            if step_type == 'navigate_explorer' and 'directory' not in step:
+                raise ValueError(f"Navigate explorer step {i+1} missing 'directory' field")
+            
+            if step_type == 'click_text' and 'text' not in step:
+                raise ValueError(f"Click text step {i+1} missing 'text' field")
