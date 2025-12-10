@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\magics\script.py
-# hypothesis_version: 6.148.7
-
-[0.1, 100, '%s %s', '--bg', '--err', '--no-raise-error', '--out', '--proc', 'Process was killed.', 'bash', 'cell', 'cmd', 'killbgscripts', 'nt', 'perl', 'posix', 'pypy', 'python', 'python2', 'python3', 'raise_error', 'replace', 'ruby', 'script', 'script_magics', 'sh', 'store_false', 'store_true', 'utf8', 'win', 'win32']

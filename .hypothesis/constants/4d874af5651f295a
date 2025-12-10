@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\gradual\annotation.py
-# hypothesis_version: 6.148.7
-
-['[', '^#\\s*type:\\s*([^#]*)', '_dict_values', 'atom_expr', 'dict', 'eval_input', 'exprlist', 'list', 'name', 'operator', 'param', 'power', 'return', 'str', 'string', 'subscript', 'subscriptlist', 'testlist', 'testlist_star_expr', 'trailer', 'tuple']

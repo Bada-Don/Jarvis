@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\styles\__init__.py
-# hypothesis_version: 6.148.7
-
-['ANSI_COLOR_NAMES', 'Attrs', 'BaseStyle', 'DEFAULT_ATTRS', 'DummyStyle', 'DynamicStyle', 'NAMED_COLORS', 'Priority', 'Style', 'StyleTransformation', 'default_ui_style', 'merge_styles', 'parse_color']

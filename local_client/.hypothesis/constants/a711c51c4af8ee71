@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\imports.py
-# hypothesis_version: 6.148.7
-
-['-stubs', '.', '.py', '.pyi', ';', 'No module named ', '__init__.py', '__init__.pyi', 'after import: %s', 'error_node', 'ext', 'flask', 'flask_', 'flaskext', 'from', 'import', 'import %s %s', 'import-error', 'import_from', 'import_name', 'module', 'namespace', 'parent']

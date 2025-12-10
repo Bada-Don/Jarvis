@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\alias.py
-# hypothesis_version: 6.148.7
-
-[' --color', '%%s', '%l', '%s', '%s %s', '%s is not an alias', '<alias {} for {!r}>', 'Alias for `!{}`', 'Invalid alias: %s', '^(\\s*)()(\\S+)(.*$)', 'alias', 'cat', 'cd', 'copy', 'cp', 'ddir', 'dhist', 'dir /ad /on', 'dir /on', 'dos', 'echo', 'ldir', 'lf', 'line', 'linux', 'lk', 'll', 'ls', 'ls ', 'ls -F', 'ls -F --color', 'ls -F -G', 'ls -F -l', 'ls -F -l -G', 'ls -F -o --color', 'lx', 'mkdir', 'mv', 'netbsd', 'nocolor', 'nt', 'openbsd', 'popd', 'posix', 'pushd', 'ren', 'rm', 'rmdir', 'unalias']

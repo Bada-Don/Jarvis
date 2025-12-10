@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\buffer.py
-# hypothesis_version: 6.148.7
-
-[0.3, 10000, '(\\s+|".*?"|\'.*?\')', '...', '/usr/bin/editor', '/usr/bin/emacs', '/usr/bin/nano', '/usr/bin/pico', '/usr/bin/vi', 'Buffer', 'CompletionState', 'Current, line %s', 'EDITOR', 'EditReadOnlyBuffer', 'INVALID', 'UNKNOWN', 'VALID', 'VISUAL', '^\\s*', '_T', 'indent', 'rb', 'reshape_text', 'unindent', 'utf-8', 'w']

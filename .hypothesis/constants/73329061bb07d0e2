@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\refactoring\__init__.py
-# hypothesis_version: 6.148.7
-
-['(', ')', '.', ';', '<%s: %s>', '=', 'Cannot inline a %s', '__init__.py', '__init__.pyi', 'annassign', 'class', 'expr_stmt', 'function', 'module', 'namespace', 'newline', 'testlist_star_expr', 'trailer', 'w']

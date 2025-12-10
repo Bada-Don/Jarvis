@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\terminal\shortcuts\__init__.py
-# hypothesis_version: 6.148.7
-
-['\x1b[{} q', '"', "'", ')', '.', 'Quit', 'SIGQUIT', ']', 'b', 'backspace', 'c', 'c-\\', 'c-_', 'c-a', 'c-b', 'c-c', 'c-down', 'c-e', 'c-f', 'c-g', 'c-i', 'c-k', 'c-left', 'c-n', 'c-o', 'c-p', 'c-right', 'c-up', 'c-v', 'c-w', 'c-x', 'c-y', 'c-z', 'd', 'delete', 'down', 'e', 'end', 'enter', 'escape', 'f', 'f2', 'filter', 'h', 'handle_return', 'incomplete', 'l', 'right', 'supports_suspend', 'tab', 'u', 'vi', 'win32', 'y', '}']

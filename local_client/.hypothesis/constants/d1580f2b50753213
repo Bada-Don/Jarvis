@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\compiled\subprocess\__init__.py
-# hypothesis_version: 6.148.7
-
-[134217728, '#', '.', '<%s of %s>', 'CompiledSubprocess', 'InferenceState', '_', '__main__.py', 'access', 'close_fds', 'creationflags', 'id', 'nt', 'parso', 'posix', 'replace', 'stderr output: %s', 'utf-8', 'w']

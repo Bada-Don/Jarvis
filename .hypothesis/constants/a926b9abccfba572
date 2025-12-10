@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\styles\base.py
-# hypothesis_version: 6.148.7
-
-['ANSI_COLOR_NAMES', 'Attrs', 'BaseStyle', 'DEFAULT_ATTRS', 'DummyStyle', 'DynamicStyle', 'ansiblack', 'ansiblue', 'ansibrightblack', 'ansibrightblue', 'ansibrightcyan', 'ansibrightgreen', 'ansibrightmagenta', 'ansibrightred', 'ansibrightyellow', 'ansibrown', 'ansicyan', 'ansidarkblue', 'ansidarkgray', 'ansidarkgreen', 'ansidarkred', 'ansidefault', 'ansifuchsia', 'ansigray', 'ansigreen', 'ansilightgray', 'ansimagenta', 'ansipurple', 'ansired', 'ansiteal', 'ansiturquoise', 'ansiwhite', 'ansiyellow']

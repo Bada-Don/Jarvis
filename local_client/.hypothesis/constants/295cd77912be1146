@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\context.py
-# hypothesis_version: 6.148.7
-
-['%s(%s)', ':', 'argument', 'classdef', 'comp_for', 'dictorsetmaker', 'for_stmt', 'funcdef', 'if_stmt', 'lambdef', 'name-error', 'param', 'sync_comp_for', 'testlist_comp']

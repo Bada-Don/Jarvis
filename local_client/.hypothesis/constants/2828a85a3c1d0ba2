@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\helpers.py
-# hypothesis_version: 6.148.7
-
-['(', '(?!\\d)\\w+$|$', '*', '**', ',', '.', '.*\\(', '=', 'CompletionParts', 'arglist', 'argument', 'async_stmt', 'atom', 'classdef', 'decorated', 'decorator', 'def', 'error_leaf', 'error_node', 'file_input', 'fstring_end', 'fstring_start', 'fstring_string', 'funcdef', 'function', 'has_dot', 'keyword', 'name', 'newline', 'path', 'simple_stmt', 'star_expr', 'string', 'suite', 'testlist_star_expr', 'trailer']

@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\gradual\typing.py
-# hypothesis_version: 6.148.7
-
-['.', '<%s: %s>', '<NewType: %s>%s', 'Annotated', 'Any', 'Callable', 'ChainMap', 'ClassVar', 'Counter', 'DefaultDict', 'Deque', 'Dict', 'FrozenSet', 'Generic', 'List', 'NewType', 'None', 'Optional', 'Protocol', 'Set', 'TYPE_CHECKING', 'True', 'Tuple', 'Type', 'TypeVar', 'TypedDict', 'Union', 'builtins.dict', 'builtins.frozenset', 'builtins.list', 'builtins.set', 'cast', 'collections.ChainMap', 'collections.Counter', 'collections.deque', 'dict', 'func, /', 'object', 'overload', 'runtime', 'tuple', 'type, object, /']

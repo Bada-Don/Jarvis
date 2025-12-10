@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\value\iterable.py
-# hypothesis_version: 6.148.7
-
-['(', ')', '**', ',', ':', '<%s of %s>', '<%s: %s>', '==', 'Generator', 'None', '[', ']', '__iter__', '__next__', 'atom', 'atom_expr', 'comp_for', 'dict', 'dictorsetmaker', 'exprlist', 'instance', 'items', 'list', 'name', 'power', 'send', 'set', 'slice', 'star_expr', 'subscript', 'subscriptlist', 'sync_comp_for', 'testlist', 'testlist_comp', 'testlist_star_expr', 'tuple', 'values', '{', '}']

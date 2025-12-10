@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\gradual\stub_value.py
-# hypothesis_version: 6.148.7
-
-['_', '__', 'dotted_as_name', 'import_as_name', 'import_from', 'import_name']

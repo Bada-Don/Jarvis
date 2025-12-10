@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\analysis.py
-# hypothesis_version: 6.148.7
-
-['%s:%s:%s: %s %s', '<%s %s: %s@%s,%s>', 'Potential NameError.', 'arglist', 'atom_expr', 'attribute-error', 'funcdef', 'hasattr', 'if_stmt', 'import-error', 'name', 'name-error', 'power', 'setattr', 'trailer', 'try', 'try_stmt', 'tuple', 'type-error-operation', 'type-error-star', 'type-error-star-star', 'while_stmt']

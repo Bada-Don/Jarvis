@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\__init__.py
-# hypothesis_version: 6.148.7
-
-[3000, '(', ')', '.pyi', '<%s: %s %r>', '[', ']', '__main__', 'atom', 'builtins', 'classdef', 'complete', 'endmarker', 'environment', 'error_leaf', 'expr_stmt', 'file', 'func_call followed', 'funcdef', 'import %s as x; x.', 'init', 'keyword', 'module', 'name', 'newline', 'number', 'operator', 'parsed', 'project', 'rb', 'string', 'trailer', 'typing']

@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\formatters.py
-# hypothesis_version: 6.148.7
-
-[3.14159, '%', '%%.%if', '%r', '%s.%s', '.', 'FormatterABC', '__class__', '__module__', '__name__', '__repr__', '_ipython_display_', '_raise_key_error', '_repr_html_', '_repr_javascript_', '_repr_jpeg_', '_repr_json_', '_repr_latex_', '_repr_markdown_', '_repr_mimebundle_', '_repr_pdf_', '_repr_png_', '_repr_pretty_', '_repr_svg_', 'active_types', 'application/json', 'application/pdf', 'deferred_printers', 'float_precision', 'formatters', 'image/jpeg', 'image/png', 'image/svg+xml', 'mimebundle_formatter', 'new', 'numpy', 'singleton_printers', 'text/html', 'text/latex', 'text/markdown', 'text/plain', 'type_printers']

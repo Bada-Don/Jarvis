@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\utils\path.py
-# hypothesis_version: 6.148.7
-
-[260, 493, 1998, '"', '$\\', "'", '*[]!?', '-temp-%04X', '.', '.cache', '.config', '.py', 'File `%r` not found.', 'IPYTHON_TEMP', 'Personal', 'XDG_CACHE_HOME', 'XDG_CONFIG_HOME', '\\', '\\\\', '\\{0}', 'link', 'nt', 'posix', 'win32', '~']

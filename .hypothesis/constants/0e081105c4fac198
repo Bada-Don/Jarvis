@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\plugins\pytest.py
-# hypothesis_version: 6.148.7
-
-[')', '.', 'Generator', '__next__', '_pytest', '_pytest.fixtures', 'atom_expr', 'capture', 'conftest.py', 'decorated', 'decorators', 'fixture', 'fixtures', 'funcdef', 'import_from', 'logging', 'module', 'monkeypatch', 'pytest11', 'pytest_plugins', 'pytester', 'test', 'tmpdir', 'typing']

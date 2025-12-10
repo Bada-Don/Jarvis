@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\magic.py
-# hypothesis_version: 6.148.7
-
-['%s %s', '%s (allowed: "%s"%s)', '%s%s', '(%|_|\\$|#|&)', '--', 'Alias for `%s`.', 'Error in arguments:', 'OFF', 'ON', '\\\\$', '\\\\\\1', '\\\\\\\\', '\\\\n', '\\\\textbackslash{}n', '\\\\texttt{\\g<cmd>}', '^(%s.*?):', 'auto_magic', 'cell', 'config', 'configurables', 'f_builtins', 'f_globals', 'f_locals', 'function', 'get_ipython', 'line', 'line_cell', 'list', 'list_all', 'method', 'mode', 'new', 'parent', 'posix', 'preserve_non_opts', 'strict', 'string']

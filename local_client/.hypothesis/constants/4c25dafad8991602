@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\formatted_text\html.py
-# hypothesis_version: 6.148.7
-
-['"', '#document', '&', '&amp;', '&gt;', '&lt;', '&quot;', ',', '<', '>', 'HTML', 'bg', 'bg:', 'class:', 'color', 'fg', 'fg:', 'html-root', 'style']

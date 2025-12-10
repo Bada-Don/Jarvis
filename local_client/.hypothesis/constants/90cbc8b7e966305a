@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\key_binding\bindings\named_commands.py
-# hypothesis_version: 6.148.7
-
-[100, '#', '_T', 'accept-line', 'backward-char', 'backward-delete-char', 'backward-kill-word', 'backward-word', 'beginning-of-buffer', 'beginning-of-history', 'beginning-of-line', 'call-last-kbd-macro', 'capitalize-word', 'clear-screen', 'complete', 'delete-char', 'downcase-word', 'emacs-editing-mode', 'end-kbd-macro', 'end-of-buffer', 'end-of-file', 'end-of-history', 'end-of-line', 'forward-char', 'forward-word', 'get_by_name', 'insert-comment', 'kill-line', 'kill-word', 'menu-complete', 'next-history', 'operate-and-get-next', 'prefix-meta', 'previous-history', 'print-last-kbd-macro', 'quoted-insert', 'redraw-current-line', 'self-insert', 'start-kbd-macro', 'transpose-chars', 'undo', 'unix-line-discard', 'unix-word-rubout', 'uppercase-word', 'vi-editing-mode', 'yank', 'yank-last-arg', 'yank-nth-arg', 'yank-pop']

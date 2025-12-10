@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\application\current.py
-# hypothesis_version: 6.148.7
-
-['AppSession', '_current_app_session', 'create_app_session', 'get_app', 'get_app_or_none', 'get_app_session', 'set_app']

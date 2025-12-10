@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\pure_eval\utils.py
-# hypothesis_version: 6.148.7
-
-[100000, 'CannotEval', 'Optional', 'Union', '_E', '__add__', '__mul__', '__name__', '__repr__', '_name', 'append', 'ast', 'bar', 'cm', 'ctx', 'foo', 'fromkeys', 'insert', 'is_any', 'len', 'sm']

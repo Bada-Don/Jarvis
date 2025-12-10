@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\pygments\styles\pastie.py
-# hypothesis_version: 6.148.7
-
-['#003388', '#0044dd', '#008800', '#333', '#3333bb', '#336699', '#555555', '#666', '#888888', '#aa0000', '#aa6600', '#bbbbbb', '#dd7700', 'PastieStyle', 'bg:#ddffdd #000000', 'bg:#e3d2d2 #a61717', 'bg:#f0fff0 #22bb22', 'bg:#ffdddd #000000', 'bg:#fff0f0 #dd2200', 'bg:#fff0ff #008800', 'bold', 'bold #0000DD', 'bold #003366', 'bold #0066bb', 'bold #008800', 'bold #336699', 'bold #bb0066', 'bold #cc0000', 'bold italic', 'italic', 'italic #336699', 'nobold', 'pastie']

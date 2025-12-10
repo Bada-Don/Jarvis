@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\asttokens\util.py
-# hypothesis_version: 6.148.7
-
-['%s:%s', 'AssignAttr', 'AssignName', 'Const', 'DelAttr', 'DelName', 'ExceptHandler', 'Expr', 'ExtSlice', 'JoinedStr', 'MatchCase', 'Module', 'Slice', 'Starred', 'Token', 'TryExcept', 'TryFinally', 'Tuple', '_broken_positions', 'excepthandler', 'get_children', 'match_case', 'u', 'visit_']

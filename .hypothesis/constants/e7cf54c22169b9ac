@@ -1,4 +1,0 @@
-# file: G:\Documents\Codes\Jarvis\local_client\debug_logger.py
-# hypothesis_version: 6.148.7
-
-['%H:%M:%S', '%Y-%m-%d_%H-%M-%S', 'a', 'annotated.png', 'box_map.json', 'debug_logs', 'end_time', 'error', 'errors', 'execution_log.txt', 'failed', 'found_count', 'mapped_ids', 'not_found', 'planner_output.json', 'requested_targets', 'screenshot.png', 'session_id', 'session_info.json', 'start_time', 'started', 'status', 'success', 'time', 'user_command', 'utf-8', 'w', '✓', '✗']

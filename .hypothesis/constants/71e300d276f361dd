@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\terminal\shortcuts\filters.py
-# hypothesis_version: 6.148.7
-
-['\n  - ', '"', "'", '.*"$', ".*'$", '.*(r|R)[\\"\'](-*)$', '.*\\($', '.*\\[$', '.*\\{$', 'KEYBINDING_FILTERS', 'SIGTSTP', 'Unhandled node', '[,)}\\]]|$', '\\', '\\"', "\\'", '^"', "^'", '^.*""$', "^.*''$", '^\\)', '^\\]', '^\\}', 'always', 'auto_match', 'cursor_in_leading_ws', 'ebivim', 'emacs_insert_mode', 'eval', 'filter_from_string', 'focused_insert', 'has_completions', 'has_line_above', 'has_line_below', 'has_selection', 'has_suggestion', 'insert_mode', 'is_windows_os', 'never', 'pass_through', 'readlinelike', 'supports_suspend', 'vi_insert_mode', 'vi_mode', 'win32']

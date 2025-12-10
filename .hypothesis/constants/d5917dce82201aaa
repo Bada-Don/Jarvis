@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\shortcuts\progress_bar\formatters.py
-# hypothesis_version: 6.148.7
-
-[1.0, 6.0, 100.0, 100, 255, '#', '#%.2x%.2x%.2x', '.', '/-\\|', '0:', '=', '>', '?', '?:??:??', 'Bar', 'Formatter', 'IterationsPerSecond', 'Label', 'Percentage', 'Progress', 'Rainbow', 'SpinningWheel', 'Text', 'TimeElapsed', 'TimeLeft', '[', ']', 'class:label', 'class:time-left', 'eta [', '{:>3}']

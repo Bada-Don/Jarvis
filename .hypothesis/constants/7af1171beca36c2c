@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\completion.py
-# hypothesis_version: 6.148.7
-
-[' \t.;', ' *>>>', '"', "'", '(', ',', '.', '...', '=', '>>>', 'False', 'MAGENTA', 'None', 'True', '^( *>>> ?| +)', '_', '__', '__getattr__', '__getattribute__', '_stmt', '`([^`\\s]+)', 'arglist', 'as', 'atom_expr', 'class', 'classdef', 'decorator', 'decorators', 'def', 'del_stmt', 'dotted_as_names', 'dotted_name', 'elif', 'else', 'endmarker', 'endpos', 'error_leaf', 'error_node', 'except', 'finally', 'for_stmt', 'funcdef', 'function', 'getattr', 'if', 'if_stmt', 'import', 'import_as_name', 'import_as_names', 'import_from', 'import_stmt', 'keyword', 'lambdef', 'matplotlib', 'module', 'name', 'namespace', 'numpy', 'pandas', 'param', 'parameters', 'return_stmt', 'rubf', 'small_stmt', 'string', 'tensorflow', 'trailer', 'try_stmt', 'typedargslist', 'varargslist', 'while_stmt']

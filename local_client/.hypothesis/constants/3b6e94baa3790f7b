@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\plugins\django.py
-# hypothesis_version: 6.148.7
-
-['BaseManager', 'BigIntegerField', 'BinaryField', 'BooleanField', 'CharField', 'DateField', 'DateTimeField', 'Decimal', 'DecimalField', 'DeferredAttribute', 'DurationField', 'EmailField', 'Field', 'FloatField', 'ForeignKey', 'IntegerField', 'ManyToManyField', 'ModelBase', 'OneToOneField', 'PositiveIntegerField', 'RelatedManager', 'SmallIntegerField', 'TextField', 'TimeField', 'URLField', 'UUID', 'UUIDField', '_BaseQuerySet', 'bool', 'bytes', 'create', 'date', 'datetime', 'db', 'decimal', 'django', 'exclude', 'filter', 'float', 'get', 'get_or_create', 'int', 'manager', 'models', 'objects', 'query_utils', 'str', 'time', 'timedelta', 'update', 'update_or_create', 'uuid']

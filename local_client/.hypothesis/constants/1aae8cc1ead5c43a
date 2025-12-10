@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\prompt_toolkit\layout\margins.py
-# hypothesis_version: 6.148.7
-
-['%i', '%i ', 'ConditionalMargin', 'Margin', 'NumberedMargin', 'PromptMargin', 'ScrollbarMargin', '^', 'class:line-number', 'class:scrollbar', 'class:tilde', 'v', '~\n']

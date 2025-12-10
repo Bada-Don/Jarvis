@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\__init__.py
-# hypothesis_version: 6.148.7
-
-['3.13', 'builtins', 'classdef', 'execute: %s %s', 'expr_stmt', 'for_stmt', 'funcdef', 'import_from', 'import_name', 'namedexpr_test', 'param', 'power', 'replace', 'trailer', 'typing', 'utf-8', 'with_stmt']

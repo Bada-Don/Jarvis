@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\tree.py
-# hypothesis_version: 6.148.7
-
-['%s(%s, %r)', ')', ',\n', ', ', '<%s: %s:%s, %s>', '<%s: %s>', '<%s: %s@%s,%s>', 'NodeOrLeaf', 'Optional[BaseNode]', '[', 'children', 'column', 'error_leaf', 'error_node', 'line', 'parent', 'prefix', 'token_type', 'type', 'value']

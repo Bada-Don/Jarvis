@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\IPython\core\magics\osm.py
-# hypothesis_version: 6.148.7
-
-[-100, '!', '%-', '%d: %s', '%popd on empty stack', '%s ==\n%s', '(-)(\\d+)$', '(.*)\\.(%s)$', '(bookmark:%s) -> %s', '-', '--', '--append', '-a', '.', '.*\\s.*', '.exe', ';', '<hidden>', '=', 'Appending to %s', 'Current bookmarks:', 'Overwriting %s', 'PATH', 'Writing %s', '^(\\\'.*\\\')|(".*")$', '_dh', 'a', 'b', 'bookmarks', 'd', 'dhist', 'dirs', 'drl', 'env: {0}={1}', 'exe|com|bat|py', 'file to write', 'filename', 'key', 'l', 'list', 'lv', 'o', 'out', 'out=', 'pathext', 'popd ->', 'posix', 'q', 'qb', 'r', 'rootmodules_cache', 's -> %s', 'secret', 'store_true', 'stored_aliases', 'string', 'syscmdlist', 'system', 'term_title', 'token', 'utf-8', 'v', 'w', '|', '~']

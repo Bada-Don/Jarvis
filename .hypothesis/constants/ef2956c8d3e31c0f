@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\classes.py
-# hypothesis_version: 6.148.7
-
-['#[^\\n]+\\n', '(', '.', '<%s: %s>', '<%s: index=%r %s>', '\\s+', '_collections', '_functools', '_io', '_socket', '_sqlite3', 'class', 'classdef', 'collections', 'def', 'file_input', 'full_', 'funcdef', 'function', 'functools', 'genericpath', 'goto on name', 'import_from', 'infer on name', 'instance', 'io', 'macpath', 'module', 'newline', 'ntpath', 'os', 'os.path', 'os2emxpath', 'param', 'posix', 'posixpath', 'property', 'riscospath', 'socket', 'sqlite3', 'statement', 'trailer']

@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\docstrings.py
-# hypothesis_version: 6.148.7
-
-['((?:\\w+\\.)*\\w+)\\.', '.', '3.7', ':[^`]+:`([^`]+)`', 'BLUE', 'Parameters', 'Returns', 'Yields', '\\bof\\b', '\\bor\\b', '__init__', 'atom', 'atom_expr', 'b', 'bytes', 'children', 'float', 'ignore', 'int', 'lambdef', 'list', 'name', 'number', 'of', 'or', 'str', 'string', 'tuple', '{']

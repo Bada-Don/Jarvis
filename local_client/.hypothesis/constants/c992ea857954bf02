@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\inference\gradual\typeshed.py
-# hypothesis_version: 6.148.7
-
-['(\\d+)\\.(\\d+)$', '-stubs', '.py', '.pyi', '2and3', '3', 'PathInfo', '__init__', '__init__.pyi', 'collections', 'django', 'django-stubs', 'i', 'macpath', 'ntpath', 'os', 'os2emxpath', 'path', 'path is_third_party', 'posixpath', 'socket', 'stdlib', 'third_party', 'typeshed', 'typing']

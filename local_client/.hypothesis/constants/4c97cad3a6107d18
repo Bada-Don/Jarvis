@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\jedi\api\refactoring\extract.py
-# hypothesis_version: 6.148.7
-
-[' = ', '%s(%s)', '%sdef %s(%s):\n%s', ', ', '.', '@classmethod\n', 'Extracting nodes: %s', 'False', 'None', 'True', 'async_funcdef', 'async_stmt', 'decorated', 'file_input', 'keyword', 'name', 'operator', 'param', 'return', 'return ', 'return_stmt', 'simple_stmt', 'suite', 'trailer', 'yield', 'yield_expr']

@@ -1,4 +1,0 @@
-# file: C:\Users\harsh\AppData\Roaming\Python\Python313\site-packages\parso\python\token.py
-# hypothesis_version: 6.148.7
-
-['%s(%s)', 'DEDENT', 'ENDMARKER', 'ERRORTOKEN', 'ERROR_DEDENT', 'FSTRING_END', 'FSTRING_START', 'FSTRING_STRING', 'INDENT', 'NAME', 'NEWLINE', 'NUMBER', 'OP', 'STRING']
