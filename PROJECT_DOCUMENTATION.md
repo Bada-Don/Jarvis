@@ -89,7 +89,7 @@ Converts natural language into structured execution plans. Supports two modes:
 }
 ```
 
-### Model 2: Vision Mapper (Gemini 2.0 Flash)
+### Model 2: Vision Mapper (Gemini 2.5 Flash)
 
 Identifies UI elements in annotated screenshots. Uses Set-of-Mark (SoM) technique:
 
@@ -135,7 +135,7 @@ graph TB
     subgraph Local Client
         D[Python WebSocket Client]
         E[FastSAM<br/>UI Detection]
-        F[Gemini 2.0 Flash<br/>Vision Mapper]
+        F[Gemini 2.5 Flash<br/>Vision Mapper]
         G[pyautogui<br/>Mouse/Keyboard]
     end
     
@@ -153,8 +153,8 @@ graph TB
 |-----------|------------|---------|
 | Mobile App | React Native + Expo | User interface for commands |
 | Backend Server | Flask + Flask-SocketIO | API gateway, plan generation |
-| Planner Model | Gemini 2.0 Flash Lite | NL → Execution plan |
-| Vision Mapper | Gemini 2.0 Flash | Image → Element IDs |
+| Planner Model | Gemini 2.5 Flash Lite | NL → Execution plan |
+| Vision Mapper | Gemini 2.5 Flash | Image → Element IDs |
 | SoM Detection | FastSAM (Ultralytics) | UI element segmentation |
 | Automation | pyautogui + pywin32 | Mouse/keyboard control |
 | Communication | WebSocket | Real-time bidirectional |

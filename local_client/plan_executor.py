@@ -391,6 +391,10 @@ class PlanExecutor:
                             step_order, "navigate_explorer",
                             f"directory='{step.get('directory', '')}' success={result.success} desc='{step_desc}'"
                         )
+                    
+                    # Add extra delay after navigate_explorer for UI to settle and text to render
+                    # This helps OCR-based click_text steps that follow
+                    time.sleep(0.5)
                 
                 elif step_type == 'click_text':
                     result = self._execute_click_text_step(step)
@@ -923,6 +927,11 @@ class PlanExecutor:
             self._send_status(f"click_text completed: '{text}' at {result.clicked_location}", "success")
         else:
             self._send_status(f"click_text failed: {result.error_message}", "warning")
+            
+            # Log detected text for debugging
+            if result.all_matches:
+                detected_texts = [m.text for m in result.all_matches[:10]]
+                self._send_status(f"Detected text on screen: {detected_texts}", "info")
         
         return result
 

@@ -119,9 +119,10 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
     
     Args:
         command_data: Command data from server
-        retry_count: Current retry attempt (max 2 retries)
+        retry_count: Current retry attempt (max 1 retries)
     """
-    MAX_RETRIES = 2
+    MAX_RETRIES = 0 # Diabling retring temporarily
+    # MAX_RETRIES = 1
     
     if not TWO_MODEL_PIPELINE_AVAILABLE:
         send_status("Two-Model Pipeline not available. Missing dependencies.", "error")

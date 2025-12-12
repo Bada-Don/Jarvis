@@ -38,6 +38,12 @@ try:
 except ImportError:
     SCREENSHOT_AVAILABLE = False
 
+try:
+    from window_manager import WindowManager, get_window_manager
+    WINDOW_MANAGER_AVAILABLE = True
+except ImportError:
+    WINDOW_MANAGER_AVAILABLE = False
+
 
 @dataclass
 class ExecutionResult:
@@ -170,6 +176,14 @@ class DirectPathExecutor:
         if OCR_SERVICE_AVAILABLE:
             try:
                 self._ocr_service = OCRService()
+            except Exception:
+                pass
+        
+        # Window manager for app window detection and activation
+        self._window_manager: Optional['WindowManager'] = None
+        if WINDOW_MANAGER_AVAILABLE:
+            try:
+                self._window_manager = get_window_manager(verbose=True)
             except Exception:
                 pass
     
@@ -506,14 +520,164 @@ class DirectPathExecutor:
                 error_message=f"Error during open execution: {str(e)}"
             )
     
+    def ensure_app_window(
+        self, 
+        app_name: str, 
+        launch_hotkey: Optional[str] = None,
+        timeout: float = 5.0
+    ) -> bool:
+        """
+        Ensure an application window is open and focused.
+        
+        This is a general-purpose method that:
+        1. Checks if the app window already exists
+        2. If found, brings it to foreground
+        3. If not found and launch_hotkey provided, launches the app
+        4. Waits for the window to appear and activates it
+        
+        Args:
+            app_name: Name of the application (e.g., 'explorer', 'notepad', 'chrome')
+            launch_hotkey: Optional hotkey to launch the app (e.g., 'win+e' for Explorer)
+            timeout: Maximum time to wait for window to appear
+        
+        Returns:
+            True if app window is open and focused, False otherwise
+        """
+        if not self._window_manager:
+            # Fallback: just launch with hotkey if provided
+            if launch_hotkey:
+                self._send_status(f"Opening {app_name} ({launch_hotkey})...", "info")
+                keys = launch_hotkey.split('+')
+                pyautogui.hotkey(*keys)
+                time.sleep(1.5)
+                return True
+            return False
+        
+        # Step 1: Check if window already exists
+        result = self._window_manager.find_window_for_app(app_name)
+        
+        if result:
+            hwnd, title = result
+            self._send_status(f"Found existing {app_name} window: '{title}'", "info")
+            
+            # Bring to foreground
+            if self._window_manager.activate_window(hwnd):
+                self._send_status(f"{app_name} window activated", "info")
+                time.sleep(0.3)  # Brief settle time
+                
+                # Click center of window to ensure keyboard shortcuts work
+                # This is needed for Windows Explorer to properly respond to Ctrl+L
+                screen_width, screen_height = pyautogui.size()
+                center_x = screen_width // 2
+                center_y = screen_height // 2
+                pyautogui.click(center_x, center_y)
+                time.sleep(0.2)  # Wait for click to register
+                
+                return True
+            else:
+                self._send_status(f"Failed to activate {app_name} window, launching new...", "warning")
+        
+        # Step 2: Window not found or couldn't activate, launch new instance
+        if launch_hotkey:
+            self._send_status(f"Opening {app_name} ({launch_hotkey})...", "info")
+            keys = launch_hotkey.split('+')
+            pyautogui.hotkey(*keys)
+            
+            # Wait for window to appear and activate
+            if self._window_manager.wait_and_activate(app_name, timeout=timeout):
+                self._send_status(f"{app_name} window opened and activated", "info")
+                time.sleep(0.3)  # Brief settle time
+                
+                # Click center of window to ensure keyboard shortcuts work
+                # This is needed for Windows Explorer to properly respond to Ctrl+L
+                screen_width, screen_height = pyautogui.size()
+                center_x = screen_width // 2
+                center_y = screen_height // 2
+                pyautogui.click(center_x, center_y)
+                time.sleep(0.2)  # Wait for click to register
+                
+                return True
+            else:
+                self._send_status(f"Timeout waiting for {app_name} window", "warning")
+                # Still return True as the hotkey was pressed
+                time.sleep(1.0)
+                
+                # Even on timeout, try the center click
+                screen_width, screen_height = pyautogui.size()
+                center_x = screen_width // 2
+                center_y = screen_height // 2
+                pyautogui.click(center_x, center_y)
+                time.sleep(0.2)
+                
+                return True
+        
+        self._send_status(f"Could not find or open {app_name} window", "error")
+        return False
+    
+    def _ensure_file_explorer_open(self) -> bool:
+        """
+        Ensure File Explorer is open and focused.
+        
+        Uses the general ensure_app_window method with Explorer-specific settings.
+        
+        Returns:
+            True if File Explorer is open and focused, False otherwise
+        """
+        return self.ensure_app_window(
+            app_name='explorer',
+            launch_hotkey='win+e',
+            timeout=5.0
+        )
+    
+    def _is_file_explorer_focused(self) -> bool:
+        """
+        Check if File Explorer is currently the focused window.
+        
+        Uses WindowManager to verify File Explorer is active.
+        
+        Returns:
+            True if File Explorer appears to be focused
+        """
+        if not self._window_manager:
+            return True  # Assume success if no window manager
+        
+        try:
+            import win32gui
+            
+            # Get the foreground window
+            hwnd = win32gui.GetForegroundWindow()
+            
+            # Check window class name for Explorer
+            class_name = win32gui.GetClassName(hwnd)
+            if class_name in ['CabinetWClass', 'ExploreWClass']:
+                return True
+            
+            # Fallback: check title
+            title = win32gui.GetWindowText(hwnd)
+            explorer_indicators = [
+                'File Explorer', 'This PC', 'Documents', 'Desktop',
+                'Downloads', 'Pictures', 'Music', 'Videos', ':\\'
+            ]
+            
+            for indicator in explorer_indicators:
+                if indicator.lower() in title.lower():
+                    return True
+            
+            return False
+            
+        except Exception:
+            return True  # Assume success if detection fails
+    
     def navigate_explorer(self, directory_path: str) -> ExecutionResult:
         """
         Navigate File Explorer to a directory using the address bar.
         
         Sequence:
-        1. Press Ctrl+L to focus the address bar
-        2. Type the directory path
-        3. Press Enter to navigate
+        1. Ensure File Explorer is open (opens new window with Win+E if needed)
+        2. Press Ctrl+L to focus the address bar
+        3. Type the directory path
+        4. Press Enter to navigate
+        5. Wait for navigation to complete
         
         Args:
             directory_path: Full path to the directory to navigate to
@@ -535,6 +699,19 @@ class DirectPathExecutor:
         self._send_status(f"Navigating to: {directory_path}", "info")
         
         try:
+            # Step 0: Ensure File Explorer is open and focused
+            if not self._ensure_file_explorer_open():
+                return create_error_result(
+                    operation="navigate",
+                    path=directory_path,
+                    error_type="explorer_not_open",
+                    error_message="Failed to open File Explorer"
+                )
+            
+            # Verify File Explorer is focused
+            if not self._is_file_explorer_focused():
+                self._send_status("File Explorer may not be focused, attempting anyway...", "warning")
+            
             # Step 1: Press Ctrl+L to focus address bar
             self._send_status("Focusing address bar (Ctrl+L)...", "info")
             pyautogui.hotkey('ctrl', 'l')
@@ -554,6 +731,10 @@ class DirectPathExecutor:
             self._send_status("Navigating (Enter)...", "info")
             pyautogui.press('enter')
             time.sleep(self.DELAY_AFTER_ENTER)
+            
+            # Step 4: Wait for navigation to complete
+            # Give Explorer time to load the directory contents and render text
+            time.sleep(1.5)  # Increased delay for OCR text detection
             
             # Check for error dialog (e.g., path doesn't exist)
             error_text = self._check_for_error_dialog()

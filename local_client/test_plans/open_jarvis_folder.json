@@ -1,0 +1,19 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "navigate_explorer",
+      "directory": "C:\\Users\\harsh\\Desktop",
+      "desc": "Navigate File Explorer to the Desktop"
+    },
+    {
+      "order": 2,
+      "type": "click_text",
+      "text": "JARVIS Test",
+      "double_click": true,
+      "desc": "Double-click to open the 'JARVIS Test' folder"
+    }
+  ],
+  "expected_final_state": "File Explorer window open, showing the contents of the 'JARVIS Test' folder",
+  "mode": "general"
+}

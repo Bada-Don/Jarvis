@@ -331,7 +331,7 @@ class VisionService:
     
     def map_targets_to_ids(self, annotated_image: np.ndarray, targets: list[str], mode: str = "general") -> dict:
         """
-        Use Gemini 2.0 Flash Vision Mapper to map target names to element IDs.
+        Use Gemini 2.5 Flash Vision Mapper to map target names to element IDs.
         
         Args:
             annotated_image: SoM-annotated image with numbered boxes

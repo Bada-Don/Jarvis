@@ -2,8 +2,8 @@
 OCR Service Module for Direct Path Automation
 
 This module provides OCR (Optical Character Recognition) capabilities for
-text-based element detection and clicking. It uses Windows OCR or pytesseract
-to detect text on screen and locate UI elements by their text labels.
+text-based element detection and clicking. It uses EasyOCR for accurate
+text detection on screen.
 
 Requirements: 4.1, 4.2, 4.3, 4.4
 """
@@ -13,20 +13,13 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 import numpy as np
 
-# Try to import OCR libraries
+# Import EasyOCR
 try:
-    import pytesseract
-    from PIL import Image
-    PYTESSERACT_AVAILABLE = True
+    import easyocr
+    EASYOCR_AVAILABLE = True
 except ImportError:
-    PYTESSERACT_AVAILABLE = False
-
-# Try to import Windows OCR (winocr)
-try:
-    import winocr
-    WINOCR_AVAILABLE = True
-except ImportError:
-    WINOCR_AVAILABLE = False
+    EASYOCR_AVAILABLE = False
+    print("⚠️ Warning: EasyOCR not available. Install with: pip install easyocr")
 
 
 @dataclass
@@ -151,36 +144,46 @@ def find_closest_to_region(
 
 class OCRService:
     """
-    OCR service for text-based element detection.
+    OCR service for text-based element detection using EasyOCR.
     
     Provides methods to detect text in images and find specific text
-    elements for clicking. Supports both Windows OCR and pytesseract.
+    elements for clicking. Uses EasyOCR for accurate text detection.
     
     Requirements: 4.1, 4.2, 4.3, 4.4
     """
     
-    def __init__(self, confidence_threshold: float = 0.5, use_windows_ocr: bool = True):
+    def __init__(self, confidence_threshold: float = 0.5, languages: List[str] = None):
         """
-        Initialize OCR service.
+        Initialize OCR service with EasyOCR.
         
         Args:
             confidence_threshold: Minimum confidence for text detection (0.0 to 1.0)
-            use_windows_ocr: Prefer Windows OCR over pytesseract if available
+            languages: List of language codes (default: ['en'] for English)
         """
         self.confidence_threshold = confidence_threshold
-        self.use_windows_ocr = use_windows_ocr and WINOCR_AVAILABLE
+        self.languages = languages or ['en']
         
-        # Verify at least one OCR engine is available
-        if not PYTESSERACT_AVAILABLE and not WINOCR_AVAILABLE:
+        # Verify EasyOCR is available
+        if not EASYOCR_AVAILABLE:
             raise RuntimeError(
-                "No OCR engine available. Install pytesseract or winocr."
+                "EasyOCR is not available. Install with: pip install easyocr"
             )
+        
+        # Initialize EasyOCR reader (lazy loading)
+        self._reader = None
+    
+    @property
+    def reader(self):
+        """Lazy load EasyOCR reader (initialization is slow)."""
+        if self._reader is None:
+            print(f"Initializing EasyOCR with languages: {self.languages} (CPU mode)...")
+            self._reader = easyocr.Reader(self.languages, gpu=False)
+            print("EasyOCR initialized successfully")
+        return self._reader
     
     def detect_text(self, image: np.ndarray) -> List[TextLocation]:
         """
-        Detect all text in an image with bounding boxes.
-        
-        Captures a screenshot and performs OCR to locate all text elements.
+        Detect all text in an image with bounding boxes using EasyOCR.
         
         Args:
             image: Image as numpy array (BGR format from OpenCV)
@@ -190,125 +193,101 @@ class OCRService:
         
         Requirements: 4.1
         """
-        if self.use_windows_ocr:
-            return self._detect_text_windows(image)
-        else:
-            return self._detect_text_tesseract(image)
-    
-    def _detect_text_tesseract(self, image: np.ndarray) -> List[TextLocation]:
-        """
-        Detect text using pytesseract.
-        
-        Args:
-            image: Image as numpy array (BGR format)
-        
-        Returns:
-            List of TextLocation objects
-        """
-        if not PYTESSERACT_AVAILABLE:
-            raise RuntimeError("pytesseract is not available")
-        
-        # Convert BGR to RGB for PIL
+        # EasyOCR expects RGB format
         import cv2
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(rgb_image)
         
-        # Get detailed OCR data
-        data = pytesseract.image_to_data(pil_image, output_type=pytesseract.Output.DICT)
+        # Run EasyOCR
+        # Result format: [([[x1,y1], [x2,y2], [x3,y3], [x4,y4]], text, confidence), ...]
+        results = self.reader.readtext(rgb_image)
         
         locations = []
-        n_boxes = len(data['text'])
         
-        for i in range(n_boxes):
-            text = data['text'][i].strip()
-            conf = float(data['conf'][i])
+        for detection in results:
+            bbox_points, text, confidence = detection
             
             # Skip empty text or low confidence
-            if not text or conf < 0:
+            text = text.strip()
+            if not text or confidence < self.confidence_threshold:
                 continue
             
-            # Normalize confidence to 0-1 range (tesseract uses 0-100)
-            confidence = conf / 100.0
+            # Convert polygon points to bounding box (x1, y1, x2, y2)
+            x_coords = [point[0] for point in bbox_points]
+            y_coords = [point[1] for point in bbox_points]
             
-            if confidence < self.confidence_threshold:
-                continue
-            
-            # Extract bounding box
-            x = data['left'][i]
-            y = data['top'][i]
-            w = data['width'][i]
-            h = data['height'][i]
-            
-            bbox = (x, y, x + w, y + h)
+            bbox = (
+                int(min(x_coords)),  # x1
+                int(min(y_coords)),  # y1
+                int(max(x_coords)),  # x2
+                int(max(y_coords))   # y2
+            )
             
             locations.append(TextLocation(
                 text=text,
                 bbox=bbox,
-                confidence=confidence
+                confidence=float(confidence)
             ))
         
         return locations
     
-    def _detect_text_windows(self, image: np.ndarray) -> List[TextLocation]:
+    def _combine_adjacent_words(self, locations: List[TextLocation], max_distance: int = 50) -> List[TextLocation]:
         """
-        Detect text using Windows OCR.
+        Combine adjacent words into multi-word phrases.
+        
+        This helps match multi-word text like "JARVIS Test" when OCR detects
+        them as separate words "JARVIS" and "Test".
         
         Args:
-            image: Image as numpy array (BGR format)
+            locations: List of TextLocation objects
+            max_distance: Maximum horizontal distance to consider words adjacent
         
         Returns:
-            List of TextLocation objects
+            List with original locations plus combined multi-word locations
         """
-        # Fall back to tesseract if Windows OCR not available
-        if not WINOCR_AVAILABLE:
-            return self._detect_text_tesseract(image)
+        if not locations:
+            return locations
         
-        # Convert BGR to RGB for PIL
-        import cv2
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(rgb_image)
+        # Sort by vertical position (y), then horizontal (x)
+        sorted_locs = sorted(locations, key=lambda loc: (loc.bbox[1], loc.bbox[0]))
         
-        # Run Windows OCR
-        import asyncio
+        combined = []
         
-        async def run_ocr():
-            return await winocr.recognize_pil(pil_image, 'en')
-        
-        # Run async OCR
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        result = loop.run_until_complete(run_ocr())
-        
-        locations = []
-        
-        for line in result.lines:
-            for word in line.words:
-                text = word.text.strip()
-                if not text:
-                    continue
-                
-                # Windows OCR provides bounding box
-                bbox = (
-                    int(word.bounding_rect.x),
-                    int(word.bounding_rect.y),
-                    int(word.bounding_rect.x + word.bounding_rect.width),
-                    int(word.bounding_rect.y + word.bounding_rect.height)
+        # Try combining consecutive words on the same line
+        for i in range(len(sorted_locs) - 1):
+            loc1 = sorted_locs[i]
+            loc2 = sorted_locs[i + 1]
+            
+            # Check if words are on roughly the same line (similar y-coordinate)
+            y1 = (loc1.bbox[1] + loc1.bbox[3]) / 2
+            y2 = (loc2.bbox[1] + loc2.bbox[3]) / 2
+            
+            if abs(y1 - y2) > 20:  # Not on same line
+                continue
+            
+            # Check if words are close horizontally
+            x1_end = loc1.bbox[2]
+            x2_start = loc2.bbox[0]
+            distance = x2_start - x1_end
+            
+            if 0 <= distance <= max_distance:
+                # Combine the two words
+                combined_text = f"{loc1.text} {loc2.text}"
+                combined_bbox = (
+                    loc1.bbox[0],  # leftmost x
+                    min(loc1.bbox[1], loc2.bbox[1]),  # topmost y
+                    loc2.bbox[2],  # rightmost x
+                    max(loc1.bbox[3], loc2.bbox[3])   # bottommost y
                 )
+                combined_confidence = (loc1.confidence + loc2.confidence) / 2
                 
-                # Windows OCR doesn't provide confidence, use 1.0
-                confidence = 1.0
-                
-                locations.append(TextLocation(
-                    text=text,
-                    bbox=bbox,
-                    confidence=confidence
+                combined.append(TextLocation(
+                    text=combined_text,
+                    bbox=combined_bbox,
+                    confidence=combined_confidence
                 ))
         
-        return locations
+        # Return original locations plus combined ones
+        return locations + combined
     
     def find_text(
         self, 
@@ -321,6 +300,7 @@ class OCRService:
         Find specific text in an image.
         
         Searches for text that matches or contains the target string.
+        Automatically combines adjacent words to match multi-word phrases.
         
         Args:
             image: Image as numpy array (BGR format)
@@ -335,24 +315,86 @@ class OCRService:
         """
         all_text = self.detect_text(image)
         
+        # If target has multiple words, combine adjacent detected words
+        if ' ' in target_text:
+            all_text = self._combine_adjacent_words(all_text)
+        
         # Normalize target for comparison
         target = target_text if case_sensitive else target_text.lower()
         
-        matches = []
+        exact_matches = []
+        good_matches = []  # Partial or fuzzy matches
+        
         for location in all_text:
             detected = location.text if case_sensitive else location.text.lower()
             
             if fuzzy:
-                # Partial match - target is contained in detected text
-                # or detected text is contained in target
-                if target in detected or detected in target:
-                    matches.append(location)
-            else:
-                # Exact match
+                # Check for exact match first
                 if detected == target:
-                    matches.append(location)
+                    exact_matches.append(location)
+                # Check for partial match (substring) or fuzzy match
+                elif target in detected or detected in target:
+                    # Calculate match quality (prefer longer matches)
+                    match_quality = len(detected) / len(target) if len(target) > 0 else 0
+                    good_matches.append((match_quality, location))
+                elif self._is_fuzzy_match(target, detected):
+                    # Fuzzy matches get slightly lower quality score
+                    match_quality = 0.8 * len(detected) / len(target) if len(target) > 0 else 0
+                    good_matches.append((match_quality, location))
+            else:
+                # Exact match only
+                if detected == target:
+                    exact_matches.append(location)
         
-        return matches
+        # Return exact matches if found
+        if exact_matches:
+            return exact_matches
+        
+        # Sort good matches by quality (prefer matches closer to target length)
+        if good_matches:
+            # Sort by how close the match length is to target length
+            # Prefer matches that are closer to the target length
+            good_matches.sort(key=lambda x: abs(1.0 - x[0]))
+            return [loc for _, loc in good_matches]
+        
+        return []
+    
+    def _is_fuzzy_match(self, target: str, detected: str, threshold: float = 0.7) -> bool:
+        """
+        Check if two strings are similar enough (handles OCR errors).
+        
+        Uses a simple character-based similarity metric.
+        
+        Args:
+            target: Target string
+            detected: Detected string
+            threshold: Minimum similarity ratio (0.0 to 1.0)
+        
+        Returns:
+            True if strings are similar enough
+        """
+        # Simple Levenshtein-like similarity
+        # Count matching characters in similar positions
+        if not target or not detected:
+            return False
+        
+        # If lengths are very different, not a match
+        len_diff = abs(len(target) - len(detected))
+        if len_diff > max(len(target), len(detected)) * 0.3:
+            return False
+        
+        # Count matching characters
+        matches = 0
+        min_len = min(len(target), len(detected))
+        
+        for i in range(min_len):
+            if target[i] == detected[i]:
+                matches += 1
+        
+        # Calculate similarity ratio
+        similarity = matches / max(len(target), len(detected))
+        
+        return similarity >= threshold
     
     def find_text_in_region(
         self, 
