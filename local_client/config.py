@@ -6,6 +6,13 @@
 SERVER_URL = 'http://localhost:5000'
 
 # =============================================================================
+# SYSTEM INFORMATION
+# =============================================================================
+# Windows username for path generation
+# This is used by the planner model to generate correct file paths
+WINDOWS_USERNAME = 'harsh'
+
+# =============================================================================
 # TIMING SETTINGS (seconds)
 # =============================================================================
 # Default delay after each step
