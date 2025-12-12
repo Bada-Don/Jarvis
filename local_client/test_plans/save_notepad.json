@@ -1,0 +1,41 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "keyboard",
+      "value": "win",
+      "desc": "Open Start menu"
+    },
+    {
+      "order": 2,
+      "type": "keyboard",
+      "value": "notepad",
+      "desc": "Type notepad"
+    },
+    {
+      "order": 3,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Launch Notepad"
+    },
+    {
+      "order": 4,
+      "type": "keyboard",
+      "value": "Hello",
+      "desc": "Type Hello"
+    },
+    {
+      "order": 5,
+      "type": "keyboard",
+      "value": "ctrl+s",
+      "desc": "Open Save As dialog"
+    },
+    {
+      "order": 6,
+      "type": "save_file",
+      "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\Hello.txt",
+      "desc": "Save file to Desktop"
+    }
+  ],
+  "expected_final_state": "Notepad window open with 'Hello' typed and saved as 'Hello.txt' on the Desktop."
+}

@@ -1,0 +1,47 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "keyboard",
+      "value": "win",
+      "desc": "Open Start menu"
+    },
+    {
+      "order": 2,
+      "type": "keyboard",
+      "value": "notepad",
+      "desc": "Search for Notepad"
+    },
+    {
+      "order": 3,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Launch Notepad"
+    },
+    {
+      "order": 4,
+      "type": "keyboard",
+      "value": "hello world",
+      "desc": "Type 'hello world'"
+    },
+    {
+      "order": 5,
+      "type": "keyboard",
+      "value": "ctrl+s",
+      "desc": "Open Save As dialog"
+    },
+    {
+      "order": 6,
+      "type": "keyboard",
+      "value": "C:\\Users\\harsh\\Downloads\\hello world.txt",
+      "desc": "Type file path in Save As dialog"
+    },
+    {
+      "order": 7,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Save the file"
+    }
+  ],
+  "expected_final_state": "Notepad window is open with 'hello world' typed, and the file is saved to the Downloads folder as 'hello world.txt'."
+}

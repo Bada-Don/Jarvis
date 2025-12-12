@@ -167,8 +167,9 @@ def execute_plan_from_file(filepath: str):
         
         print("="*60)
         
-        # Log results
-        logger.log_execution_result(result)
+        # Log results (if method exists)
+        if hasattr(logger, 'log_execution_result'):
+            logger.log_execution_result(result)
         
         print(f"\n📝 Full logs saved to: debug_logs/{session_id}/")
         

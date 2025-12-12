@@ -1,0 +1,12 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "open_file",
+      "path": "stickers/maan 22",
+      "desc": "Open maan 22.FS file from Stickers folder"
+    }
+  ],
+  "expected_final_state": "maan 22.FS file opened in FlexiSign",
+  "mode": "general"
+}

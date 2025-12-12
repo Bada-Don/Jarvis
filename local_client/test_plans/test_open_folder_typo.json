@@ -1,0 +1,12 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "open_folder",
+      "path": "desktop/jarvis vid",
+      "desc": "Open Jarvis Vid folder (exact match test)"
+    }
+  ],
+  "expected_final_state": "Jarvis Vid folder opened in File Explorer",
+  "mode": "general"
+}

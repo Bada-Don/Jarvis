@@ -1,0 +1,11 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "open_file",
+      "path": "stickers/maan 22",
+      "desc": "Open maan 22 file from New Briefcase"
+    }
+  ],
+  "expected_final_state": "maan 22 file opened in its default application"
+}

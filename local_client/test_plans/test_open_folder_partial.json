@@ -1,0 +1,12 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "open_folder",
+      "path": "desktop/veritas",
+      "desc": "Open Veritas Assets folder with partial name"
+    }
+  ],
+  "expected_final_state": "Veritas Assets folder opened in File Explorer",
+  "mode": "general"
+}

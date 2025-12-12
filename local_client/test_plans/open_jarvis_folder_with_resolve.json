@@ -1,0 +1,26 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "resolve_filename",
+      "directory": "C:\\Users\\harsh\\OneDrive\\Desktop",
+      "query": "jarvis test",
+      "desc": "Resolve exact folder name using fuzzy matching"
+    },
+    {
+      "order": 2,
+      "type": "navigate_explorer",
+      "directory": "C:\\Users\\harsh\\OneDrive\\Desktop",
+      "desc": "Navigate File Explorer to the Desktop"
+    },
+    {
+      "order": 3,
+      "type": "click_text",
+      "text": "JARVIS Test",
+      "double_click": true,
+      "desc": "Double-click to open the resolved folder"
+    }
+  ],
+  "expected_final_state": "File Explorer window open, showing the contents of the 'JARVIS Test' folder",
+  "mode": "general"
+}

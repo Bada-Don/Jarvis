@@ -64,6 +64,20 @@ except ImportError:
     PATH_CONFIG_AVAILABLE = False
     print("⚠️ Warning: path_config not available")
 
+try:
+    from filename_resolver import FilenameResolver, ResolveResult
+    FILENAME_RESOLVER_AVAILABLE = True
+except ImportError:
+    FILENAME_RESOLVER_AVAILABLE = False
+    print("⚠️ Warning: filename_resolver not available")
+
+try:
+    from path_resolver import PathResolver, PathResolveResult
+    PATH_RESOLVER_AVAILABLE = True
+except ImportError:
+    PATH_RESOLVER_AVAILABLE = False
+    print("⚠️ Warning: path_resolver not available")
+
 
 class PlanExecutor:
     """
@@ -143,6 +157,22 @@ class PlanExecutor:
             except Exception as e:
                 print(f"⚠️ Warning: Could not initialize TextBasedClicker: {e}")
         
+        # Initialize filename resolver if available
+        self._filename_resolver: Optional['FilenameResolver'] = None
+        if FILENAME_RESOLVER_AVAILABLE:
+            try:
+                self._filename_resolver = FilenameResolver()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize FilenameResolver: {e}")
+        
+        # Initialize path resolver if available
+        self._path_resolver: Optional['PathResolver'] = None
+        if PATH_RESOLVER_AVAILABLE:
+            try:
+                self._path_resolver = PathResolver()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize PathResolver: {e}")
+        
         # Cached vision data (single-pass architecture)
         self._id_map: Optional[dict] = None
         self._box_map: Optional[dict] = None
@@ -152,6 +182,9 @@ class PlanExecutor:
         # Track app launches for window activation
         self._pending_app_name: Optional[str] = None
         self._last_typed_text: Optional[str] = None
+        
+        # Window manager suppression flag for modal dialogs (Save/Open)
+        self._suppress_window_manager: bool = False
     
     def _send_status(self, message: str, status_type: str = "info", progress: int = None):
         """Send status update via callback."""
@@ -376,12 +409,30 @@ class PlanExecutor:
                             f"path='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
                         )
                 
+
+                
                 elif step_type == 'open_file':
                     result = self._execute_open_file_step(step)
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
                             step_order, "open_file",
-                            f"path='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
+                            f"path_query='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'open_folder':
+                    result = self._execute_open_folder_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "open_folder",
+                            f"path_query='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'resolve_filename':
+                    result = self._execute_resolve_filename_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "resolve_filename",
+                            f"directory='{step.get('directory', '')}' query='{step.get('query', '')}' success={result.success} resolved='{result.resolved_name if result.success else 'N/A'}' desc='{step_desc}'"
                         )
                 
                 elif step_type == 'navigate_explorer':
@@ -502,8 +553,8 @@ class PlanExecutor:
         # Wait for any UI transitions to complete
         time.sleep(0.5)
         
-        # Ensure window is focused before screenshot
-        if self.window_manager:
+        # Ensure window is focused before screenshot (unless suppressed for modal dialogs)
+        if self.window_manager and not self._suppress_window_manager:
             self.window_manager.ensure_foreground_before_input()
         
         screenshot = self.vision_service.capture_screenshot()
@@ -524,7 +575,13 @@ class PlanExecutor:
         """
         value = step.get('value', '').lower()
         desc = step.get('desc', '').lower()
-        
+        # ------------------------------------------------------------------
+        # FIX: Prevent dialog-triggering shortcuts from being treated
+        #      as application launches (Ctrl+S, Ctrl+O, Ctrl+P, etc.)
+        # ------------------------------------------------------------------
+        if value in ('ctrl+s', 'ctrl+o', 'ctrl+p'):
+            return False
+            
         # Check if description mentions launching
         for keyword in self.APP_LAUNCH_KEYWORDS:
             if keyword in desc:
@@ -583,8 +640,8 @@ class PlanExecutor:
         if not value:
             return
         
-        # Ensure window is focused before keyboard input
-        if self.window_manager:
+        # Ensure window is focused before keyboard input (unless suppressed for modal dialogs)
+        if self.window_manager and not self._suppress_window_manager:
             self.window_manager.ensure_foreground_before_input()
         
         # Determine if this is an app launch
@@ -625,6 +682,10 @@ class PlanExecutor:
         """
         Handle post-app-launch window activation.
         """
+        # Skip if window manager is suppressed (during modal dialogs)
+        if self._suppress_window_manager:
+            return
+        
         if not self.window_manager:
             # Fallback: just wait
             self._send_status("Waiting for application to start...", "info")
@@ -701,8 +762,8 @@ class PlanExecutor:
         Execute a visual click on a target element.
         Ensures window is focused before clicking.
         """
-        # Ensure window is focused before clicking
-        if self.window_manager:
+        # Ensure window is focused before clicking (unless suppressed for modal dialogs)
+        if self.window_manager and not self._suppress_window_manager:
             self.window_manager.ensure_foreground_before_input()
         
         if self._id_map is None or self._box_map is None:
@@ -746,92 +807,336 @@ class PlanExecutor:
     # Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 3.3, 4.1
     # =========================================================================
     
-    def _execute_save_file_step(self, step: dict) -> 'ExecutionResult':
+    def _execute_save_file_step(self, step: dict) -> "ExecutionResult":
         """
-        Execute a save_file step using direct path typing.
-        
-        Args:
-            step: Step dict with 'path' and optional 'overwrite_policy'
-        
-        Returns:
-            ExecutionResult with success status and any error details
-        
-        Requirements: 1.1, 1.2
+        Reliable and log-safe save_file handler.
+
+        Behaves correctly with your actual DirectPathExecutor, which:
+        - ALWAYS performs its own Ctrl+S internally,
+        - waits for the save dialog internally,
+        - types the path internally,
+        - handles overwrite dialogs internally (based on PathConfig),
+        - detects error dialogs via OCR internally.
+
+        This wrapper:
+        - Validates inputs safely
+        - Sanitises filenames
+        - Avoids leaking full paths in logs
+        - Enforces overwrite_policy override if provided
+        - Ensures window focus before DirectPathExecutor runs
         """
+
+        # ------------------------------------------------------------------
+        # Preconditions
+        # ------------------------------------------------------------------
         if not DIRECT_PATH_EXECUTOR_AVAILABLE or self._direct_path_executor is None:
-            self._send_status("DirectPathExecutor not available for save_file step", "error")
-            # Return a mock error result
             from direct_path_executor import create_error_result
             return create_error_result(
                 operation="save",
-                path=step.get('path', ''),
+                path=step.get("path", ""),
                 error_type="executor_unavailable",
                 error_message="DirectPathExecutor is not available"
             )
-        
-        path = step.get('path', '')
-        if not path:
-            self._send_status("save_file: missing 'path' parameter", "warning")
+
+        raw_path = step.get("path", "")
+        overwrite_policy = step.get("overwrite_policy")  # Optional override
+
+        if not raw_path or not isinstance(raw_path, str):
             from direct_path_executor import create_error_result
             return create_error_result(
                 operation="save",
-                path='',
+                path="",
                 error_type="invalid_path",
-                error_message="Path parameter is required"
+                error_message="Missing or invalid 'path'"
             )
+
+        # ------------------------------------------------------------------
+        # Sanitize + normalise path (without leaking)
+        # ------------------------------------------------------------------
+        import os
+        normalized_path = os.path.normpath(raw_path)
+
+        # Log only filename, never full path
+        filename_only = os.path.basename(normalized_path) or "file"
+
+        self._send_status(f"save_file: preparing to save '{filename_only}'", "info")
+
+        # Basic safety check for illegal characters
+        if any(c in normalized_path for c in ['*', '?', '"', '<', '>', '|']):
+            from direct_path_executor import create_error_result
+            return create_error_result(
+                operation="save",
+                path=normalized_path,
+                error_type="invalid_path",
+                error_message="Path contains invalid filename characters"
+            )
+
+        # ------------------------------------------------------------------
+        # Ensure target window is focused (only BEFORE Ctrl+S, not during dialog)
+        # ------------------------------------------------------------------
+        if self.window_manager and not self._suppress_window_manager:
+            self.window_manager.ensure_foreground_before_input()
+            time.sleep(0.15)
+
+        # ------------------------------------------------------------------
+        # Temporarily override overwrite policy (if provided)
+        # ------------------------------------------------------------------
+        original_policy = None
+        if overwrite_policy is not None and self._direct_path_executor.config:
+            original_policy = self._direct_path_executor.config.overwrite_policy
+            self._direct_path_executor.config.overwrite_policy = overwrite_policy
+
+        # ------------------------------------------------------------------
+        # CRITICAL: Suppress window manager during Save dialog interaction
+        # This prevents WindowManager from stealing focus from the modal dialog
+        # ------------------------------------------------------------------
+        self._suppress_window_manager = True
         
-        # Execute the save operation
-        self._send_status(f"Executing save_file: {path}", "info")
-        result = self._direct_path_executor.execute_save(path)
+        # Save and clear the last activated window handle to prevent auto-reactivation
+        saved_hwnd = None
+        if self.window_manager:
+            saved_hwnd = self.window_manager._last_activated_hwnd
+            self.window_manager._last_activated_hwnd = None
         
+        try:
+            # ------------------------------------------------------------------
+            # Execute save operation (DirectPathExecutor handles everything else)
+            # ------------------------------------------------------------------
+            self._send_status(f"save_file: executing save for '{filename_only}'", "info")
+            result = self._direct_path_executor.execute_save(normalized_path)
+
+        finally:
+            # Restore window manager, hwnd tracking, and policy after operation
+            self._suppress_window_manager = False
+            if self.window_manager and saved_hwnd:
+                self.window_manager._last_activated_hwnd = saved_hwnd
+            if original_policy is not None and self._direct_path_executor.config:
+                self._direct_path_executor.config.overwrite_policy = original_policy
+
+        # ------------------------------------------------------------------
+        # Report result without leaking sensitive details
+        # ------------------------------------------------------------------
         if result.success:
-            self._send_status(f"save_file completed: {path}", "success")
+            self._send_status(f"save_file: saved '{filename_only}' successfully", "success")
         else:
-            self._send_status(f"save_file failed: {result.error_message}", "warning")
-        
+            # Log only safe details (error_message may contain OCR text but not path)
+            self._send_status(
+                f"save_file failed for '{filename_only}': {result.error_message}",
+                "warning"
+            )
+
         return result
     
-    def _execute_open_file_step(self, step: dict) -> 'ExecutionResult':
+    def _execute_open_file_step(self, step: dict) -> 'PathResolveResult':
         """
-        Execute an open_file step using direct path typing.
+        Execute an open_file step - resolve path and open file directly.
+        
+        Uses filesystem-based path resolution (no UI/OCR) and opens the file
+        with its default application using os.startfile().
         
         Args:
-            step: Step dict with 'path'
+            step: Step dict with 'path' (fuzzy path query)
         
         Returns:
-            ExecutionResult with success status and any error details
-        
-        Requirements: 2.1, 2.2
+            PathResolveResult with success status
         """
-        if not DIRECT_PATH_EXECUTOR_AVAILABLE or self._direct_path_executor is None:
-            self._send_status("DirectPathExecutor not available for open_file step", "error")
-            from direct_path_executor import create_error_result
-            return create_error_result(
-                operation="open",
-                path=step.get('path', ''),
-                error_type="executor_unavailable",
-                error_message="DirectPathExecutor is not available"
+        import os
+        import subprocess
+        
+        if not PATH_RESOLVER_AVAILABLE or self._path_resolver is None:
+            self._send_status("PathResolver not available for open_file step", "error")
+            from path_resolver import PathResolveResult
+            return PathResolveResult(
+                success=False,
+                error_message="PathResolver is not available"
             )
         
-        path = step.get('path', '')
-        if not path:
+        path_query = step.get('path', '')
+        
+        if not path_query:
             self._send_status("open_file: missing 'path' parameter", "warning")
-            from direct_path_executor import create_error_result
-            return create_error_result(
-                operation="open",
-                path='',
-                error_type="invalid_path",
+            from path_resolver import PathResolveResult
+            return PathResolveResult(
+                success=False,
                 error_message="Path parameter is required"
             )
         
-        # Execute the open operation
-        self._send_status(f"Executing open_file: {path}", "info")
-        result = self._direct_path_executor.execute_open(path)
+        # Resolve the path
+        self._send_status(f"Resolving file path: '{path_query}'", "info")
+        result = self._path_resolver.resolve(path_query)
+        
+        if not result.success:
+            self._send_status(f"✗ Could not resolve path: {result.error_message}", "warning")
+            return result
+        
+        # Show resolution steps
+        for step_msg in result.resolution_steps:
+            self._send_status(step_msg, "info")
+        
+        resolved_path = result.resolved_path
+        self._send_status(f"✓ Resolved to: {resolved_path}", "success")
+        
+        # Check if file exists
+        if not os.path.exists(resolved_path):
+            result.success = False
+            result.error_message = f"File does not exist: {resolved_path}"
+            self._send_status(f"✗ {result.error_message}", "warning")
+            return result
+        
+        if not os.path.isfile(resolved_path):
+            result.success = False
+            result.error_message = f"Path is not a file: {resolved_path}"
+            self._send_status(f"✗ {result.error_message}", "warning")
+            return result
+        
+        # Open the file with default application
+        try:
+            self._send_status(f"Opening file: {resolved_path}", "info")
+            os.startfile(resolved_path)
+            time.sleep(1.0)  # Wait for application to start
+            self._send_status(f"✓ File opened successfully", "success")
+            return result
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Failed to open file: {str(e)}"
+            self._send_status(f"✗ {result.error_message}", "error")
+            return result
+    
+    def _execute_open_folder_step(self, step: dict) -> 'PathResolveResult':
+        """
+        Execute an open_folder step - resolve path and open folder in Explorer.
+        
+        Uses filesystem-based path resolution (no UI/OCR) and opens the folder
+        using 'explorer' command.
+        
+        Args:
+            step: Step dict with 'path' (fuzzy path query)
+        
+        Returns:
+            PathResolveResult with success status
+        """
+        import os
+        import subprocess
+        
+        if not PATH_RESOLVER_AVAILABLE or self._path_resolver is None:
+            self._send_status("PathResolver not available for open_folder step", "error")
+            from path_resolver import PathResolveResult
+            return PathResolveResult(
+                success=False,
+                error_message="PathResolver is not available"
+            )
+        
+        path_query = step.get('path', '')
+        
+        if not path_query:
+            self._send_status("open_folder: missing 'path' parameter", "warning")
+            from path_resolver import PathResolveResult
+            return PathResolveResult(
+                success=False,
+                error_message="Path parameter is required"
+            )
+        
+        # Resolve the path
+        self._send_status(f"Resolving folder path: '{path_query}'", "info")
+        result = self._path_resolver.resolve(path_query)
+        
+        if not result.success:
+            self._send_status(f"✗ Could not resolve path: {result.error_message}", "warning")
+            return result
+        
+        # Show resolution steps
+        for step_msg in result.resolution_steps:
+            self._send_status(step_msg, "info")
+        
+        resolved_path = result.resolved_path
+        self._send_status(f"✓ Resolved to: {resolved_path}", "success")
+        
+        # Check if folder exists
+        if not os.path.exists(resolved_path):
+            result.success = False
+            result.error_message = f"Folder does not exist: {resolved_path}"
+            self._send_status(f"✗ {result.error_message}", "warning")
+            return result
+        
+        if not os.path.isdir(resolved_path):
+            result.success = False
+            result.error_message = f"Path is not a folder: {resolved_path}"
+            self._send_status(f"✗ {result.error_message}", "warning")
+            return result
+        
+        # Open the folder in Explorer
+        try:
+            self._send_status(f"Opening folder in Explorer: {resolved_path}", "info")
+            subprocess.Popen(['explorer', resolved_path])
+            time.sleep(0.5)  # Wait for Explorer to open
+            self._send_status(f"✓ Folder opened successfully", "success")
+            return result
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Failed to open folder: {str(e)}"
+            self._send_status(f"✗ {result.error_message}", "error")
+            return result
+    
+    def _execute_resolve_filename_step(self, step: dict) -> 'ResolveResult':
+        """
+        Execute a resolve_filename step using filesystem-based fuzzy matching.
+        
+        This bypasses UI/OCR completely by reading directory contents directly
+        and using fuzzy matching to find the best filename match.
+        
+        Args:
+            step: Step dict with 'directory' and 'query'
+        
+        Returns:
+            ResolveResult with resolved filename
+        
+        Requirements: Zero OCR, Zero UI dependency
+        """
+        if not FILENAME_RESOLVER_AVAILABLE or self._filename_resolver is None:
+            self._send_status("FilenameResolver not available for resolve_filename step", "error")
+            from filename_resolver import ResolveResult
+            return ResolveResult(
+                success=False,
+                error_message="FilenameResolver is not available"
+            )
+        
+        directory = step.get('directory', '')
+        query = step.get('query', '')
+        
+        if not directory:
+            self._send_status("resolve_filename: missing 'directory' parameter", "warning")
+            from filename_resolver import ResolveResult
+            return ResolveResult(
+                success=False,
+                error_message="Directory parameter is required"
+            )
+        
+        if not query:
+            self._send_status("resolve_filename: missing 'query' parameter", "warning")
+            from filename_resolver import ResolveResult
+            return ResolveResult(
+                success=False,
+                error_message="Query parameter is required"
+            )
+        
+        # Execute the resolution
+        self._send_status(f"Resolving filename: '{query}' in {directory}", "info")
+        result = self._filename_resolver.resolve(directory, query)
         
         if result.success:
-            self._send_status(f"open_file completed: {path}", "success")
+            self._send_status(
+                f"✓ Resolved '{query}' → '{result.resolved_name}' (confidence: {result.confidence:.1f}%)",
+                "success"
+            )
+            # Show top candidates
+            if result.candidates:
+                candidates_str = ", ".join([f"'{name}' ({score:.2f})" for name, score in result.candidates[:3]])
+                self._send_status(f"  Top matches: {candidates_str}", "info")
         else:
-            self._send_status(f"open_file failed: {result.error_message}", "warning")
+            self._send_status(f"✗ Could not resolve '{query}': {result.error_message}", "warning")
+            if result.candidates:
+                candidates_str = ", ".join([f"'{name}' ({score:.2f})" for name, score in result.candidates[:3]])
+                self._send_status(f"  Available: {candidates_str}", "info")
         
         return result
     

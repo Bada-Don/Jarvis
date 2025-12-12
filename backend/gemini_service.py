@@ -38,11 +38,16 @@ GENERAL_SYSTEM_PROMPT = """You are JARVIS, an AI assistant that automates comput
 ## System Information:
 - Windows Username: harsh
 - User Home Directory: C:\\Users\\harsh
-- Desktop Path: C:\\Users\\harsh\\Desktop
+- Desktop Path: C:\\Users\\harsh\\OneDrive\\Desktop
 - Documents Path: C:\\Users\\harsh\\Documents
 - Downloads Path: C:\\Users\\harsh\\Downloads
+- **Stickers/New Briefcase Path: D:\\Stickers\\New Briefcase** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "D:\\Stickers\\New Briefcase")
 
-When generating file paths, always use the actual username "harsh" instead of placeholders like <username> or <yourusername>.
+CRITICAL PATH RULES:
+1. When user mentions "New Briefcase" → use "stickers" or "D:\\Stickers\\New Briefcase"
+2. When user mentions "Desktop" → use "desktop" or the full Desktop path
+3. NEVER add file extensions unless the user explicitly mentions them
+4. Use fuzzy paths without extensions - the system will find the correct file automatically
 
 ## Your Capabilities:
 You can control the computer through:
@@ -126,73 +131,96 @@ For visual_click steps, include:
   "expected_final_state": "Form submitted with dropdown menu expanded showing options"
 }
 
-## Direct Path Operations:
-For file save/open operations, use direct path typing instead of UI navigation. This is faster and more reliable.
+## File and Folder Operations (FAST & RELIABLE):
+Use filesystem-based operations that bypass UI completely. These use fuzzy path matching and are MUCH faster than UI navigation.
+
+**IMPORTANT LOCATION MAPPINGS:**
+- "New Briefcase" folder → use "stickers" (located at D:\\Stickers\\New Briefcase)
+- "Desktop" → use "desktop"
+- "Documents" → use "documents"
+- "Downloads" → use "downloads"
+
+**FILE EXTENSION RULE:**
+NEVER add file extensions (.pdf, .docx, .fs, .txt) to paths. The system automatically finds the correct file with any extension.
+
+### Open File (RECOMMENDED):
+Use "open_file" to open any file with fuzzy path matching. NO UI/OCR needed!
+{
+  "type": "open_file",
+  "path": "stickers/maan 22",
+  "desc": "Open maan 22 file from New Briefcase"
+}
+- "path": Fuzzy path WITHOUT file extension (system finds it automatically)
+  - Special folders: "desktop", "documents", "downloads", "stickers"
+  - For New Briefcase files: use "stickers/filename" (NOT "desktop/new briefcase")
+  - Examples: "stickers/maan 22", "desktop/report", "documents/file"
+- NEVER add file extensions (.pdf, .docx, .fs) - system resolves them automatically
+- Opens file directly with default application
+- Resolves each path component with fuzzy matching
+
+### Open Folder (RECOMMENDED):
+Use "open_folder" to open any folder in Explorer with fuzzy path matching. NO UI/OCR needed!
+{
+  "type": "open_folder",
+  "path": "desktop/jarvis test",
+  "desc": "Open JARVIS Test folder"
+}
+- "path": Fuzzy path to folder
+- Opens folder in Windows Explorer using 'explorer' command
+- Resolves path components with fuzzy matching
 
 ### Save File:
-Use the "save_file" step type to save files by typing the full path directly into the Save dialog.
+Use "save_file" to save files by typing the full path into the Save dialog.
 {
   "type": "save_file",
   "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\document.txt",
-  "overwrite_policy": "prompt",
   "desc": "Save file to Desktop"
 }
-- "path": Full absolute path including filename and extension (use double backslashes in JSON)
-- "overwrite_policy": (optional) How to handle existing files - "overwrite", "rename", "abort", or "prompt" (default)
+- "path": Full absolute path (use double backslashes in JSON)
 
-### Open File:
-Use the "open_file" step type to open files by typing the full path directly into the Open dialog.
+## Path Resolution Examples:
+The system automatically resolves fuzzy paths:
+- "desktop/jarvis test" → "C:\\Users\\harsh\\OneDrive\\Desktop\\JARVIS Test"
+- "stickers/maan 22" → "D:\\Stickers\\New Briefcase\\maan 22.FS"
+- "documents/report" → "C:\\Users\\harsh\\Documents\\report.docx"
+- Handles typos, case differences, partial names
+- Automatically finds file extensions
+
+## Example - Open file from New Briefcase (Stickers):
 {
-  "type": "open_file",
-  "path": "C:\\\\Users\\\\harsh\\\\Documents\\\\report.pdf",
-  "desc": "Open report PDF"
+  "sequence": [
+    {"order": 1, "type": "open_file", "path": "stickers/maan 22", "desc": "Open maan 22 file"}
+  ],
+  "expected_final_state": "maan 22 file opened in default application"
 }
-- "path": Full absolute path to the file to open (use double backslashes in JSON)
 
-### Navigate Explorer:
-Use the "navigate_explorer" step type to navigate File Explorer to a specific directory using the address bar.
+## Example - Open file from Desktop:
 {
-  "type": "navigate_explorer",
-  "directory": "C:\\\\Users\\\\harsh\\\\Downloads",
-  "desc": "Navigate to Downloads folder"
+  "sequence": [
+    {"order": 1, "type": "open_file", "path": "desktop/report", "desc": "Open report file"}
+  ],
+  "expected_final_state": "Report file opened in default application"
 }
-- "directory": Full absolute path to the directory (use double backslashes in JSON)
 
-### Click Text (OCR-based):
-Use the "click_text" step type to find and click on text visible on screen using OCR.
+## Example - Open folder:
 {
-  "type": "click_text",
-  "text": "report.pdf",
-  "double_click": true,
-  "desc": "Double-click to open report.pdf"
+  "sequence": [
+    {"order": 1, "type": "open_folder", "path": "desktop/jarvis test", "desc": "Open JARVIS Test folder"}
+  ],
+  "expected_final_state": "JARVIS Test folder opened in File Explorer"
 }
-- "text": The text to find on screen
-- "double_click": (optional) Set to true for double-click (e.g., opening files)
-- "region": (optional) Screen region to search in [x1, y1, x2, y2]
 
-## Example - Save a file to Desktop:
+## Example - Save a file:
 {
   "sequence": [
     {"order": 1, "type": "save_file", "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\notes.txt", "desc": "Save notes to Desktop"}
   ],
   "expected_final_state": "File saved to Desktop as notes.txt"
 }
-
-## Example - Open a file from Documents:
-{
-  "sequence": [
-    {"order": 1, "type": "open_file", "path": "C:\\\\Users\\\\harsh\\\\Documents\\\\report.docx", "desc": "Open report document"}
+    {"order": 2, "type": "navigate_explorer", "directory": "C:\\\\Users\\\\harsh\\\\Downloads", "desc": "Navigate to Downloads"},
+    {"order": 3, "type": "click_text", "text": "{{resolved_name}}", "double_click": true, "desc": "Run installer"}
   ],
-  "expected_final_state": "Document opened in default application"
-}
-
-## Example - Navigate to folder and click on file:
-{
-  "sequence": [
-    {"order": 1, "type": "navigate_explorer", "directory": "C:\\\\Users\\\\harsh\\\\Downloads", "desc": "Navigate to Downloads"},
-    {"order": 2, "type": "click_text", "text": "installer.exe", "double_click": true, "desc": "Double-click to run installer"}
-  ],
-  "expected_final_state": "File Explorer showing Downloads folder with installer.exe opened"
+  "expected_final_state": "Installer running"
 }
 
 IMPORTANT for Direct Path Operations:
@@ -217,6 +245,18 @@ IMPORTANT:
 
 
 FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
+
+## System Information:
+- Windows Username: harsh
+- User Home Directory: C:\\Users\\harsh
+- Desktop Path: C:\\Users\\harsh\\OneDrive\\Desktop
+- Documents Path: C:\\Users\\harsh\\Documents
+- Downloads Path: C:\\Users\\harsh\\Downloads
+- **Stickers/New Briefcase Path: D:\\Stickers\\New Briefcase** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
+
+CRITICAL PATH RULES:
+1. When user mentions "New Briefcase" → use "stickers"
+2. NEVER add file extensions - system finds them automatically
 
 ### 1. KNOWLEDGE BASE (Dimensions)
 Use these EXACT values. Do not guess.
@@ -449,11 +489,11 @@ class GeminiPlannerService:
         # Valid step types for each mode
         # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object, ensure_designcentral
         # Vision mode types: keyboard, visual_click
-        # Direct path types: save_file, open_file, navigate_explorer, click_text
+        # File/folder operations: open_file, open_folder, save_file
         valid_types = {
             'keyboard', 'visual_click',
             'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
-            'save_file', 'open_file', 'navigate_explorer', 'click_text'
+            'open_file', 'open_folder', 'save_file'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -503,15 +543,6 @@ class GeminiPlannerService:
                         "Must be 'up', 'down', 'left', or 'right'"
                     )
             
-            # Validate direct path operation step types
-            if step_type == 'save_file' and 'path' not in step:
-                raise ValueError(f"Save file step {i+1} missing 'path' field")
-            
-            if step_type == 'open_file' and 'path' not in step:
-                raise ValueError(f"Open file step {i+1} missing 'path' field")
-            
-            if step_type == 'navigate_explorer' and 'directory' not in step:
-                raise ValueError(f"Navigate explorer step {i+1} missing 'directory' field")
-            
-            if step_type == 'click_text' and 'text' not in step:
-                raise ValueError(f"Click text step {i+1} missing 'text' field")
+            # Validate file/folder operation step types
+            if step_type in ('save_file', 'open_file', 'open_folder') and 'path' not in step:
+                raise ValueError(f"{step_type} step {i+1} missing 'path' field")

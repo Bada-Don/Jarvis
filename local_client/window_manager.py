@@ -257,6 +257,22 @@ class WindowManager:
         """
         if self._last_activated_hwnd:
             if not self.is_window_foreground(self._last_activated_hwnd):
+                # Check if the current foreground window belongs to the same process (PID)
+                # This handles modal dialogs (Save As, Open, etc.) which are separate windows
+                # but belong to the same application instance.
+                try:
+                    fg_hwnd = win32gui.GetForegroundWindow()
+                    if fg_hwnd:
+                        _, tracked_pid = win32process.GetWindowThreadProcessId(self._last_activated_hwnd)
+                        _, fg_pid = win32process.GetWindowThreadProcessId(fg_hwnd)
+                        
+                        if tracked_pid == fg_pid:
+                            if self.verbose:
+                                self.log(f"Foreground window ({fg_hwnd}) belongs to same process as tracked window. Assuming modal/child dialog.")
+                            return True
+                except Exception as e:
+                    self.log(f"Error checking process affinity: {e}")
+
                 self.log("Window lost focus, re-activating...")
                 return self.activate_window(self._last_activated_hwnd)
             return True
