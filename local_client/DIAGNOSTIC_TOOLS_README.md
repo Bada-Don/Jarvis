@@ -4,7 +4,33 @@ This directory contains diagnostic scripts to help troubleshoot FlexiSIGN automa
 
 ## Available Tools
 
-### 1. check_designcentral.py
+### 1. verify_designcentral_detection.py
+**Purpose:** Verify that DesignCentral detection correctly distinguishes between window and checkbox.
+
+**Usage:**
+```cmd
+python verify_designcentral_detection.py
+```
+
+**What it shows:**
+- All elements named "DesignCentral" (window + checkbox)
+- Element properties (Name, Class, Type)
+- Which element is the actual panel vs menu checkbox
+- Whether detection method works correctly
+
+**Output:**
+- List of all "DesignCentral" elements found
+- Verification of detection logic
+- Pass/Fail for correct detection
+
+**When to use:**
+- After fixing DesignCentral detection issues
+- To understand why detection might fail
+- To verify the fix works in both open/closed states
+
+---
+
+### 2. test_designcentral_fix.py
 **Purpose:** Comprehensive diagnostic for DesignCentral panel detection and accessibility.
 
 **Usage:**
@@ -56,7 +82,7 @@ python test_designcentral_fix.py
 
 ---
 
-### 3. test_plan.py (Enhanced)
+### 3. check_designcentral.py
 **Purpose:** Execute FlexiSIGN plans from JSON files with proper initialization.
 
 **Usage:**
@@ -77,6 +103,33 @@ python test_plan.py test_plans/open_flexi_save_file.json
 ---
 
 ## Common Issues and Solutions
+
+### Issue: "DesignCentral detected when closed" (False Positive)
+
+**Symptoms:**
+- `_get_designcentral()` returns element even when panel is closed
+- Automation thinks DesignCentral is open but it's not
+- Setting dimensions/fonts fails
+
+**Root Cause:**
+There are TWO elements with name "DesignCentral":
+1. **Window** (Class="#32770", Type=50032) - only exists when panel is OPEN
+2. **CheckBox** (Class="", Type=50002) - always exists (menu item)
+
+**Solution:**
+The fix ensures we match ALL three properties:
+- Name = "DesignCentral"
+- Class = "#32770" (not empty string)
+- Type = Window (50032, not CheckBox 50002)
+
+**Verification:**
+```cmd
+python verify_designcentral_detection.py
+```
+
+This will show both elements and verify detection works correctly.
+
+---
 
 ### Issue: "DesignCentral panel is CLOSED"
 

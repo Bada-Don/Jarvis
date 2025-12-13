@@ -445,29 +445,71 @@ class FlexiSignUIA:
     # =========================================================================
 
     def _get_designcentral(self):
-        """Get the DesignCentral window."""
+        """
+        Get the DesignCentral window.
+        
+        IMPORTANT: There are two elements with name "DesignCentral":
+        1. The actual window: Name="DesignCentral", Class="#32770", Type=Window (only when open)
+        2. A checkbox: Name="DesignCentral", Class="", Type=CheckBox (always present)
+        
+        We must match ALL three properties to get the window, not the checkbox.
+        
+        Returns:
+            UIA element for DesignCentral window if open, None otherwise.
+        """
         if self._root is None:
             return None
-        return self._find_first(
+        
+        # Find element matching name, class, and control type
+        element = self._find_first(
             self._root,
             name="DesignCentral",
             class_name="#32770",
             control_type=UIA_WindowControlTypeId
         )
+        
+        # Additional validation: verify we got the window, not the checkbox
+        if element is not None:
+            try:
+                # Double-check the class name is actually "#32770"
+                actual_class = element.GetCurrentPropertyValue(UIA_ClassNamePropertyId)
+                actual_type = element.GetCurrentPropertyValue(UIA_ControlTypePropertyId)
+                
+                # Verify it's a window with the correct class
+                if actual_class == "#32770" and actual_type == UIA_WindowControlTypeId:
+                    return element
+                else:
+                    # We got the checkbox or wrong element, return None
+                    print(f"DEBUG: Found element but wrong type - Class: '{actual_class}', Type: {actual_type}")
+                    return None
+            except Exception as e:
+                print(f"DEBUG: Error validating DesignCentral element: {e}")
+                return None
+        
+        return None
 
     def ensure_designcentral_open(self) -> bool:
         """
         Ensure DesignCentral panel is visible.
         Opens with Ctrl+I if not found.
         
+        IMPORTANT: This method distinguishes between:
+        - DesignCentral window (Class="#32770", Type=Window) - only when open
+        - DesignCentral checkbox (Class="", Type=CheckBox) - always present
+        
         Returns:
-            True if DesignCentral is visible (either already open or successfully opened),
-            False if unable to open DesignCentral.
+            True if DesignCentral window is visible (either already open or successfully opened),
+            False if unable to open DesignCentral window.
         """
+        print("DEBUG: Checking if DesignCentral is already open...")
+        
         # First check if DesignCentral is already visible
         dc = self._get_designcentral()
         if dc is not None:
+            print("DEBUG: DesignCentral window already open")
             return True
+        
+        print("DEBUG: DesignCentral window not found, pressing Ctrl+I to open...")
         
         # DesignCentral not visible, press Ctrl+I to open it
         pyautogui.hotkey('ctrl', 'i')
@@ -479,16 +521,26 @@ class FlexiSignUIA:
         self._refresh_root()
         
         # Retry once to find DesignCentral
+        print("DEBUG: Checking for DesignCentral window after Ctrl+I (attempt 1)...")
         dc = self._get_designcentral()
         if dc is not None:
+            print("DEBUG: DesignCentral window found after Ctrl+I")
             return True
         
         # If still not found, wait a bit more and try again
+        print("DEBUG: DesignCentral window not found, waiting longer...")
         time.sleep(0.5)
         self._refresh_root()
+        
+        print("DEBUG: Checking for DesignCentral window (attempt 2)...")
         dc = self._get_designcentral()
         
-        return dc is not None
+        if dc is not None:
+            print("DEBUG: DesignCentral window found on second attempt")
+            return True
+        else:
+            print("DEBUG: DesignCentral window still not found after all attempts")
+            return False
 
     def _get_designcentral_tabcontrol(self):
         """Get the tab control within DesignCentral (AutomationId 12320)."""

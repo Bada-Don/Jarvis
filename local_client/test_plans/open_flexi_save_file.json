@@ -7,7 +7,8 @@
 {"order": 4, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
 {"order": 5, "type": "set_dimensions", "width": "5", "height": "1", "desc": "Set Dimensions"},
 {"order": 6, "type": "keyboard", "value": "ctrl+s", "desc": "Save File"},
-{"order": 7, "type": "keyboard", "value": "C:\\Users\\harsh\\OneDrive\\Desktop\\Harshit Singla", "desc": "Enter File Path and Name"}
+{"order": 7, "type": "keyboard", "value": "C:\\Users\\harsh\\OneDrive\\Desktop\\Harshit Singla", "desc": "Enter File Path and Name"},
+{"order": 8, "type": "keyboard", "value": "enter", "desc": "Confirm save"}
 ],
 "expected_final_state": "FlexiSIGN window showing text 'Harshit Singla' with size 5x1 inches in Crillee It BT font, saved to the desktop."
 }

@@ -76,7 +76,20 @@ def check_designcentral(uia):
     dc = uia._get_designcentral()
     
     if dc is not None:
-        print("✓ DesignCentral panel is OPEN")
+        print("✓ DesignCentral WINDOW is OPEN")
+        
+        # Show element details
+        try:
+            from comtypes.gen.UIAutomationClient import (
+                UIA_ClassNamePropertyId,
+                UIA_ControlTypePropertyId
+            )
+            actual_class = dc.GetCurrentPropertyValue(UIA_ClassNamePropertyId)
+            actual_type = dc.GetCurrentPropertyValue(UIA_ControlTypePropertyId)
+            print(f"  Class: '{actual_class}'")
+            print(f"  Type: {actual_type} (50032=Window)")
+        except:
+            pass
         
         # Try to get bounding rect
         rect = uia.get_bounding_rect(dc)
@@ -86,7 +99,8 @@ def check_designcentral(uia):
         
         return True
     else:
-        print("❌ DesignCentral panel is CLOSED")
+        print("❌ DesignCentral WINDOW is CLOSED")
+        print("   (Note: DesignCentral checkbox may still exist)")
         return False
 
 
