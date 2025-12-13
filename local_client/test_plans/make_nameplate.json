@@ -1,0 +1,92 @@
+{
+"mode": "direct",
+"sequence": [
+{
+"order": 1,
+"type": "keyboard",
+"value": "ctrl+n",
+"desc": "New Page"
+},
+{
+"order": 2,
+"type": "ensure_designcentral",
+"desc": "Open Panel"
+},
+{
+"order": 3,
+"type": "create_text",
+"text": "82643-59945",
+"desc": "Line 1"
+},
+{
+"order": 4,
+"type": "set_font",
+"font_name": "Crillee It BT",
+"desc": "Font 1"
+},
+{
+"order": 5,
+"type": "move_object",
+"direction": "up",
+"distance": 30,
+"desc": "Clear Canvas Center"
+},
+{
+"order": 6,
+"type": "create_text",
+"text": "Randhawa Niwas",
+"desc": "Line 2"
+},
+{
+"order": 7,
+"type": "set_font",
+"font_name": "Crillee It BT",
+"desc": "Font 2"
+},
+{
+"order": 8,
+"type": "move_object",
+"direction": "up",
+"distance": 30,
+"desc": "Clear Canvas Center"
+},
+{
+"order": 9,
+"type": "create_text",
+"text": "# 59 Stellaria Street",
+"desc": "Line 3"
+},
+{
+"order": 10,
+"type": "set_font",
+"font_name": "Crillee It BT",
+"desc": "Font 3"
+},
+{
+"order": 11,
+"type": "move_object",
+"direction": "up",
+"distance": 30,
+"desc": "Positioning"
+},
+{
+"order": 12,
+"type": "keyboard",
+"value": "ctrl+s",
+"desc": "Save"
+},
+{
+"order": 13,
+"type": "keyboard",
+"value": "C:\\Users\\harsh\\OneDrive\\Desktop\\Nameplate",
+"desc": "Set Path"
+},
+{
+"order": 14,
+"type": "keyboard",
+"value": "enter",
+"desc": "Enter Path"
+}
+],
+"expected_final_state": "Three separate text lines created (moved up to avoid overlap) and saved to Desktop."
+}

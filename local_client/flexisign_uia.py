@@ -1210,6 +1210,7 @@ class FlexiSignUIA:
     def move_object(self, direction: str, distance: int) -> bool:
         """
         Move selected object using Shift+Arrow keys.
+        First presses Ctrl+A to ensure object is selected before moving.
         
         Args:
             direction: Direction to move ('up', 'down', 'left', 'right')
@@ -1229,6 +1230,13 @@ class FlexiSignUIA:
             )
         
         arrow_key = self._DIRECTION_KEY_MAP[direction_lower]
+        
+        # Press Esc first to ensure objects are deselected
+        pyautogui.hotkey('esc')
+        
+        # Press Ctrl+A first to ensure object is selected
+        pyautogui.hotkey('ctrl', 'a')
+        time.sleep(0.1)  # Wait for selection to complete
         
         # Execute key press the specified number of times with Shift modifier
         for _ in range(distance):

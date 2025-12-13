@@ -7,7 +7,7 @@ A voice/text-controlled AI assistant that can automate tasks on your Windows PC.
 - **General Computer Automation**: Open apps, browse the web, type text, click buttons
 - **FlexiSIGN Integration**: Specialized number plate creation workflow
 - **Mobile App Control**: Send commands from your phone via React Native app
-- **Voice Input**: Speak your commands (coming soon)
+- **Voice Input**: Record voice messages with on-device speech-to-text (Whisper)
 - **Visual UI Detection**: Uses FastSAM + Gemini Vision to identify and click UI elements
 - **Real-time Progress**: See step-by-step execution status on your phone
 
@@ -150,9 +150,21 @@ debug_logs/2024-12-01_16-39-33/
 - Gemini API Key
 - FastSAM weights (auto-downloaded)
 
+## Recent Updates
+
+### Voice Recording & Speech-to-Text (NEW!)
+- ✅ Voice recording with microphone button
+- ✅ On-device speech-to-text using OpenAI's Whisper
+- ✅ Automatic text insertion after transcription
+- ✅ Support for 99+ languages
+- ✅ Smart fallback to audio file attachment
+
+See [ChatInterface/QUICK_START_VOICE.md](ChatInterface/QUICK_START_VOICE.md) for setup.
+
 ## Future Plans
 
 - [ ] Hot word voice activation ("Hey JARVIS")
+- [ ] Real-time voice transcription (streaming)
 - [ ] Camera access for visual input
 - [ ] Improved icon detection accuracy
 - [ ] Multi-monitor support

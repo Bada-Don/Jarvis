@@ -185,7 +185,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                     // Get file info
                     let fileSize = 0;
                     try {
-                        // Try to get file size (platform-specific)
                         const response = await fetch(uri);
                         const blob = await response.blob();
                         fileSize = blob.size;
@@ -198,7 +197,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                         console.log('Could not get file size:', e);
                     }
 
-                    // Add the audio file to pending files
+                    // Add audio file to pending files (skip transcription)
                     const audioFile = {
                         uri,
                         name: `voice_${Date.now()}.m4a`,
@@ -212,7 +211,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                     setPendingFiles((prev) => [...prev, audioFile]);
                     
                     if (fileSize > 0) {
-                        Alert.alert('Success', `Voice recording added! (${Math.round(fileSize / 1024)}KB)`);
+                        Alert.alert('Voice Recorded', `Audio file added (${Math.round(fileSize / 1024)}KB). Ready to send!`);
                     } else {
                         Alert.alert('Warning', 'Recording saved but file size is 0. Check microphone permissions.');
                     }
