@@ -119,10 +119,21 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
     
     Args:
         command_data: Command data from server
-        retry_count: Current retry attempt (max 1 retries)
+        retry_count: Current retry attempt (configurable via config.py)
     """
-    MAX_RETRIES = 0 # Diabling retring temporarily
-    # MAX_RETRIES = 1
+    # Load verification settings from config.py
+    try:
+        from config import (
+            VERIFICATION_ENABLED, MAX_RETRIES, RETRY_DELAY, 
+            VERIFICATION_DELAY, CONFIDENCE_THRESHOLD
+        )
+        enable_verification = VERIFICATION_ENABLED
+        retry_delay = RETRY_DELAY
+    except ImportError:
+        # Fallback to defaults if config not available
+        MAX_RETRIES = 1
+        enable_verification = True
+        retry_delay = 2.0
     
     if not TWO_MODEL_PIPELINE_AVAILABLE:
         send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
@@ -131,7 +142,8 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
     plan = command_data.get('plan')
     user_command = command_data.get('user_command', '')
     mode = command_data.get('mode', plan.get('mode', 'general'))
-    enable_verification = command_data.get('verify', True)  # Enable by default
+    # Allow command_data to override config (for testing/debugging)
+    enable_verification = command_data.get('verify', enable_verification)
     
     if not plan:
         send_status("No execution plan received", "error")
@@ -225,8 +237,8 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
             if debug_logger:
                 debug_logger.log_error(f"Verification failed, retry {retry_count + 1}")
             
-            # Wait before retry
-            time.sleep(1.5)
+            # Wait before retry (configurable delay)
+            time.sleep(retry_delay)
             
             # Retry execution
             execute_two_model_plan(command_data, retry_count + 1)

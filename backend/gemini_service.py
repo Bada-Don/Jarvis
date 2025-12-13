@@ -401,7 +401,7 @@ class GeminiPlannerService:
             "plate", "number plate", "numberplate", 
             "bike", "car", "iron", "glass",
             "flexisign", "flexi sign", "flexi-sign",
-            "nameplate", "name plate"
+            "nameplate", "name plate", "sticker", "stickers"
         ]
         
         for keyword in flexisign_keywords:

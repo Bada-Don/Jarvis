@@ -232,8 +232,15 @@ class PlanExecutor:
         verified = True  # Default to True if no verification
         
         if verify and expected_state and exec_success:
+            # Load verification delay from config
+            try:
+                from config import VERIFICATION_DELAY
+                verification_delay = VERIFICATION_DELAY
+            except ImportError:
+                verification_delay = 1.0  # Default fallback
+            
             self._send_status("Verifying task completion...", "info", progress=92)
-            time.sleep(1.0)  # Wait for UI to settle
+            time.sleep(verification_delay)  # Wait for UI to settle (configurable)
             
             try:
                 verification_result = self.vision_service.verify_task_completion(expected_state)

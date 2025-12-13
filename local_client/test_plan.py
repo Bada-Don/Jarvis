@@ -28,6 +28,13 @@ except ImportError as e:
     print("Make sure you're running from the local_client directory")
     sys.exit(1)
 
+try:
+    from flexisign_manager import FlexiSignManager
+    FLEXISIGN_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: flexisign_manager not available")
+    FLEXISIGN_MANAGER_AVAILABLE = False
+
 
 def load_plan_from_file(filepath: str) -> dict:
     """Load execution plan from JSON file."""
@@ -72,8 +79,12 @@ def print_plan_summary(plan: dict):
     print("PLAN SUMMARY")
     print("="*60)
     
-    if 'mode' in plan:
-        print(f"Mode: {plan['mode']}")
+    mode = plan.get('mode', 'vision')
+    print(f"Mode: {mode}")
+    
+    # Show if FlexiSIGN initialization will be performed
+    if mode in ('direct', 'flexisign'):
+        print(f"FlexiSIGN Init: {'Yes' if FLEXISIGN_MANAGER_AVAILABLE else 'No (manager not available)'}")
     
     if 'expected_final_state' in plan:
         print(f"Expected Final State: {plan['expected_final_state']}")
@@ -118,7 +129,6 @@ def execute_plan_from_file(filepath: str):
     
     # Initialize services
     print("\n🔧 Initializing services...")
-    vision_service = VisionService()
     
     def status_callback(status_data, status_type=None):
         """Print status updates."""
@@ -131,6 +141,20 @@ def execute_plan_from_file(filepath: str):
             # String format
             print(f"  {status_data}")
     
+    # Check if this is a FlexiSIGN plan (mode: direct or flexisign)
+    mode = plan.get('mode', 'vision')
+    
+    # For FlexiSIGN mode, ensure the app is ready
+    if mode in ('direct', 'flexisign') and FLEXISIGN_MANAGER_AVAILABLE:
+        print("\n🎨 Preparing FlexiSIGN...")
+        manager = FlexiSignManager(status_callback=status_callback)
+        if not manager.ensure_proper_state():
+            print("❌ Failed to start FlexiSIGN Pro")
+            print("   Please ensure FlexiSIGN is installed and accessible")
+            sys.exit(1)
+        print("✓ FlexiSIGN ready")
+    
+    vision_service = VisionService()
     executor = PlanExecutor(vision_service, status_callback)
     
     # Give user time to prepare
@@ -138,11 +162,22 @@ def execute_plan_from_file(filepath: str):
     print("   (Move your mouse to a corner to abort if needed)")
     time.sleep(3)
     
+    # Load verification settings from config
+    try:
+        from config import VERIFICATION_ENABLED, MAX_RETRIES
+        verify_enabled = VERIFICATION_ENABLED
+        print(f"📋 Verification: {'Enabled' if verify_enabled else 'Disabled'}")
+        if verify_enabled:
+            print(f"📋 Max retries: {MAX_RETRIES}")
+    except ImportError:
+        verify_enabled = True  # Default
+        print("⚠️ Could not load verification config, using defaults")
+    
     # Execute the plan
     print("\n🚀 Executing plan...\n")
     
     try:
-        result = executor.execute_plan(plan)
+        result = executor.execute_plan(plan, verify=verify_enabled)
         
         # Print results
         print("\n" + "="*60)

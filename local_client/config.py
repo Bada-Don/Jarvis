@@ -59,6 +59,36 @@ STARTUP_MODAL_BUTTON = "OK"
 STARTUP_MODAL_TIMEOUT = 30
 
 # =============================================================================
+# VERIFICATION AND RETRY SETTINGS
+# =============================================================================
+# Enable/disable task verification after execution
+# Set to False for faster execution without validation
+VERIFICATION_ENABLED = False
+
+# Maximum number of retry attempts if verification fails
+# Set to 0 to disable retries, 1-3 for production use
+MAX_RETRIES = 0
+
+# Delay in seconds before retrying after verification failure
+# Increase for slow applications, decrease for fast operations
+RETRY_DELAY = 2.0
+
+# Delay in seconds before starting verification (UI settle time)
+# Increase if verification fails due to UI not being ready
+# Decrease for simple/fast operations
+VERIFICATION_DELAY = 1.0
+
+# Minimum confidence score (0.0-1.0) to consider verification successful
+# Higher values (0.8-0.9) = stricter verification
+# Lower values (0.5-0.7) = more lenient verification
+CONFIDENCE_THRESHOLD = 0.7
+
+# QUICK PRESETS:
+# - Fast Testing:     VERIFICATION_ENABLED=False, MAX_RETRIES=0
+# - Production:       VERIFICATION_ENABLED=True, MAX_RETRIES=1-2
+# - Critical Tasks:   VERIFICATION_ENABLED=True, MAX_RETRIES=3, CONFIDENCE_THRESHOLD=0.8
+
+# =============================================================================
 # LEGACY TIMING SETTINGS
 # =============================================================================
 PROCESS_START_WAIT = 5
