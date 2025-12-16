@@ -369,6 +369,9 @@ class AutomationActions:
         
         # Press Esc first to ensure objects are deselected
         pyautogui.hotkey('esc')
+        time.sleep(0.1)  # Wait for deselection to complete
+        pyautogui.hotkey('esc')
+        time.sleep(0.1)  # Wait for deselection to complete
         
         # Press Ctrl+A first to ensure object is selected
         pyautogui.hotkey('ctrl', 'a')

@@ -75,18 +75,20 @@ class ToolbarSelectors:
             raise FlexiSignUIAError("Text Tool not found in toolbar")
         return element
     
-    def get_select_tool(self):
+    def get_rectangle_tool(self):
         """
-        Get the Select Tool button from the toolbar.
+        Get the Rectangle Tool button from the toolbar.
         
         Returns:
-            UIA element for Select Tool
+            UIA element for Rectangle Tool
             
         Raises:
-            FlexiSignUIAError: If Select Tool cannot be found.
+            FlexiSignUIAError: If Rectangle Tool cannot be found.
         """
         toolbar = self.get_main_toolbar()
-        element = self.get_button_in_toolbar(toolbar, "Select Tool")
+        element = self.get_button_in_toolbar(toolbar, "Rectangle Tool")
         if element is None:
-            raise FlexiSignUIAError("Select Tool not found in toolbar")
+            raise FlexiSignUIAError("Rectangle Tool not found in toolbar")
         return element
+
+        
