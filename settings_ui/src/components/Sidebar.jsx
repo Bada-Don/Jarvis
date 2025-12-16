@@ -63,7 +63,7 @@ export default function Sidebar({ currentSection, onSectionChange, hasUnsavedCha
               JARVIS Settings
             </h1>
             {isCollapsed && (
-              <div className="text-lg font-bold text-primary-600 mx-auto">⚙️</div>
+              <div className="text-base font-bold text-primary-600 mx-auto">⚙️</div>
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -109,7 +109,7 @@ export default function Sidebar({ currentSection, onSectionChange, hasUnsavedCha
                   `}
                   title={isCollapsed ? item.label : undefined}
                 >
-                  <span className={`text-base transition-transform duration-200 ${
+                  <span className={`text-sm transition-transform duration-200 ${
                     currentSection === item.id ? '' : 'group-hover:scale-110'
                   }`}>
                     {item.icon}
