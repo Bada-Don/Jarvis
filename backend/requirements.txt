@@ -1,6 +1,7 @@
 flask
 flask-cors
 flask-socketio
+python-socketio>=5.10.0
 eventlet
 
 ultralytics

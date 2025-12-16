@@ -8,17 +8,19 @@ enabling direct automation without vision-based element detection.
 """
 
 import time
-import ctypes
 from typing import Optional, Tuple
 
 import comtypes
 import comtypes.client
 import psutil
 import pyautogui
-import pygetwindow as gw
-import win32process
-import win32gui
-import win32con
+
+# Import window activation utilities from modular file
+from force_activate_flexisign import (
+    find_flexisign_window,
+    get_pid_from_window,
+    force_activate_window
+)
 
 # Generate UIA bindings
 comtypes.client.GetModule("UIAutomationCore.dll")
@@ -100,223 +102,26 @@ class FlexiSignUIA:
                 pass
 
     # =========================================================================
-    # Window Detection and Activation
+    # Window Detection and Activation (using modular functions)
     # =========================================================================
-
-    def find_flexisign_window(self) -> Optional[object]:
-        """
-        Detect FlexiSIGN window by window title containing 'FlexiSIGN'.
-        
-        Returns:
-            pygetwindow Window object if found, None otherwise.
-        """
-        try:
-            for window in gw.getAllWindows():
-                # Only match windows with "FlexiSIGN" (not just "flexi")
-                # This avoids matching IDE windows with flexisign files open
-                title_lower = window.title.lower()
-                if "flexisign-pro" in title_lower:
-                    print(f"Found FlexiSIGN window: {window.title}")
-                    return window
-        except Exception as e:
-            print(f"Error finding window: {e}")
-            pass
-        return None
-
-    def get_pid_from_window(self, window) -> Optional[int]:
-        """
-        Retrieve process ID (PID) from window handle.
-        
-        Args:
-            window: pygetwindow Window object
-            
-        Returns:
-            Process ID if successful, None otherwise.
-        """
-        try:
-            hwnd = window._hWnd
-            _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            return pid
-        except Exception:
-            return None
-
-    def activate_window(self, window) -> bool:
-        """
-        Bring FlexiSIGN window to foreground using two-method approach.
-        
-        Primary Method: AttachThreadInput (most reliable for cross-thread activation)
-        Fallback Method: Click Window Center (works when thread attach fails)
-        
-        Args:
-            window: pygetwindow Window object
-            
-        Returns:
-            True if activation successful, False otherwise.
-        """
-        print(f"Activating window: {window.title}")
-        
-        # Check if already active
-        hwnd = window._hWnd
-        if win32gui.GetForegroundWindow() == hwnd:
-            print("  ✓ Window already active")
-            return True
-        
-        # Try Method 1: AttachThreadInput
-        if self._activate_method_thread_attach(window):
-            return True
-        
-        # Fallback to Method 2: Click Window
-        print("  Primary method failed, trying click fallback...")
-        if self._activate_method_click(window):
-            return True
-        
-        # Both methods failed
-        print("  ❌ All activation methods failed")
-        return False
-    
-    def _activate_method_thread_attach(self, window) -> bool:
-        """
-        Method 1: AttachThreadInput technique (most reliable).
-        
-        Attaches input processing of foreground and target threads,
-        allowing us to change the foreground window.
-        
-        Args:
-            window: pygetwindow Window object
-            
-        Returns:
-            True if activation successful, False otherwise.
-        """
-        print("  Method 1: AttachThreadInput")
-        hwnd = window._hWnd
-        
-        try:
-            # Restore if minimized
-            if window.isMinimized:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                time.sleep(0.2)
-            
-            # Get thread IDs
-            foreground_hwnd = win32gui.GetForegroundWindow()
-            if foreground_hwnd == hwnd:
-                return True
-            
-            foreground_thread = win32process.GetWindowThreadProcessId(foreground_hwnd)[0]
-            target_thread = win32process.GetWindowThreadProcessId(hwnd)[0]
-            
-            # Attach threads if different
-            threads_attached = False
-            if foreground_thread != target_thread:
-                try:
-                    ctypes.windll.user32.AttachThreadInput(foreground_thread, target_thread, True)
-                    threads_attached = True
-                except Exception as e:
-                    print(f"    ⚠️ Thread attach failed: {e}")
-                    return False
-            
-            # Activate window
-            win32gui.BringWindowToTop(hwnd)
-            time.sleep(0.05)
-            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-            time.sleep(0.05)
-            win32gui.SetForegroundWindow(hwnd)
-            time.sleep(0.1)
-            
-            # Try to set focus
-            try:
-                win32gui.SetFocus(hwnd)
-            except:
-                pass
-            
-            # Detach threads
-            if threads_attached:
-                try:
-                    ctypes.windll.user32.AttachThreadInput(foreground_thread, target_thread, False)
-                except:
-                    pass
-            
-            # Verify
-            time.sleep(0.2)
-            if win32gui.GetForegroundWindow() == hwnd:
-                print("    ✓ Success")
-                return True
-            else:
-                print("    ❌ Failed")
-                return False
-                
-        except Exception as e:
-            print(f"    ❌ Error: {e}")
-            return False
-    
-    def _activate_method_click(self, window) -> bool:
-        """
-        Method 2: Click window center (reliable fallback).
-        
-        Physically clicks the center of the window to activate it.
-        Works even when thread attachment fails.
-        
-        Args:
-            window: pygetwindow Window object
-            
-        Returns:
-            True if activation successful, False otherwise.
-        """
-        print("  Method 2: Click Window Center")
-        hwnd = window._hWnd
-        
-        try:
-            # Restore if minimized
-            if window.isMinimized:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                time.sleep(0.3)
-            
-            # Bring to top first
-            try:
-                win32gui.BringWindowToTop(hwnd)
-                win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-                time.sleep(0.1)
-            except:
-                pass
-            
-            # Calculate center
-            center_x = window.left + (window.width // 2)
-            center_y = window.top + (window.height // 2)
-            
-            print(f"    Clicking at ({center_x}, {center_y})")
-            
-            # Click the window
-            pyautogui.click(center_x, center_y)
-            time.sleep(0.3)
-            
-            # Verify
-            if win32gui.GetForegroundWindow() == hwnd:
-                print("    ✓ Success")
-                return True
-            else:
-                print("    ❌ Failed")
-                return False
-                
-        except Exception as e:
-            print(f"    ❌ Error: {e}")
-            return False
-
 
     def find_and_activate_window(self) -> bool:
         """
         Find FlexiSIGN window and bring to foreground.
         Implements retry logic with 5-second wait.
+        Uses modular functions from force_activate_flexisign module.
         
         Returns:
             True if successful, False otherwise.
         """
         # First attempt
-        window = self.find_flexisign_window()
+        window = find_flexisign_window()
         if window:
-            pid = self.get_pid_from_window(window)
+            pid = get_pid_from_window(window)
             if pid:
                 self._pid = pid
                 print(f"Found FlexiSIGN with PID: {pid}")
-                if self.activate_window(window):
+                if force_activate_window(window, verbose=True):
                     self._refresh_root()
                     if self._root is not None:
                         print("Window activated and root element found successfully")
@@ -328,13 +133,13 @@ class FlexiSignUIA:
         print("Waiting 5 seconds before retry...")
         time.sleep(5)
         
-        window = self.find_flexisign_window()
+        window = find_flexisign_window()
         if window:
-            pid = self.get_pid_from_window(window)
+            pid = get_pid_from_window(window)
             if pid:
                 self._pid = pid
                 print(f"Retry: Found FlexiSIGN with PID: {pid}")
-                if self.activate_window(window):
+                if force_activate_window(window, verbose=True):
                     self._refresh_root()
                     if self._root is not None:
                         print("Window activated and root element found successfully on retry")

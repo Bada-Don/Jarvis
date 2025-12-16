@@ -31,11 +31,41 @@ except ImportError as e:
 
 
 def find_flexisign_window():
-    """Find FlexiSIGN window."""
-    for window in gw.getAllWindows():
-        if "flexisign-pro" in window.title.lower():
-            return window
+    """
+    Detect FlexiSIGN window by window title containing 'FlexiSIGN'.
+    
+    Returns:
+        pygetwindow Window object if found, None otherwise.
+    """
+    try:
+        for window in gw.getAllWindows():
+            # Only match windows with "FlexiSIGN" (not just "flexi")
+            # This avoids matching IDE windows with flexisign files open
+            title_lower = window.title.lower()
+            if "flexisign-pro" in title_lower:
+                print(f"Found FlexiSIGN window: {window.title}")
+                return window
+    except Exception as e:
+        print(f"Error finding window: {e}")
     return None
+
+
+def get_pid_from_window(window):
+    """
+    Retrieve process ID (PID) from window handle.
+    
+    Args:
+        window: pygetwindow Window object
+        
+    Returns:
+        Process ID if successful, None otherwise.
+    """
+    try:
+        hwnd = window._hWnd
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        return pid
+    except Exception:
+        return None
 
 
 def method_1_thread_attach(window, verbose=True):
