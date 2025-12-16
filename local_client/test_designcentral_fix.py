@@ -33,7 +33,7 @@ def main():
     
     # Check initial state
     print("\n3. Checking initial DesignCentral state...")
-    dc = uia._get_designcentral()
+    dc = uia._designcentral.get_designcentral()
     if dc is not None:
         print("✓ DesignCentral is already OPEN")
         initial_state = "open"
@@ -52,7 +52,7 @@ def main():
     
     # Verify final state
     print("\n5. Verifying final state...")
-    dc = uia._get_designcentral()
+    dc = uia._designcentral.get_designcentral()
     if dc is not None:
         print("✓ DesignCentral is now OPEN")
         final_state = "open"
