@@ -10,7 +10,7 @@ SERVER_URL = r"http://localhost:5000"
 # =============================================================================
 # Windows username for path generation
 # This is used by the planner model to generate correct file paths
-WINDOWS_USERNAME = 'test_user'
+WINDOWS_USERNAME = 'harsh'
 
 # =============================================================================
 # TIMING SETTINGS (seconds)
