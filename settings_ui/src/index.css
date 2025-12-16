@@ -103,14 +103,27 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.btn {
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  border: none;
 }
 
-.btn:focus {
+.btn:focus,
+.btn-primary:focus,
+.btn-secondary:focus,
+.btn-danger:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
 }
@@ -127,6 +140,7 @@ body {
 .btn-primary:disabled {
   background-color: var(--color-secondary-300);
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .btn-secondary {
@@ -138,6 +152,25 @@ body {
   background-color: var(--color-secondary-300);
 }
 
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-danger {
+  background-color: var(--color-danger-600);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--color-danger-700);
+}
+
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .card {
   background-color: white;
   border-radius: 0.5rem;
@@ -147,10 +180,23 @@ body {
 
 .input-field {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
   border: 1px solid var(--color-secondary-300);
   border-radius: 0.5rem;
   transition: all 0.15s;
+  background-color: white;
+}
+
+/* Allow Tailwind padding utilities to override */
+.input-field.pl-10 {
+  padding-left: 2.5rem;
+}
+
+.input-field.pr-10 {
+  padding-right: 2.5rem;
 }
 
 .input-field:focus {
