@@ -45,20 +45,20 @@ export default function Toast({ message, type, onClose, duration = 3000 }) {
       case 'success':
         return 'bg-success-50 border-success-300 text-success-800';
       case 'error':
-        return 'bg-danger-50 border-danger-300 text-danger-800';
+        return 'bg-destructive/10 border-destructive/50 text-destructive';
       case 'warning':
         return 'bg-warning-50 border-warning-300 text-warning-800';
       case 'info':
-        return 'bg-primary-50 border-primary-300 text-primary-800';
+        return 'bg-accent border-primary/20 text-primary';
       default:
-        return 'bg-primary-50 border-primary-300 text-primary-800';
+        return 'bg-accent border-primary/20 text-primary';
     }
   };
 
   return (
     <div className={`
       fixed top-4 right-4 z-50 max-w-sm w-full
-      p-4 rounded-lg border shadow-strong
+      p-4 rounded-lg border shadow-l
       flex items-start space-x-3
       animate-slide-in
       ${getColorClasses()}

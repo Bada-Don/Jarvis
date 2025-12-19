@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, Check, X, Package, PartyPopper, XCircle, FolderOpen, Play } from 'lucide-react';
 import { api } from '../api';
 
 export default function PackagingPanel({ onClose }) {
@@ -106,19 +107,19 @@ export default function PackagingPanel({ onClose }) {
       return <span className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></span>;
     }
     if (buildStatus.success === true) {
-      return <span className="text-green-600 text-3xl">✓</span>;
+      return <Check className="text-green-600 w-8 h-8" />;
     }
     if (buildStatus.success === false) {
-      return <span className="text-red-600 text-3xl">✗</span>;
+      return <X className="text-red-600 w-8 h-8" />;
     }
-    return <span className="text-gray-400 text-3xl">📦</span>;
+    return <Package className="text-gray-400 w-8 h-8" />;
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800">Package Application</h2>
+          <h2 className="text-2xl font-semibold text-black dark:text-white">Package Application</h2>
           <p className="text-gray-600 mt-1">
             Build a standalone executable for distribution
           </p>
@@ -128,13 +129,13 @@ export default function PackagingPanel({ onClose }) {
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Build Options</h3>
+      <div className="border border-gray-200 dark:border-[#404040] rounded-lg p-6 space-y-4 shadow-m">
+        <h3 className="text-lg font-semibold text-black dark:text-white mb-4">Build Options</h3>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -217,7 +218,7 @@ export default function PackagingPanel({ onClose }) {
       {error && (
         <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
           <div className="flex items-start gap-2">
-            <span className="text-xl">⚠️</span>
+            <AlertTriangle className="w-6 h-6" />
             <div>
               <p className="font-semibold">Error</p>
               <p className="text-sm">{error}</p>
@@ -230,23 +231,31 @@ export default function PackagingPanel({ onClose }) {
         <button
           onClick={handleStartBuild}
           disabled={buildStatus.is_building}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2 shadow-s hover:shadow-m disabled:shadow-none"
         >
-          {buildStatus.is_building ? 'Building...' : '🚀 Start Build'}
+          {buildStatus.is_building ? (
+            'Building...'
+          ) : (
+            <>
+              <Play className="w-5 h-5" />
+              Start Build
+            </>
+          )}
         </button>
 
         {buildStatus.output_path && (
           <button
             onClick={handleOpenBuildFolder}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium flex items-center gap-2 shadow-s hover:shadow-m"
           >
-            📁 Open Build Folder
+            <FolderOpen className="w-5 h-5" />
+            Open Build Folder
           </button>
         )}
       </div>
 
       {(buildStatus.is_building || buildStatus.success !== undefined) && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 shadow-m">
           <div className="flex items-center gap-4">
             {getStatusIcon()}
             <div className="flex-1">
@@ -272,7 +281,7 @@ export default function PackagingPanel({ onClose }) {
           {buildStatus.success === true && buildStatus.output_path && (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <span className="text-2xl">🎉</span>
+                <PartyPopper className="w-8 h-8 text-green-600" />
                 <div className="flex-1">
                   <p className="font-semibold text-green-800">Build completed successfully!</p>
                   <p className="text-sm text-green-700 mt-1">
@@ -289,7 +298,7 @@ export default function PackagingPanel({ onClose }) {
           {buildStatus.success === false && buildStatus.error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <span className="text-2xl">❌</span>
+                <XCircle className="w-8 h-8 text-red-600" />
                 <div className="flex-1">
                   <p className="font-semibold text-red-800">Build failed</p>
                   <p className="text-sm text-red-700 mt-1">{buildStatus.error}</p>
@@ -316,7 +325,7 @@ export default function PackagingPanel({ onClose }) {
 
       {!buildStatus.is_building && buildStatus.success === undefined && (
         <div className="text-center py-12 text-gray-500">
-          <div className="text-6xl mb-4">📦</div>
+          <Package className="w-16 h-16 mx-auto mb-4" />
           <p className="text-lg">Configure build options and click "Start Build"</p>
           <p className="text-sm mt-2">
             This will create a standalone executable that can be distributed to users

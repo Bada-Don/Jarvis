@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import { useTheme } from './ThemeProvider';
 
 export default function PromptEditor({
   value,
@@ -13,8 +14,30 @@ export default function PromptEditor({
   onReset,
   showActions = true,
 }) {
+  const { theme } = useTheme();
   const [isModified, setIsModified] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editorTheme, setEditorTheme] = useState('vs-light');
+
+  useEffect(() => {
+    const updateEditorTheme = () => {
+      if (theme === 'system') {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setEditorTheme(isDark ? 'vs-dark' : 'vs-light');
+      } else {
+        setEditorTheme(theme === 'dark' ? 'vs-dark' : 'vs-light');
+      }
+    };
+
+    updateEditorTheme();
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (theme === 'system') updateEditorTheme();
+    };
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, [theme]);
 
   const handleEditorChange = (newValue) => {
     if (newValue !== undefined && newValue !== value) {
@@ -53,7 +76,7 @@ export default function PromptEditor({
     <div className="mb-6">
       {label && (
         <div className="mb-2">
-          <label className="text-sm font-medium text-gray-700 flex items-center space-x-2">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center space-x-2">
             <span>{label}</span>
             {isModified && (
               <span className="text-xs text-amber-600 font-normal">
@@ -62,18 +85,18 @@ export default function PromptEditor({
             )}
           </label>
           {helpText && (
-            <p className="text-xs text-gray-500 mt-1">{helpText}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{helpText}</p>
           )}
         </div>
       )}
 
-      <div className="border border-gray-300 rounded-md overflow-hidden">
+      <div className="border border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-m">
         <Editor
           height={height}
           language={language}
           value={value}
           onChange={handleEditorChange}
-          theme="vs-light"
+          theme={editorTheme}
           options={{
             readOnly,
             minimap: { enabled: false },
@@ -93,10 +116,10 @@ export default function PromptEditor({
             },
           }}
           loading={
-            <div className="flex items-center justify-center h-full bg-gray-50">
+            <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-600">Loading editor...</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Loading editor...</p>
               </div>
             </div>
           }
@@ -113,7 +136,7 @@ export default function PromptEditor({
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-3 py-1.5 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-all shadow-s hover:shadow-m"
               >
                 Reset to Default
               </button>
@@ -124,10 +147,10 @@ export default function PromptEditor({
                 onClick={handleSave}
                 disabled={!isModified || isSaving}
                 className={`
-                  px-4 py-1.5 text-sm text-white rounded transition-colors
+                  px-4 py-1.5 text-sm text-white rounded transition-all
                   ${
                     isModified && !isSaving
-                      ? 'bg-blue-600 hover:bg-blue-700'
+                      ? 'bg-blue-600 hover:bg-blue-700 shadow-s hover:shadow-m'
                       : 'bg-gray-400 cursor-not-allowed'
                   }
                 `}
@@ -140,7 +163,7 @@ export default function PromptEditor({
       )}
 
       {readOnly && (
-        <div className="mt-2 text-xs text-gray-500 italic">
+        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
           This prompt is read-only
         </div>
       )}

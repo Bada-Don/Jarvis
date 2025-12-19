@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { AlertTriangle, Check } from 'lucide-react';
+import Loader from './Loader';
 import FormField from './FormField';
 
 const pathConfigs = [
@@ -104,14 +106,15 @@ export default function PathSettingsPanel({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">Path Management</h2>
+        <h2 className="text-xl font-semibold text-white mb-2">Path Management</h2>
         <p className="text-sm text-gray-600">
           Configure file paths and directories used by the automation system.
         </p>
       </div>
 
       {saveError && (
-        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded flex items-center">
+          <AlertTriangle className="w-5 h-5 mr-2" />
           {saveError}
         </div>
       )}
@@ -178,7 +181,7 @@ export default function PathSettingsPanel({
           onClick={handleSave}
           disabled={isSaving}
           className={`
-            px-6 py-2 rounded-md font-medium transition-colors
+            px-6 py-2 rounded-md font-medium transition-colors flex items-center
             ${
               isSaving
                 ? 'bg-gray-400 cursor-not-allowed text-white'
@@ -186,7 +189,17 @@ export default function PathSettingsPanel({
             }
           `}
         >
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          {isSaving ? (
+            <>
+              <Loader variant="spinner" size="sm" className="mr-2" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Check className="w-4 h-4 mr-2" />
+              Save Changes
+            </>
+          )}
         </button>
       </div>
     </div>

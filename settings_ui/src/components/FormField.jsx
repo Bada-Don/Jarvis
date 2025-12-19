@@ -115,7 +115,7 @@ export default function FormField({
               `}
             />
             {unit && (
-              <span className="text-sm font-medium text-secondary-600 bg-secondary-100 px-3 py-2 rounded-lg whitespace-nowrap">
+              <span className="text-sm font-medium text-muted-foreground bg-secondary px-3 py-2 rounded-lg whitespace-nowrap">
                 {unit}
               </span>
             )}
@@ -135,20 +135,20 @@ export default function FormField({
               />
               <div
                 className={`
-                  w-12 h-6 rounded-full transition-all duration-200
-                  ${value ? 'bg-primary-600' : 'bg-secondary-300'}
-                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'group-hover:shadow-medium'}
+                  w-12 h-6 rounded-full transition-all duration-200 shadow-s
+                  ${value ? 'bg-primary' : 'bg-muted'}
+                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'group-hover:shadow-m'}
                 `}
               >
                 <div
                   className={`
-                    absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-200 shadow-soft
+                    absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-200 shadow-m
                     ${value ? 'transform translate-x-6' : ''}
                   `}
                 />
               </div>
             </div>
-            <span className={`text-sm font-medium ${value ? 'text-primary-700' : 'text-secondary-600'}`}>
+            <span className={`text-sm font-medium ${value ? 'text-primary' : 'text-muted-foreground'}`}>
               {value ? 'Enabled' : 'Disabled'}
             </span>
           </label>
@@ -223,7 +223,7 @@ export default function FormField({
   return (
     <div className={`
       mb-4 transition-all duration-200
-      ${isHighlighted ? 'bg-warning-50 border-2 border-warning-300 rounded-lg p-2 sm:p-3 -m-1 animate-fade-in' : ''}
+      ${isHighlighted ? 'bg-accent border-2 border-primary/50 rounded-lg p-2 sm:p-3 -m-1 animate-fade-in' : ''}
     `}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 space-y-1 sm:space-y-0">
         <label className="flex items-center space-x-2">
@@ -234,7 +234,7 @@ export default function FormField({
                 type="button"
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
-                className="text-secondary-400 hover:text-secondary-600 transition-colors duration-150"
+                className="text-muted-foreground hover:text-foreground transition-colors duration-150"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path
@@ -256,7 +256,7 @@ export default function FormField({
           <button
             type="button"
             onClick={onReset}
-            className="text-xs font-medium text-primary-600 hover:text-primary-800 transition-colors duration-150 flex items-center space-x-1"
+            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors duration-150 flex items-center space-x-1"
             title="Reset to default"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
