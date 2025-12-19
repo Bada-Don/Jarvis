@@ -46,13 +46,21 @@ class SettingsAPI:
     # Configuration Methods
     def get_settings(self):
         """
-        Get all current settings from config.py
+        Get all current settings from config.py and prompts from service files
         
         Returns:
-            dict: Current settings organized by category
+            dict: Current settings organized by category, including prompts
         """
         try:
+            # Read config settings
             settings = self.config_manager.read_config()
+            
+            # Read prompts from service files
+            prompts = read_all_prompts(self.project_root)
+            
+            # Merge prompts into settings
+            settings['prompts'] = prompts
+            
             return {
                 "success": True,
                 "data": settings
@@ -70,7 +78,7 @@ class SettingsAPI:
     
     def save_settings(self, settings):
         """
-        Save settings to config files
+        Save settings to config files and prompts to service files
         
         Args:
             settings (dict): Settings dictionary to save
@@ -79,9 +87,37 @@ class SettingsAPI:
             dict: Response with success status and any errors
         """
         try:
-            success = self.config_manager.write_config(settings)
+            # Separate prompts from regular settings
+            prompts = settings.pop('prompts', None)
             
-            if success:
+            # Save regular settings to config.py
+            config_success = self.config_manager.write_config(settings)
+            
+            # Save prompts to service files if present
+            prompts_success = True
+            if prompts:
+                # Group prompts by file
+                files_to_update = {}
+                
+                for category, category_prompts in prompts.items():
+                    for prompt_name, prompt_value in category_prompts.items():
+                        # Find which file this prompt belongs to
+                        if category in PROMPT_SCHEMA and prompt_name in PROMPT_SCHEMA[category]:
+                            file_path = PROMPT_SCHEMA[category][prompt_name]["file"]
+                            full_path = self.project_root / file_path
+                            
+                            if str(full_path) not in files_to_update:
+                                files_to_update[str(full_path)] = {}
+                            
+                            files_to_update[str(full_path)][prompt_name] = prompt_value
+                
+                # Write to each file
+                for file_path, file_prompts in files_to_update.items():
+                    success = write_prompts_to_file(Path(file_path), file_prompts)
+                    if not success:
+                        prompts_success = False
+            
+            if config_success and prompts_success:
                 return {
                     "success": True,
                     "message": "Settings saved successfully"
@@ -91,9 +127,9 @@ class SettingsAPI:
                     "success": False,
                     "error": {
                         "code": "WRITE_ERROR",
-                        "message": "Failed to write settings",
+                        "message": "Failed to write some settings",
                         "details": {},
-                        "suggestions": ["Check file permissions", "Verify config.py is not open in another program"]
+                        "suggestions": ["Check file permissions", "Verify files are not open in another program"]
                     }
                 }
         except Exception as e:
@@ -103,7 +139,7 @@ class SettingsAPI:
                     "code": "WRITE_ERROR",
                     "message": f"Failed to save settings: {str(e)}",
                     "details": {},
-                    "suggestions": ["Check file permissions", "Verify config.py is not corrupted"]
+                    "suggestions": ["Check file permissions", "Verify config files are not corrupted"]
                 }
             }
     

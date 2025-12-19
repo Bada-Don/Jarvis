@@ -1,16 +1,83 @@
 // API service for communicating with PyWebView backend
 
 class APIService {
+  constructor() {
+    this.pywebviewReady = false;
+    this.readyPromise = null;
+    this.initPyWebView();
+  }
+
+  initPyWebView() {
+    // Create a promise that resolves when PyWebView is ready
+    this.readyPromise = new Promise((resolve) => {
+      // Check if already available
+      if (typeof window !== 'undefined' && window.pywebview?.api) {
+        this.pywebviewReady = true;
+        console.log('✓ PyWebView API already available - using Python backend');
+        resolve(true);
+        return;
+      }
+
+      // Listen for pywebviewready event
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pywebviewready', () => {
+          if (window.pywebview?.api) {
+            this.pywebviewReady = true;
+            console.log('✓ PyWebView API ready event received - using Python backend');
+            resolve(true);
+          } else {
+            console.warn('✗ pywebviewready event fired but API not available');
+            resolve(false);
+          }
+        });
+
+        // Fallback: check periodically for 5 seconds
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds
+        const checkInterval = setInterval(() => {
+          attempts++;
+          if (window.pywebview?.api) {
+            this.pywebviewReady = true;
+            console.log(`✓ PyWebView API detected (attempt ${attempts}) - using Python backend`);
+            clearInterval(checkInterval);
+            resolve(true);
+          } else if (attempts >= maxAttempts) {
+            console.log('✗ PyWebView API not found after 5 seconds - using mock data (development mode)');
+            clearInterval(checkInterval);
+            resolve(false);
+          }
+        }, 100);
+      } else {
+        console.log('✗ Window not available - using mock data');
+        resolve(false);
+      }
+    });
+  }
+
   isReady() {
-    return typeof window !== 'undefined' && !!window.pywebview?.api;
+    return this.pywebviewReady;
+  }
+
+  async waitForPyWebView() {
+    // Wait for the ready promise to resolve
+    await this.readyPromise;
+    return this.isReady();
   }
 
   async getSettings() {
+    // Wait for PyWebView to be ready (important on first load)
+    await this.waitForPyWebView();
+    
     if (!this.isReady()) {
+      console.warn('PyWebView API not available - returning mock data');
       // Return mock data for development
       return this.getMockSettings();
     }
+    
+    console.log('Calling Python backend: get_settings()');
     const response = await window.pywebview.api.get_settings();
+    console.log('Response from Python backend:', response.success ? '✓ Success' : '✗ Failed');
+    
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to get settings');
     }
@@ -18,11 +85,16 @@ class APIService {
   }
 
   async saveSettings(settings) {
+    await this.waitForPyWebView();
+    
     if (!this.isReady()) {
-      console.log('Mock: Saving settings', settings);
+      console.warn('Mock: Saving settings (PyWebView not available)', settings);
       return;
     }
+    
+    console.log('Calling Python backend: save_settings()');
     const response = await window.pywebview.api.save_settings(settings);
+    
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to save settings');
     }
@@ -205,13 +277,13 @@ class APIService {
       },
       prompts: {
         planner: {
-          GENERAL_SYSTEM_PROMPT: '',
-          FLEXISIGN_SYSTEM_PROMPT: '',
+          GENERAL_SYSTEM_PROMPT: 'You are JARVIS, an AI assistant that automates computer tasks...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/gemini_service.py)',
+          FLEXISIGN_SYSTEM_PROMPT: 'You are a FlexiSIGN Automation Agent...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/gemini_service.py)',
         },
         vision: {
-          GENERAL_VISION_PROMPT: '',
-          VERIFICATION_PROMPT: '',
-          FLEXISIGN_VISION_PROMPT: '',
+          GENERAL_VISION_PROMPT: 'Vision prompt for general UI element identification...\n\n(This is mock data for development. In production, the actual prompt will be loaded from local_client/vision_service.py)',
+          VERIFICATION_PROMPT: 'Prompt for task verification...\n\n(This is mock data for development. In production, the actual prompt will be loaded from local_client/vision_service.py)',
+          FLEXISIGN_VISION_PROMPT: 'Vision prompt for FlexiSIGN UI elements...\n\n(This is mock data for development. In production, the actual prompt will be loaded from local_client/vision_service.py)',
         },
       },
     };

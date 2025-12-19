@@ -33,7 +33,7 @@ PLATE_DIMENSIONS = {
 }
 
 
-GENERAL_SYSTEM_PROMPT = """You are JARVIS, an AI assistant that automates computer tasks. Your job is to convert user commands into structured execution plans.
+GENERAL_SYSTEM_PROMPT = r"""You are JARVIS, an AI assistant that automates computer tasks. Your job is to convert user commands into structured execution plans.
 
 ## System Information:
 - Windows Username: harsh
@@ -244,7 +244,7 @@ IMPORTANT:
 """
 
 
-FLEXISIGN_SYSTEM_PROMPT = """You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
+FLEXISIGN_SYSTEM_PROMPT = r"""You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
 
 ## System Information:
 - Windows Username: harsh

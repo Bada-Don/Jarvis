@@ -75,36 +75,31 @@ class PromptManager:
     
     def read_prompts(self) -> Dict[str, str]:
         """
-        Extract prompt constants from Python file using AST
+        Extract prompt constants from Python file using regex (more reliable than AST for strings with escape sequences)
         
         Returns:
             dict: Mapping of prompt variable names to their values
         """
         prompts = {}
         
-        # Read the file content
+        # Read the file content with proper encoding
         with open(self.service_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        try:
-            # Parse the file into an AST
-            tree = ast.parse(content)
-            
-            # Find all module-level assignments
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign):
-                    # Check if this is a simple assignment to a variable
-                    if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                        var_name = node.targets[0].id
-                        
-                        # Check if this is a prompt variable we care about
-                        if self._is_prompt_variable(var_name):
-                            # Extract the string value
-                            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                                prompts[var_name] = node.value.value
-        
-        except SyntaxError as e:
-            raise ValueError(f"Failed to parse {self.service_path}: {e}")
+        # For each known prompt variable, extract its value using regex
+        for category, category_prompts in PROMPT_SCHEMA.items():
+            for var_name in category_prompts.keys():
+                # Pattern to match: VAR_NAME = """...""" or VAR_NAME = r"""..."""
+                # Also handles '''...''' and r'''...'''
+                # Using DOTALL to match across newlines
+                pattern = rf'{var_name}\s*=\s*r?"""(.*?)"""|{var_name}\s*=\s*r?\'\'\'(.*?)\'\'\''
+                match = re.search(pattern, content, re.DOTALL)
+                
+                if match:
+                    # Get the captured group (either from """ or ''')
+                    value = match.group(1) if match.group(1) is not None else match.group(2)
+                    if value is not None:
+                        prompts[var_name] = value
         
         return prompts
     
@@ -178,7 +173,7 @@ class PromptManager:
         Update a single prompt variable in the file content
         
         Uses regex to find and replace the string value while preserving
-        the file structure and formatting.
+        the file structure and formatting (including raw string prefix if present).
         
         Args:
             content: Current file content
@@ -192,12 +187,12 @@ class PromptManager:
         escaped_value = new_value.replace('\\', '\\\\').replace('"""', r'\"\"\"')
         
         # Pattern to match the variable assignment with triple-quoted string
-        # This handles both """ and ''' quotes
-        # Pattern: VAR_NAME = """...""" or VAR_NAME = '''...'''
-        pattern = rf'({var_name}\s*=\s*)(""".*?"""|\'\'\'.*?\'\'\')'
+        # This handles both """ and ''' quotes, with or without raw string prefix
+        # Pattern: VAR_NAME = """...""" or VAR_NAME = r"""..."""
+        pattern = rf'({var_name}\s*=\s*)(r?""".*?"""|r?\'\'\'.*?\'\'\')'
         
-        # Replacement with triple-quoted string
-        replacement = rf'\1"""{escaped_value}"""'
+        # Replacement with raw triple-quoted string (preserves backslashes)
+        replacement = rf'\1r"""{escaped_value}"""'
         
         # Use DOTALL flag to match across newlines
         updated_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
