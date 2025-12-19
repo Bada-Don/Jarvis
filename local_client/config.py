@@ -10,7 +10,14 @@ SERVER_URL = r"http://localhost:5000"
 # =============================================================================
 # Windows username for path generation
 # This is used by the planner model to generate correct file paths
-WINDOWS_USERNAME = 'test_user'
+WINDOWS_USERNAME = 'harsh'
+
+# User-specific paths (used in AI prompts)
+# These paths are injected into the system prompts dynamically
+DESKTOP_PATH = r"C:\Users\harsh\OneDrive\Desktop"
+DOCUMENTS_PATH = r"C:\Users\harsh\Documents"
+DOWNLOADS_PATH = r"C:\Users\harsh\Downloads"
+STICKERS_PATH = r"D:\Stickers\New Briefcase"
 
 # =============================================================================
 # TIMING SETTINGS (seconds)
@@ -19,7 +26,7 @@ WINDOWS_USERNAME = 'test_user'
 ACTION_DELAY = 0.3
 
 # Extended delay after launching an application
-APP_LAUNCH_WAIT = 3.0
+APP_LAUNCH_WAIT = 3
 
 # Delay after hotkey combinations (Ctrl+C, Alt+Tab, etc.)
 HOTKEY_DELAY = 0.5
@@ -31,7 +38,7 @@ PRE_TYPE_DELAY = 0.2
 SCREENSHOT_DELAY = 0.5
 
 # Maximum time to wait for a window to appear after app launch
-WINDOW_ACTIVATION_TIMEOUT = 10.0
+WINDOW_ACTIVATION_TIMEOUT = 10
 
 # How often to poll for window appearance
 WINDOW_POLL_INTERVAL = 0.5
@@ -71,12 +78,12 @@ MAX_RETRIES = 0
 
 # Delay in seconds before retrying after verification failure
 # Increase for slow applications, decrease for fast operations
-RETRY_DELAY = 2.0
+RETRY_DELAY = 2
 
 # Delay in seconds before starting verification (UI settle time)
 # Increase if verification fails due to UI not being ready
 # Decrease for simple/fast operations
-VERIFICATION_DELAY = 1.0
+VERIFICATION_DELAY = 1
 
 # Minimum confidence score (0.0-1.0) to consider verification successful
 # Higher values (0.8-0.9) = stricter verification

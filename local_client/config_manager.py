@@ -28,6 +28,28 @@ SETTINGS_SCHEMA = {
             "description": "Windows username for path generation"
         }
     },
+    "paths": {
+        "DESKTOP_PATH": {
+            "type": "string",
+            "default": "",
+            "description": "Path to Desktop folder (used in AI prompts)"
+        },
+        "DOCUMENTS_PATH": {
+            "type": "string",
+            "default": "",
+            "description": "Path to Documents folder (used in AI prompts)"
+        },
+        "DOWNLOADS_PATH": {
+            "type": "string",
+            "default": "",
+            "description": "Path to Downloads folder (used in AI prompts)"
+        },
+        "STICKERS_PATH": {
+            "type": "string",
+            "default": "",
+            "description": "Path to Stickers/New Briefcase folder (used in AI prompts)"
+        }
+    },
     "timing": {
         "ACTION_DELAY": {
             "type": "float",

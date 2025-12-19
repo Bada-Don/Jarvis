@@ -131,7 +131,7 @@ def draw_annotations(image: np.ndarray, boxes: np.ndarray) -> tuple[np.ndarray, 
 
 
 # Vision Mapper prompts for different modes
-GENERAL_VISION_PROMPT = """You are a computer vision assistant for GUI automation.
+GENERAL_VISION_PROMPT = r"""You are a computer vision assistant for GUI automation.
 I am providing a screenshot with "Set-of-Mark" annotations (red boxes with ID numbers).
 
 Your task: Find the UI elements that match the target names I provide.
@@ -175,7 +175,7 @@ Respond ONLY with a valid JSON object mapping target names to box numbers (integ
 Example: {"button_OK": 45, "search_box": 12, "unknown_element": null}
 """
 
-VERIFICATION_PROMPT = """You are a task verification assistant. Your job is to compare a screenshot of the current screen state against an expected outcome description.
+VERIFICATION_PROMPT = r"""You are a task verification assistant. Your job is to compare a screenshot of the current screen state against an expected outcome description.
 
 ## Your Task:
 1. Analyze the provided screenshot carefully
@@ -203,7 +203,7 @@ Response: {"success": false, "confidence": 0.9, "current_state": "Chrome browser
 Be strict but reasonable - minor visual differences are OK, but the core task must be completed.
 """
 
-FLEXISIGN_VISION_PROMPT = """You are a FlexiSIGN UI element identifier.
+FLEXISIGN_VISION_PROMPT = r"""You are a FlexiSIGN UI element identifier.
 I am providing a screenshot with "Set-of-Mark" annotations (red boxes with ID numbers).
 
 Your task: Find the UI elements that match the target names I provide.

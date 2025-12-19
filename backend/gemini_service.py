@@ -36,12 +36,12 @@ PLATE_DIMENSIONS = {
 GENERAL_SYSTEM_PROMPT = r"""You are JARVIS, an AI assistant that automates computer tasks. Your job is to convert user commands into structured execution plans.
 
 ## System Information:
-- Windows Username: harsh
-- User Home Directory: C:\Users\harsh
-- Desktop Path: C:\Users\harsh\OneDrive\Desktop
-- Documents Path: C:\Users\harsh\Documents
-- Downloads Path: C:\Users\harsh\Downloads
-- **Stickers/New Briefcase Path: D:\Stickers\New Briefcase** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "D:\Stickers\New Briefcase")
+- Windows Username: {WINDOWS_USERNAME}
+- User Home Directory: C:\Users\{WINDOWS_USERNAME}
+- Desktop Path: {DESKTOP_PATH}
+- Documents Path: {DOCUMENTS_PATH}
+- Downloads Path: {DOWNLOADS_PATH}
+- **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{STICKERS_PATH}")
 
 CRITICAL PATH RULES:
 1. When user mentions "New Briefcase" → use "stickers" or "D:\Stickers\New Briefcase"
@@ -247,12 +247,12 @@ IMPORTANT:
 FLEXISIGN_SYSTEM_PROMPT = r"""You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
 
 ## System Information:
-- Windows Username: harsh
-- User Home Directory: C:\Users\harsh
-- Desktop Path: C:\Users\harsh\OneDrive\Desktop
-- Documents Path: C:\Users\harsh\Documents
-- Downloads Path: C:\Users\harsh\Downloads
-- **Stickers/New Briefcase Path: D:\Stickers\New Briefcase** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
+- Windows Username: {WINDOWS_USERNAME}
+- User Home Directory: C:\Users\{WINDOWS_USERNAME}
+- Desktop Path: {DESKTOP_PATH}
+- Documents Path: {DOCUMENTS_PATH}
+- Downloads Path: {DOWNLOADS_PATH}
+- **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
 
 CRITICAL PATH RULES:
 1. When user mentions "New Briefcase" → use "stickers"
@@ -350,13 +350,15 @@ class GeminiPlannerService:
     - FlexiSIGN: For number plate creation with domain knowledge
     """
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, config: dict = None):
         """
         Initialize the GeminiPlannerService.
         
         Args:
             api_key: Optional Gemini API key. If not provided, will attempt
                     to load from GEMINI_API_KEY environment variable.
+            config: Optional configuration dict with user-specific values.
+                   If not provided, will attempt to load from local_client.config
         
         Raises:
             ValueError: If no API key is provided or found in environment.
@@ -369,19 +371,51 @@ class GeminiPlannerService:
                 "Set GEMINI_API_KEY environment variable or pass api_key parameter."
             )
         
+        # Load config if not provided
+        if config is None:
+            try:
+                # Try to import config from local_client
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
+                import config as user_config
+                
+                config = {
+                    'WINDOWS_USERNAME': getattr(user_config, 'WINDOWS_USERNAME', 'user'),
+                    'DESKTOP_PATH': getattr(user_config, 'DESKTOP_PATH', r'C:\Users\user\Desktop'),
+                    'DOCUMENTS_PATH': getattr(user_config, 'DOCUMENTS_PATH', r'C:\Users\user\Documents'),
+                    'DOWNLOADS_PATH': getattr(user_config, 'DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
+                    'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
+                }
+            except Exception as e:
+                print(f"Warning: Could not load config, using defaults: {e}")
+                config = {
+                    'WINDOWS_USERNAME': 'user',
+                    'DESKTOP_PATH': r'C:\Users\user\Desktop',
+                    'DOCUMENTS_PATH': r'C:\Users\user\Documents',
+                    'DOWNLOADS_PATH': r'C:\Users\user\Downloads',
+                    'STICKERS_PATH': r'D:\Stickers\New Briefcase',
+                }
+        
+        self.config = config
+        
+        # Interpolate config values into prompts
+        general_prompt = GENERAL_SYSTEM_PROMPT.format(**config)
+        flexisign_prompt = FLEXISIGN_SYSTEM_PROMPT.format(**config)
+        
         # Configure the Gemini API
         genai.configure(api_key=self.api_key)
         
-        # Initialize models for different modes
+        # Initialize models for different modes with interpolated prompts
         # Using gemini-2.5-flash for better quota limits
         self.general_model = genai.GenerativeModel(
             model_name='gemini-2.5-flash',
-            system_instruction=GENERAL_SYSTEM_PROMPT
+            system_instruction=general_prompt
         )
         
         self.flexisign_model = genai.GenerativeModel(
             model_name='gemini-2.5-flash',
-            system_instruction=FLEXISIGN_SYSTEM_PROMPT
+            system_instruction=flexisign_prompt
         )
     
     def detect_mode(self, user_command: str) -> str:
