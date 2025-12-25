@@ -39,9 +39,13 @@ except ImportError:
 def load_plan_from_file(filepath: str) -> dict:
     """Load execution plan from JSON file."""
     try:
+        from json_utils import safe_json_loads
+    except ImportError:
+        safe_json_loads = json.loads  # Fallback
+    
+    try:
         with open(filepath, 'r', encoding='utf-8') as f:
-            plan = json.load(f)
-        return plan
+            return safe_json_loads(f.read())
     except FileNotFoundError:
         print(f"❌ Error: File not found: {filepath}")
         sys.exit(1)

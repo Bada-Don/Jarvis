@@ -1,0 +1,29 @@
+{
+"sequence": [
+{
+"order": 1,
+"type": "keyboard",
+"value": "win+r",
+"desc": "Open Run dialog"
+},
+{
+"order": 2,
+"type": "keyboard",
+"value": "cmd /c mkdir "C:\Users\harsh\OneDrive\Desktop\Practicals" && type nul > "C:\Users\harsh\OneDrive\Desktop\Practicals\P1.docx" && type nul > "C:\Users\harsh\OneDrive\Desktop\Practicals\P2.docx" && type nul > "C:\Users\harsh\OneDrive\Desktop\Practicals\P3.docx"",
+"desc": "Create the Practicals folder and three empty docx files using command line"
+},
+{
+"order": 3,
+"type": "keyboard",
+"value": "enter",
+"desc": "Execute the creation command"
+},
+{
+"order": 4,
+"type": "open_folder",
+"path": "desktop/Practicals",
+"desc": "Open the newly created folder to verify"
+}
+],
+"expected_final_state": "File Explorer window open showing the 'Practicals' folder on the Desktop containing P1.docx, P2.docx, and P3.docx"
+}

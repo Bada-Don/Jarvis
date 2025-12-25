@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { FileText } from 'lucide-react-native';
 import { ProgressCard } from './ProgressCard';
+import JarvisLogo from './JarvisLogo';
 
 interface Attachment {
     id: string;
@@ -40,7 +41,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
     if (message.isProgress) {
         return (
             <View style={[styles.container, styles.containerAssistant]}>
-                <View style={styles.avatarAssistant} />
+                <View style={styles.avatarAssistant}>
+                    <JarvisLogo style={styles.logo} />
+                </View>
                 <View style={{ maxWidth: '75%', flex: 1 }}>
                     <ProgressCard
                         title={message.progressTitle || 'Processing...'}
@@ -79,7 +82,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
     return (
         <View style={[styles.container, isUser ? styles.containerUser : styles.containerAssistant]}>
-            {!isUser && <View style={styles.avatarAssistant} />}
+            {!isUser && (
+                <View style={styles.avatarAssistant}>
+                    <JarvisLogo style={styles.logo} />
+                </View>
+            )}
 
             <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
                 {message.content ? (
@@ -112,33 +119,40 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: '#18181b',
         marginTop: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    logo: {
+        width: 20,
+        height: 20,
+        color: '#16e2d7',
     },
     avatarUser: {
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: '#007AFF',
+        backgroundColor: '#16e2d7',
         marginTop: 4,
     },
     bubble: {
         maxWidth: '75%',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        borderRadius: 20,
+        borderRadius: 12,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 2,
     },
     bubbleUser: {
-        backgroundColor: '#007AFF',
+        backgroundColor: '#16e2d7',
         borderBottomRightRadius: 4,
     },
     bubbleAssistant: {
-        backgroundColor: '#F3F4F6',
+        backgroundColor: '#18181b',
         borderTopLeftRadius: 4,
     },
     text: {
@@ -146,16 +160,16 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
     textUser: {
-        color: '#fff',
+        color: '#022726',
     },
     textUserSecondary: {
-        color: 'rgba(255, 255, 255, 0.7)',
+        color: 'rgba(2, 39, 38, 0.7)',
     },
     textAssistant: {
-        color: '#1F2937',
+        color: '#fafafa',
     },
     textAssistantSecondary: {
-        color: '#6B7280',
+        color: '#a1a1aa',
     },
     attachmentsContainer: {
         marginTop: 8,
@@ -165,7 +179,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(0,0,0,0.2)',
         padding: 8,
         borderRadius: 12,
         borderWidth: 1,
@@ -174,8 +188,8 @@ const styles = StyleSheet.create({
     attachmentIcon: {
         width: 32,
         height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         alignItems: 'center',
         justifyContent: 'center',
     },

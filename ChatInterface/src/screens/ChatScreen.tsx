@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MessageList } from '../components/MessageList';
 import { ChatInput } from '../components/ChatInput';
-import { sendMessage, uploadFile, connectToStatusUpdates } from '../services/api';
+import { PermissionModal } from '../components/PermissionModal';
+import { AbortButton } from '../components/AbortButton';
+import { 
+    sendMessage, 
+    uploadFile, 
+    connectToStatusUpdates,
+    connectToPermissionRequests,
+    sendPermissionResponse,
+    abortTask,
+    PermissionRequest,
+} from '../services/api';
 
 const createId = () => Math.random().toString(36).slice(2);
 
@@ -17,6 +27,8 @@ export default function ChatScreen() {
     ]);
 
     const [isSending, setIsSending] = useState(false);
+    const [isTaskRunning, setIsTaskRunning] = useState(false);
+    const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
     
     // Use ref to track progress message ID to avoid re-creating the effect
     const progressMessageIdRef = useRef<string | null>(null);
@@ -44,6 +56,13 @@ export default function ChatScreen() {
             // Only handle progress updates (not regular status messages)
             if (progress === undefined) {
                 return;
+            }
+            
+            // Update task running state based on progress
+            if (progress > 0 && progress < 100 && status !== 'success' && status !== 'error') {
+                setIsTaskRunning(true);
+            } else if (status === 'success' || status === 'error' || progress >= 100) {
+                setIsTaskRunning(false);
             }
             
             // Clear any pending timeout that would reset the progress ID
@@ -109,6 +128,44 @@ export default function ChatScreen() {
         };
     }, []); // Empty dependency array - only run once on mount
 
+    // Connect to permission requests
+    useEffect(() => {
+        const cleanup = connectToPermissionRequests((request) => {
+            setPermissionRequest(request);
+        });
+
+        return cleanup;
+    }, []);
+
+    const handlePermissionApprove = () => {
+        if (permissionRequest) {
+            sendPermissionResponse(permissionRequest.requestId, true);
+            setPermissionRequest(null);
+        }
+    };
+
+    const handlePermissionDeny = () => {
+        if (permissionRequest) {
+            sendPermissionResponse(permissionRequest.requestId, false);
+            setPermissionRequest(null);
+        }
+    };
+
+    const handleAbortTask = () => {
+        abortTask();
+        setIsTaskRunning(false);
+        
+        // Add abort message to chat
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: createId(),
+                role: 'assistant',
+                content: '🛑 Task aborted by user.',
+            },
+        ]);
+    };
+
     const handleSend = async (text: string, files: any[]) => {
         setIsSending(true);
 
@@ -158,8 +215,12 @@ export default function ChatScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <KeyboardAvoidingView 
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+            <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
 
             <ChatHeader
                 title="Jarvis"
@@ -170,21 +231,34 @@ export default function ChatScreen() {
                 <MessageList messages={messages} />
             </View>
 
+            <AbortButton 
+                visible={isTaskRunning} 
+                onAbort={handleAbortTask} 
+            />
+
             <ChatInput
                 onSend={handleSend}
                 isSending={isSending}
             />
-        </View>
+
+            <PermissionModal
+                visible={permissionRequest !== null}
+                operation={permissionRequest?.operation || ''}
+                details={permissionRequest?.details || ''}
+                onApprove={handlePermissionApprove}
+                onDeny={handlePermissionDeny}
+            />
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#0a0a0a',
     },
     contentContainer: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#0a0a0a',
     },
 });

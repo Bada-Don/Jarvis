@@ -45,13 +45,36 @@ try:
 except ImportError:
     DEBUG_LOGGER_AVAILABLE = False
 
+# Import permission service
+try:
+    from permission_service import (
+        PermissionService, 
+        register_abort_handler, 
+        is_abort_requested, 
+        reset_abort
+    )
+    PERMISSION_SERVICE_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: permission_service.py not found")
+    PERMISSION_SERVICE_AVAILABLE = False
+
 # Initialize SocketIO Client
 sio = socketio.Client()
+
+# Permission service instance (initialized after connection)
+permission_service = None
 
 
 @sio.event
 def connect():
+    global permission_service
     print('✅ Connected to JARVIS Server')
+    
+    # Initialize permission service after connection
+    if PERMISSION_SERVICE_AVAILABLE:
+        permission_service = PermissionService(sio, status_callback=send_status)
+        register_abort_handler(sio)
+        print('✅ Permission service initialized')
 
 
 @sio.event
@@ -121,6 +144,10 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
         command_data: Command data from server
         retry_count: Current retry attempt (configurable via config.py)
     """
+    # Reset abort flag at start of new execution
+    if PERMISSION_SERVICE_AVAILABLE:
+        reset_abort()
+    
     # Load verification settings from config.py
     try:
         from config import (
@@ -168,6 +195,15 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
             'status': 'info'
         }, "info")
         
+        # Check for abort before starting
+        if PERMISSION_SERVICE_AVAILABLE and is_abort_requested():
+            send_status({
+                'message': 'Task aborted by user',
+                'progress': 0,
+                'status': 'error'
+            }, "error")
+            return
+        
         # For FlexiSIGN mode, ensure the app is ready
         if mode == 'flexisign' and FLEXISIGN_MANAGER_AVAILABLE:
             send_status({
@@ -201,8 +237,12 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
             send_status(f"Vision service error: {e}", "error")
             return
         
-        # Initialize Plan Executor
+        # Initialize Plan Executor with permission service
         executor = PlanExecutor(vision_service, status_callback=send_status)
+        
+        # Pass permission service to executor if available
+        if PERMISSION_SERVICE_AVAILABLE and permission_service:
+            executor.set_permission_service(permission_service)
         
         # Log execution start
         sequence = plan.get('sequence', [])
@@ -213,6 +253,18 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
         
         # Execute the plan with verification
         result = executor.execute_plan(plan, verify=enable_verification)
+        
+        # Check if aborted
+        if result.get("aborted", False):
+            send_status({
+                'message': 'Task aborted by user',
+                'progress': 0,
+                'status': 'error'
+            }, "error")
+            if debug_logger:
+                debug_logger.log_error("Task aborted by user")
+                debug_logger.complete(success=False)
+            return
         
         exec_success = result.get("success", False)
         verified = result.get("verified", True)
@@ -334,6 +386,7 @@ def main():
     print(f"FlexiSign Manager: {'✅' if FLEXISIGN_MANAGER_AVAILABLE else '❌'}")
     print(f"Two-Model Pipeline: {'✅' if TWO_MODEL_PIPELINE_AVAILABLE else '❌'}")
     print(f"Debug Logger: {'✅' if DEBUG_LOGGER_AVAILABLE else '❌'}")
+    print(f"Permission Service: {'✅' if PERMISSION_SERVICE_AVAILABLE else '❌'}")
     print("=" * 50)
     
     try:

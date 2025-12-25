@@ -17,6 +17,8 @@ class PackagingService:
     """
     Service for building standalone executables using PyInstaller.
     Handles spec file generation, build process management, and progress tracking.
+    
+    Note: All paths are stored as strings to avoid pywebview serialization issues.
     """
     
     def __init__(self, project_root: str):
@@ -26,9 +28,20 @@ class PackagingService:
         Args:
             project_root (str): Path to the project root directory
         """
-        self.project_root = Path(project_root)
-        self.build_dir = self.project_root / "dist"
-        self.spec_dir = self.project_root / "build"
+        # Store as strings only - no Path objects to avoid pywebview serialization issues
+        self.project_root_str = str(project_root)
+        self.build_dir_str = str(Path(project_root) / "dist")
+        self.spec_dir_str = str(Path(project_root) / "build")
+        
+        # Build state
+        self.is_building = False
+        self.build_thread: Optional[threading.Thread] = None
+        self.build_logs: List[str] = []
+        self.build_progress = 0
+        self.current_step = ""
+        self.build_success: Optional[bool] = None
+        self.output_path: Optional[str] = None
+        self.build_error: Optional[str] = None
         
         # Build state
         self.is_building = False
@@ -90,7 +103,7 @@ class PackagingService:
             self._update_progress(10, "Generating PyInstaller spec file", progress_callback)
             spec_content = self.get_build_spec(options)
             
-            spec_file = self.project_root / f"{options['output_name']}.spec"
+            spec_file = Path(self.project_root_str) / f"{options['output_name']}.spec"
             with open(spec_file, 'w', encoding='utf-8') as f:
                 f.write(spec_content)
             
@@ -117,7 +130,7 @@ class PackagingService:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=str(self.project_root)
+                cwd=self.project_root_str
             )
             
             # Read output line by line
@@ -148,10 +161,11 @@ class PackagingService:
                 self._update_progress(100, "Build completed successfully", progress_callback)
                 
                 # Determine output path
+                build_dir = Path(self.build_dir_str)
                 if options.get('one_file', True):
-                    output_file = self.build_dir / f"{options['output_name']}.exe"
+                    output_file = build_dir / f"{options['output_name']}.exe"
                 else:
-                    output_file = self.build_dir / options['output_name'] / f"{options['output_name']}.exe"
+                    output_file = build_dir / options['output_name'] / f"{options['output_name']}.exe"
                 
                 if output_file.exists():
                     self.output_path = str(output_file)
@@ -159,7 +173,7 @@ class PackagingService:
                 else:
                     self._log(f"Warning: Expected output not found at {output_file}")
                     # Try to find the executable
-                    for exe_file in self.build_dir.rglob("*.exe"):
+                    for exe_file in build_dir.rglob("*.exe"):
                         self.output_path = str(exe_file)
                         self._log(f"Found executable: {self.output_path}")
                         break
@@ -206,7 +220,7 @@ class PackagingService:
         
         # Convert icon path to absolute if provided
         if icon_path and not Path(icon_path).is_absolute():
-            icon_path = str(self.project_root / icon_path)
+            icon_path = str(Path(self.project_root_str) / icon_path)
         
         # Build hidden imports list
         hidden_imports = [
@@ -238,7 +252,7 @@ class PackagingService:
         ]
         
         # Add weights directory if it exists
-        weights_dir = self.project_root / "backend" / "weights"
+        weights_dir = Path(self.project_root_str) / "backend" / "weights"
         if weights_dir.exists():
             datas.append("('backend/weights', 'backend/weights')")
         
@@ -339,11 +353,13 @@ exe = EXE(
         import shutil
         
         # Remove build directory
-        if self.spec_dir.exists():
-            shutil.rmtree(self.spec_dir, ignore_errors=True)
+        spec_dir = Path(self.spec_dir_str)
+        if spec_dir.exists():
+            shutil.rmtree(spec_dir, ignore_errors=True)
         
         # Remove spec files
-        for spec_file in self.project_root.glob("*.spec"):
+        project_root = Path(self.project_root_str)
+        for spec_file in project_root.glob("*.spec"):
             try:
                 spec_file.unlink()
             except Exception:

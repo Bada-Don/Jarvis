@@ -224,6 +224,8 @@ class ConfigManager:
     """
     Manages reading and writing configuration settings to config.py
     while preserving file structure and comments.
+    
+    Note: All paths are stored as strings to avoid pywebview serialization issues.
     """
     
     def __init__(self, config_path: str):
@@ -233,10 +235,11 @@ class ConfigManager:
         Args:
             config_path: Path to the config.py file
         """
-        self.config_path = Path(config_path)
-        self.backup_path = Path(str(config_path) + '.backup')
+        # Store as strings only - no Path objects to avoid pywebview serialization issues
+        self.config_path_str = str(config_path)
+        self.backup_path_str = str(config_path) + '.backup'
         
-        if not self.config_path.exists():
+        if not Path(self.config_path_str).exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
     
     def read_config(self) -> Dict[str, Any]:
@@ -249,7 +252,7 @@ class ConfigManager:
         config_dict = {}
         
         # Read the config file
-        with open(self.config_path, 'r', encoding='utf-8') as f:
+        with open(self.config_path_str, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Extract all variable assignments
@@ -292,7 +295,7 @@ class ConfigManager:
             self.create_backup()
             
             # Read current file content
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path_str, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             # Update each setting in the content
@@ -301,7 +304,7 @@ class ConfigManager:
                     content = self._update_setting_in_content(content, key, value)
             
             # Write back to file
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            with open(self.config_path_str, 'w', encoding='utf-8') as f:
                 f.write(content)
             
             return True
@@ -309,14 +312,14 @@ class ConfigManager:
         except Exception as e:
             print(f"Error writing config: {e}")
             # Attempt to restore backup
-            if self.backup_path.exists():
+            if Path(self.backup_path_str).exists():
                 self.restore_backup()
             return False
     
     def create_backup(self) -> None:
         """Create backup of current config before modifications"""
-        if self.config_path.exists():
-            shutil.copy2(self.config_path, self.backup_path)
+        if Path(self.config_path_str).exists():
+            shutil.copy2(self.config_path_str, self.backup_path_str)
     
     def restore_backup(self) -> bool:
         """
@@ -326,8 +329,8 @@ class ConfigManager:
             bool: True if successful, False otherwise
         """
         try:
-            if self.backup_path.exists():
-                shutil.copy2(self.backup_path, self.config_path)
+            if Path(self.backup_path_str).exists():
+                shutil.copy2(self.backup_path_str, self.config_path_str)
                 return True
             return False
         except Exception as e:

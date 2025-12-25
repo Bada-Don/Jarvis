@@ -25,21 +25,26 @@ class SettingsAPI:
     """
     API bridge between React frontend and Python backend.
     Exposes methods for configuration management, validation, and packaging.
+    
+    Note: All paths are stored as strings to avoid pywebview serialization issues.
+    pywebview tries to serialize all class attributes to JavaScript, and pathlib.Path
+    objects cannot be serialized properly.
     """
     
     def __init__(self):
         """Initialize the Settings API with managers and services."""
-        self.project_root = Path(__file__).parent.parent
+        # Store as string to avoid pywebview serialization issues with Path objects
+        self.project_root_str = str(Path(__file__).parent.parent)
         
         # Initialize ConfigManager
-        config_path = self.project_root / "local_client" / "config.py"
+        config_path = Path(self.project_root_str) / "local_client" / "config.py"
         self.config_manager = ConfigManager(str(config_path))
         
         # Initialize ValidationService
         self.validation_service = ValidationService()
         
         # Initialize PackagingService
-        self.packaging_service = PackagingService(str(self.project_root))
+        self.packaging_service = PackagingService(self.project_root_str)
         
         # Prompt managers will be created on-demand for each file
     
@@ -56,7 +61,7 @@ class SettingsAPI:
             settings = self.config_manager.read_config()
             
             # Read prompts from service files
-            prompts = read_all_prompts(self.project_root)
+            prompts = read_all_prompts(Path(self.project_root_str))
             
             # Merge prompts into settings
             settings['prompts'] = prompts
@@ -104,7 +109,7 @@ class SettingsAPI:
                         # Find which file this prompt belongs to
                         if category in PROMPT_SCHEMA and prompt_name in PROMPT_SCHEMA[category]:
                             file_path = PROMPT_SCHEMA[category][prompt_name]["file"]
-                            full_path = self.project_root / file_path
+                            full_path = Path(self.project_root_str) / file_path
                             
                             if str(full_path) not in files_to_update:
                                 files_to_update[str(full_path)] = {}
@@ -293,7 +298,7 @@ class SettingsAPI:
             dict: All prompts organized by category
         """
         try:
-            prompts = read_all_prompts(self.project_root)
+            prompts = read_all_prompts(Path(self.project_root_str))
             return {
                 "success": True,
                 "data": prompts
@@ -329,7 +334,7 @@ class SettingsAPI:
                     # Find which file this prompt belongs to
                     if category in PROMPT_SCHEMA and prompt_name in PROMPT_SCHEMA[category]:
                         file_path = PROMPT_SCHEMA[category][prompt_name]["file"]
-                        full_path = self.project_root / file_path
+                        full_path = Path(self.project_root_str) / file_path
                         
                         if str(full_path) not in files_to_update:
                             files_to_update[str(full_path)] = {}
@@ -840,7 +845,7 @@ class SettingsAPI:
             dict: Response with success status
         """
         try:
-            build_dir = self.project_root / "dist"
+            build_dir = Path(self.project_root_str) / "dist"
             if build_dir.exists():
                 os.startfile(str(build_dir))
                 return {

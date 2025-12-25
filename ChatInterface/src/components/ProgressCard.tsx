@@ -89,11 +89,11 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
     const getStatusColor = () => {
         switch (status) {
             case 'success':
-                return '#10B981';
+                return '#16e2d7';
             case 'error':
-                return '#EF4444';
+                return '#ef4444';
             default:
-                return '#3B82F6';
+                return '#16e2d7';
         }
     };
 
@@ -102,19 +102,19 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
             case 'success':
                 return (
                     <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                        <CheckCircle size={20} color="#10B981" />
+                        <CheckCircle size={20} color="#16e2d7" />
                     </Animated.View>
                 );
             case 'error':
                 return (
                     <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                        <XCircle size={20} color="#EF4444" />
+                        <XCircle size={20} color="#ef4444" />
                     </Animated.View>
                 );
             default:
                 return (
                     <Animated.View style={{ transform: [{ rotate: spinRotation }] }}>
-                        <Loader size={20} color="#3B82F6" />
+                        <Loader size={20} color="#16e2d7" />
                     </Animated.View>
                 );
         }
@@ -123,22 +123,22 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
     const getBackgroundColor = () => {
         switch (status) {
             case 'success':
-                return '#F0FDF4';
+                return '#042f2e';
             case 'error':
-                return '#FEF2F2';
+                return '#7f1d1d';
             default:
-                return '#F9FAFB';
+                return '#18181b';
         }
     };
 
     const getBorderColor = () => {
         switch (status) {
             case 'success':
-                return '#BBF7D0';
+                return '#16e2d7';
             case 'error':
-                return '#FECACA';
+                return '#ef4444';
             default:
-                return '#E5E7EB';
+                return '#18181b';
         }
     };
 
@@ -183,8 +183,8 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
 
             {status === 'success' && (
                 <View style={styles.statusContainer}>
-                    <View style={[styles.statusBadge, { backgroundColor: '#D1FAE5' }]}>
-                        <Text style={[styles.statusText, { color: '#065F46' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: '#042f2e' }]}>
+                        <Text style={[styles.statusText, { color: '#5eead4' }]}>
                             ✓ Completed
                         </Text>
                     </View>
@@ -204,16 +204,16 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#18181b',
         borderRadius: 12,
         padding: 16,
         marginVertical: 8,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: '#18181b',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
         elevation: 2,
     },
     header: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     progressBackground: {
         flex: 1,
         height: 8,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: '#0a0a0a',
         borderRadius: 4,
         overflow: 'hidden',
     },
@@ -246,17 +246,17 @@ const styles = StyleSheet.create({
     progressText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#6B7280',
+        color: '#a1a1aa',
         minWidth: 40,
         textAlign: 'right',
     },
     statusContainer: {
-        marginTop: 4,
+        marginTop: 8,
     },
     statusBadge: {
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 6,
+        borderRadius: 9999,
         alignSelf: 'flex-start',
     },
     statusText: {
@@ -266,14 +266,14 @@ const styles = StyleSheet.create({
     errorContainer: {
         marginTop: 8,
         padding: 12,
-        backgroundColor: '#FEE2E2',
-        borderRadius: 8,
+        backgroundColor: '#7f1d1d',
+        borderRadius: 12,
         borderLeftWidth: 3,
-        borderLeftColor: '#EF4444',
+        borderLeftColor: '#ef4444',
     },
     errorText: {
         fontSize: 13,
-        color: '#991B1B',
+        color: '#fafafa',
         lineHeight: 18,
     },
 });

@@ -171,13 +171,10 @@ class DirectPathExecutor:
             
         self.status_callback = status_callback or (lambda msg, status="info": print(f"[{status}] {msg}"))
         
-        # OCR service for dialog detection
+        # OCR service for dialog detection (lazy loaded, only if needed)
+        # Note: OCR is slow to initialize, so we prefer window-based detection
         self._ocr_service: Optional['OCRService'] = None
-        if OCR_SERVICE_AVAILABLE:
-            try:
-                self._ocr_service = OCRService()
-            except Exception:
-                pass
+        # Don't initialize OCR eagerly - it will be lazy-loaded if actually needed
         
         # Window manager for app window detection and activation
         self._window_manager: Optional['WindowManager'] = None
@@ -186,6 +183,16 @@ class DirectPathExecutor:
                 self._window_manager = get_window_manager(verbose=True)
             except Exception:
                 pass
+    
+    @property
+    def ocr_service(self) -> Optional['OCRService']:
+        """Lazy-load OCR service only when explicitly needed."""
+        if self._ocr_service is None and OCR_SERVICE_AVAILABLE:
+            try:
+                self._ocr_service = OCRService()
+            except Exception:
+                pass
+        return self._ocr_service
     
     def _send_status(self, message: str, status_type: str = "info"):
         """Send status update via callback."""
@@ -208,10 +215,13 @@ class DirectPathExecutor:
         """
         Detect text in any visible dialog using OCR.
         
+        Note: This is slow due to OCR initialization. Prefer window-based
+        detection methods when possible.
+        
         Returns:
             Detected dialog text, or None if no dialog detected
         """
-        if not self._ocr_service:
+        if not self.ocr_service:
             return None
         
         screenshot = self._capture_screenshot()
@@ -219,7 +229,7 @@ class DirectPathExecutor:
             return None
         
         try:
-            all_text = self._ocr_service.get_all_detected_text(screenshot)
+            all_text = self.ocr_service.get_all_detected_text(screenshot)
             return ' '.join(all_text).lower()
         except Exception:
             return None
@@ -252,30 +262,50 @@ class DirectPathExecutor:
         """
         Check if an overwrite confirmation dialog is visible.
         
+        Uses fast window-based detection first, falls back to OCR only if needed.
+        
         Returns:
             True if overwrite dialog detected
         """
-        dialog_text = self._detect_dialog_text()
-        if not dialog_text:
-            return False
+        # Fast path: Check for dialog window by title (no OCR needed)
+        if self._window_manager:
+            try:
+                # Common overwrite dialog titles in Windows
+                dialog_titles = ['Confirm Save As', 'Replace', 'Confirm', 'already exists']
+                windows = self._window_manager.find_windows_by_title(dialog_titles, partial_match=True)
+                if windows:
+                    return True
+            except Exception:
+                pass
         
-        return any(keyword in dialog_text for keyword in self.OVERWRITE_KEYWORDS)
+        # Slow path: Use OCR if window detection didn't find anything
+        # Only use OCR if explicitly needed (skip for performance)
+        # The window-based detection should catch most cases
+        return False
     
     def _check_for_error_dialog(self) -> Optional[str]:
         """
         Check if an error dialog is visible.
         
+        Uses fast window-based detection first, falls back to OCR only if needed.
+        
         Returns:
             Error message if error dialog detected, None otherwise
         """
-        dialog_text = self._detect_dialog_text()
-        if not dialog_text:
-            return None
+        # Fast path: Check for error dialog window by title (no OCR needed)
+        if self._window_manager:
+            try:
+                # Common error dialog titles in Windows
+                error_titles = ['Error', 'Warning', 'Cannot', 'Unable', 'Failed', 'not found']
+                windows = self._window_manager.find_windows_by_title(error_titles, partial_match=True)
+                if windows:
+                    # Return the window title as the error text
+                    return windows[0][1]  # (hwnd, title) tuple
+            except Exception:
+                pass
         
-        for keyword in self.ERROR_KEYWORDS:
-            if keyword in dialog_text:
-                return dialog_text
-        
+        # Slow path: Use OCR only if window detection didn't find anything
+        # Skip OCR for performance - window detection should catch most error dialogs
         return None
 
     

@@ -209,6 +209,77 @@ def handle_status_update(data):
         })
 
 
+# --- Permission Request Handling ---
+
+# Store pending permission requests
+pending_permissions = {}
+
+@socketio.on('permission_request_from_client')
+def handle_permission_request_from_client(data):
+    """Receive permission request from local client and forward to mobile app."""
+    request_id = data.get('requestId')
+    operation = data.get('operation')
+    details = data.get('details')
+    
+    print(f"🔐 Permission request from client: {operation} - {details}")
+    
+    # Store the request
+    pending_permissions[request_id] = {
+        'operation': operation,
+        'details': details,
+        'timestamp': data.get('timestamp')
+    }
+    
+    # Forward to mobile app
+    socketio.emit('permission_request', {
+        'requestId': request_id,
+        'operation': operation,
+        'details': details,
+        'timestamp': data.get('timestamp')
+    })
+
+
+@socketio.on('permission_response')
+def handle_permission_response(data):
+    """Receive permission response from mobile app and forward to local client."""
+    request_id = data.get('requestId')
+    approved = data.get('approved')
+    
+    print(f"🔐 Permission response: {request_id} - {'APPROVED' if approved else 'DENIED'}")
+    
+    # Remove from pending
+    if request_id in pending_permissions:
+        del pending_permissions[request_id]
+    
+    # Forward to local client
+    socketio.emit('permission_response_to_client', {
+        'requestId': request_id,
+        'approved': approved,
+        'timestamp': data.get('timestamp')
+    })
+
+
+# --- Abort Task Handling ---
+
+@socketio.on('abort_task')
+def handle_abort_task(data):
+    """Receive abort signal from mobile app and forward to local client."""
+    print("🛑 Abort task signal received from mobile app")
+    
+    # Forward to local client
+    socketio.emit('abort_task_to_client', {
+        'timestamp': data.get('timestamp')
+    })
+    
+    # Also send status update to mobile app
+    socketio.emit('jarvis_status', {
+        'message': 'Task abort requested',
+        'status': 'error',
+        'progress': 0,
+        'timestamp': data.get('timestamp')
+    })
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("🤖 JARVIS Backend Server Starting...")

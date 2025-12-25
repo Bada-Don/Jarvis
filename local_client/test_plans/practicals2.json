@@ -1,0 +1,107 @@
+{
+"sequence": [
+{
+"order": 1,
+"type": "keyboard",
+"value": "win+r",
+"desc": "Open Run dialog"
+},
+{
+"order": 2,
+"type": "keyboard",
+"value": "cmd /c mkdir "C:\Users\harsh\OneDrive\Desktop\Practicals"",
+"desc": "Create the Practicals folder on Desktop"
+},
+{
+"order": 3,
+"type": "keyboard",
+"value": "enter",
+"desc": "Execute folder creation"
+},
+{
+"order": 4,
+"type": "keyboard",
+"value": "win",
+"desc": "Open Start menu"
+},
+{
+"order": 5,
+"type": "keyboard",
+"value": "word",
+"desc": "Search for Microsoft Word"
+},
+{
+"order": 6,
+"type": "keyboard",
+"value": "enter",
+"desc": "Launch Word"
+},
+{
+"order": 7,
+"type": "keyboard",
+"value": "enter",
+"desc": "Select Blank Document"
+},
+{
+"order": 8,
+"type": "keyboard",
+"value": "hello world",
+"desc": "Write content in P1"
+},
+{
+"order": 9,
+"type": "keyboard",
+"value": "f12",
+"desc": "Open Save As dialog"
+},
+{
+"order": 10,
+"type": "save_file",
+"path": "C:\Users\harsh\OneDrive\Desktop\Practicals\P1.docx",
+"desc": "Save P1.docx in the Practicals folder"
+},
+{
+"order": 11,
+"type": "keyboard",
+"value": "ctrl+n",
+"desc": "Create a new document for P2"
+},
+{
+"order": 12,
+"type": "keyboard",
+"value": "f12",
+"desc": "Open Save As dialog"
+},
+{
+"order": 13,
+"type": "save_file",
+"path": "C:\Users\harsh\OneDrive\Desktop\Practicals\P2.docx",
+"desc": "Save P2.docx in the Practicals folder"
+},
+{
+"order": 14,
+"type": "keyboard",
+"value": "ctrl+n",
+"desc": "Create a new document for P3"
+},
+{
+"order": 15,
+"type": "keyboard",
+"value": "f12",
+"desc": "Open Save As dialog"
+},
+{
+"order": 16,
+"type": "save_file",
+"path": "C:\Users\harsh\OneDrive\Desktop\Practicals\P3.docx",
+"desc": "Save P3.docx in the Practicals folder"
+},
+{
+"order": 17,
+"type": "keyboard",
+"value": "alt+f4",
+"desc": "Close Microsoft Word"
+}
+],
+"expected_final_state": "A folder named 'Practicals' exists on the desktop containing P1.docx (with 'hello world' inside), P2.docx, and P3.docx. Word is closed."
+}

@@ -6,8 +6,6 @@ import {
     StyleSheet,
     ActivityIndicator,
     Text,
-    Platform,
-    KeyboardAvoidingView,
     Alert
 } from 'react-native';
 import { Paperclip, Send, FileText, X, Camera, Mic } from 'lucide-react-native';
@@ -268,11 +266,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
     const hasContent = input.trim().length > 0 || pendingFiles.length > 0;
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             {(pendingFiles.length > 0 || recorderState.isRecording) && (
                 <View style={styles.pendingFilesContainer}>
                     {recorderState.isRecording && (
@@ -306,7 +300,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                     ref={inputRef}
                     style={styles.input}
                     placeholder="Message..."
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#a1a1aa"
                     value={input}
                     onChangeText={setInput}
                     multiline
@@ -314,11 +308,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
 
                 <View style={styles.actionsContainer}>
                     <TouchableOpacity onPress={handleCameraPress} style={styles.actionButton}>
-                        <Camera size={22} color="#6B7280" />
+                        <Camera size={22} color="#a1a1aa" />
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={handleFilePick} style={styles.actionButton}>
-                        <Paperclip size={22} color="#6B7280" />
+                        <Paperclip size={22} color="#a1a1aa" />
                     </TouchableOpacity>
 
                     {hasContent ? (
@@ -333,7 +327,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                             {isSending ? (
                                 <ActivityIndicator size="small" color="#fff" />
                             ) : (
-                                <Send size={20} color="#fff" />
+                                <Send size={20} color="#022726" />
                             )}
                         </TouchableOpacity>
                     ) : (
@@ -344,21 +338,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, isSending }) => {
                                 recorderState.isRecording && styles.recordingButton
                             ]}
                         >
-                            <Mic size={22} color={recorderState.isRecording ? "#fff" : "#6B7280"} />
+                            <Mic size={22} color={recorderState.isRecording ? "#fafafa" : "#a1a1aa"} />
                         </TouchableOpacity>
                     )}
                 </View>
             </View>
-        </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         width: '100%',
-        backgroundColor: '#fff',
+        backgroundColor: '#0a0a0a',
         borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
+        borderTopColor: '#18181b',
     },
     pendingFilesContainer: {
         flexDirection: 'row',
@@ -371,15 +365,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#EFF6FF',
+        backgroundColor: '#042f2e',
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#DBEAFE',
+        borderColor: '#16e2d7',
     },
     pendingFileName: {
-        color: '#1E40AF',
+        color: '#5eead4',
         fontSize: 12,
         maxWidth: 120,
     },
@@ -400,9 +394,9 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         fontSize: 16,
-        color: '#111827',
-        backgroundColor: '#F3F4F6',
-        borderRadius: 20,
+        color: '#fafafa',
+        backgroundColor: '#18181b',
+        borderRadius: 12,
     },
     actionsContainer: {
         flexDirection: 'row',
@@ -412,31 +406,31 @@ const styles = StyleSheet.create({
     actionButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        backgroundColor: '#18181b',
         alignItems: 'center',
         justifyContent: 'center',
     },
     recordingButton: {
-        backgroundColor: '#EF4444',
+        backgroundColor: '#7f1d1d',
     },
     sendButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: '#007AFF',
+        borderRadius: 12,
+        backgroundColor: '#16e2d7',
         alignItems: 'center',
         justifyContent: 'center',
     },
     sendButtonDisabled: {
-        backgroundColor: '#E5E7EB',
+        backgroundColor: '#18181b',
     },
     recordingIndicator: {
-        backgroundColor: '#FEE2E2',
-        borderColor: '#FCA5A5',
+        backgroundColor: '#7f1d1d',
+        borderColor: '#ef4444',
     },
     recordingText: {
-        color: '#DC2626',
+        color: '#fafafa',
         fontSize: 12,
         fontWeight: '600',
     },

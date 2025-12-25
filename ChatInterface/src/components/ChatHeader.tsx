@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, MoreVertical } from 'lucide-react-native';
+import JarvisLogo from './JarvisLogo';
 
 interface ChatHeaderProps {
     title: string;
@@ -16,11 +17,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ title, subtitle, onBack 
                 <View style={styles.leftContainer}>
                     {onBack && (
                         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                            <ArrowLeft size={24} color="#000" />
+                            <ArrowLeft size={24} color="#fafafa" />
                         </TouchableOpacity>
                     )}
                     <View style={styles.avatarContainer}>
-                        <View style={styles.avatar} />
+                        <View style={styles.avatar}>
+                            <JarvisLogo style={styles.logo} />
+                        </View>
                         <View style={styles.onlineIndicator} />
                     </View>
                     <View style={styles.titleContainer}>
@@ -31,7 +34,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ title, subtitle, onBack 
 
                 <View style={styles.rightContainer}>
                     <TouchableOpacity style={styles.iconButton}>
-                        <MoreVertical size={20} color="#007AFF" />
+                        <MoreVertical size={20} color="#16e2d7" />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -41,9 +44,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ title, subtitle, onBack 
 
 const styles = StyleSheet.create({
     headerContainer: {
-        backgroundColor: '#fff',
+        backgroundColor: '#0a0a0a',
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        borderBottomColor: '#18181b',
     },
     headerContent: {
         flexDirection: 'row',
@@ -68,7 +71,14 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: '#18181b',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    logo: {
+        width: 28,
+        height: 28,
+        color: '#16e2d7',
     },
     onlineIndicator: {
         position: 'absolute',
@@ -77,9 +87,9 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#10B981',
+        backgroundColor: '#16e2d7',
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor: '#0a0a0a',
     },
     titleContainer: {
         justifyContent: 'center',
@@ -87,11 +97,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#111827',
+        color: '#fafafa',
     },
     subtitle: {
         fontSize: 12,
-        color: '#6B7280',
+        color: '#a1a1aa',
     },
     rightContainer: {
         flexDirection: 'row',

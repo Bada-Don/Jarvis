@@ -56,6 +56,50 @@ const getSocket = () => {
     return socket;
 };
 
+// Permission request types
+export interface PermissionRequest {
+    requestId: string;
+    operation: string;
+    details: string;
+    timestamp: number;
+}
+
+// Send permission response back to server
+export const sendPermissionResponse = (requestId: string, approved: boolean) => {
+    const socket = getSocket();
+    socket.emit('permission_response', {
+        requestId,
+        approved,
+        timestamp: Date.now(),
+    });
+    console.log(`📤 Permission response sent: ${requestId} - ${approved ? 'APPROVED' : 'DENIED'}`);
+};
+
+// Listen for permission requests
+export const connectToPermissionRequests = (callback: (data: PermissionRequest) => void) => {
+    const socket = getSocket();
+
+    const handlePermissionRequest = (data: PermissionRequest) => {
+        console.log('🔐 Permission request received:', data);
+        callback(data);
+    };
+
+    socket.on('permission_request', handlePermissionRequest);
+
+    return () => {
+        socket.off('permission_request', handlePermissionRequest);
+    };
+};
+
+// Abort the current task
+export const abortTask = () => {
+    const socket = getSocket();
+    socket.emit('abort_task', {
+        timestamp: Date.now(),
+    });
+    console.log('🛑 Abort task signal sent');
+};
+
 export const sendMessage = async (message) => {
     try {
         const response = await api.post('/process', { text: message });

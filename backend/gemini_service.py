@@ -41,7 +41,7 @@ GENERAL_SYSTEM_PROMPT = r"""You are JARVIS, an AI assistant that automates compu
 - Desktop Path: {DESKTOP_PATH}
 - Documents Path: {DOCUMENTS_PATH}
 - Downloads Path: {DOWNLOADS_PATH}
-- **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{STICKERS_PATH}")
+- **Stickers/New Briefcase Path: {{STICKERS_PATH}}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{{STICKERS_PATH}}")
 
 CRITICAL PATH RULES:
 1. When user mentions "New Briefcase" → use "stickers" or "D:\Stickers\New Briefcase"
@@ -99,37 +99,37 @@ For visual_click steps, include:
 - Use Ctrl+A (select all), Ctrl+C (copy), Ctrl+V (paste)
 
 ## Example - Open Notepad and type:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"},
-    {"order": 2, "type": "keyboard", "value": "notepad", "desc": "Type notepad"},
-    {"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Notepad"},
-    {"order": 4, "type": "keyboard", "value": "Hello World!", "desc": "Type the message"}
+    {{"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"}},
+    {{"order": 2, "type": "keyboard", "value": "notepad", "desc": "Type notepad"}},
+    {{"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Notepad"}},
+    {{"order": 4, "type": "keyboard", "value": "Hello World!", "desc": "Type the message"}}
   ],
   "expected_final_state": "Notepad window open with 'Hello World!' typed in the text area"
-}
+}}
 
 ## Example - Open Chrome and go to Google:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"},
-    {"order": 2, "type": "keyboard", "value": "chrome", "desc": "Search for Chrome"},
-    {"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Chrome"},
-    {"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"},
-    {"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"},
-    {"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}
+    {{"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"}},
+    {{"order": 2, "type": "keyboard", "value": "chrome", "desc": "Search for Chrome"}},
+    {{"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Chrome"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"}},
+    {{"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"}},
+    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}}
   ],
   "expected_final_state": "Chrome browser open showing Google homepage with search box visible"
-}
+}}
 
 ## Example - Click on a specific button:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "visual_click", "target_name": "button_submit", "desc": "Click Submit button"},
-    {"order": 2, "type": "visual_click", "target_name": "dropdown_options", "desc": "Open dropdown menu"}
+    {{"order": 1, "type": "visual_click", "target_name": "button_submit", "desc": "Click Submit button"}},
+    {{"order": 2, "type": "visual_click", "target_name": "dropdown_options", "desc": "Open dropdown menu"}}
   ],
   "expected_final_state": "Form submitted with dropdown menu expanded showing options"
-}
+}}
 
 ## File and Folder Operations (FAST & RELIABLE):
 Use filesystem-based operations that bypass UI completely. These use fuzzy path matching and are MUCH faster than UI navigation.
@@ -145,11 +145,11 @@ NEVER add file extensions (.pdf, .docx, .fs, .txt) to paths. The system automati
 
 ### Open File (RECOMMENDED):
 Use "open_file" to open any file with fuzzy path matching. NO UI/OCR needed!
-{
+{{
   "type": "open_file",
   "path": "stickers/maan 22",
   "desc": "Open maan 22 file from New Briefcase"
-}
+}}
 - "path": Fuzzy path WITHOUT file extension (system finds it automatically)
   - Special folders: "desktop", "documents", "downloads", "stickers"
   - For New Briefcase files: use "stickers/filename" (NOT "desktop/new briefcase")
@@ -160,22 +160,22 @@ Use "open_file" to open any file with fuzzy path matching. NO UI/OCR needed!
 
 ### Open Folder (RECOMMENDED):
 Use "open_folder" to open any folder in Explorer with fuzzy path matching. NO UI/OCR needed!
-{
+{{
   "type": "open_folder",
   "path": "desktop/jarvis test",
   "desc": "Open JARVIS Test folder"
-}
+}}
 - "path": Fuzzy path to folder
 - Opens folder in Windows Explorer using 'explorer' command
 - Resolves path components with fuzzy matching
 
 ### Save File:
 Use "save_file" to save files by typing the full path into the Save dialog.
-{
+{{
   "type": "save_file",
   "path": "C:\\Users\\harsh\\OneDrive\\Desktop\\document.txt",
   "desc": "Save file to Desktop"
-}
+}}
 - "path": Full absolute path (use double backslashes in JSON)
 
 ## Path Resolution Examples:
@@ -187,41 +187,37 @@ The system automatically resolves fuzzy paths:
 - Automatically finds file extensions
 
 ## Example - Open file from New Briefcase (Stickers):
-{
+{{
   "sequence": [
-    {"order": 1, "type": "open_file", "path": "stickers/maan 22", "desc": "Open maan 22 file"}
+    {{"order": 1, "type": "open_file", "path": "stickers/maan 22", "desc": "Open maan 22 file"}}
   ],
   "expected_final_state": "maan 22 file opened in default application"
-}
+}}
 
 ## Example - Open file from Desktop:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "open_file", "path": "desktop/report", "desc": "Open report file"}
+    {{"order": 1, "type": "open_file", "path": "desktop/report", "desc": "Open report file"}}
   ],
   "expected_final_state": "Report file opened in default application"
-}
+}}
 
 ## Example - Open folder:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "open_folder", "path": "desktop/jarvis test", "desc": "Open JARVIS Test folder"}
+    {{"order": 1, "type": "open_folder", "path": "desktop/jarvis test", "desc": "Open JARVIS Test folder"}}
   ],
   "expected_final_state": "JARVIS Test folder opened in File Explorer"
-}
+}}
 
 ## Example - Save a file:
-{
+{{
   "sequence": [
-    {"order": 1, "type": "save_file", "path": "C:\\Users\\harsh\\OneDrive\\Desktop\\notes.txt", "desc": "Save notes to Desktop"}
+    {{"order": 1, "type": "save_file", "path": "C:\\Users\\harsh\\OneDrive\\Desktop\\notes.txt", "desc": "Save notes to Desktop"}}
   ],
   "expected_final_state": "File saved to Desktop as notes.txt"
-}
-    {"order": 2, "type": "navigate_explorer", "directory": "C:\\Users\\harsh\\Downloads", "desc": "Navigate to Downloads"},
-    {"order": 3, "type": "click_text", "text": "{{resolved_name}}", "double_click": true, "desc": "Run installer"}
-  ],
-  "expected_final_state": "Installer running"
-}
+}}
+
 
 IMPORTANT for Direct Path Operations:
 - Always use full absolute paths with proper escaping (double backslashes in JSON)
@@ -252,7 +248,7 @@ FLEXISIGN_SYSTEM_PROMPT = r"""You are a FlexiSIGN Automation Agent. Your goal is
 - Desktop Path: {DESKTOP_PATH}
 - Documents Path: {DOCUMENTS_PATH}
 - Downloads Path: {DOWNLOADS_PATH}
-- **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
+- **Stickers/New Briefcase Path: {{STICKERS_PATH}}** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
 
 CRITICAL PATH RULES:
 1. When user mentions "New Briefcase" → use "stickers"
@@ -295,46 +291,46 @@ Use these EXACT values. Do not guess.
 | `move_object` | `direction` (up/down/left/right), `distance` (int) | Moves selection via arrow keys. |
 
 ### 4. COMMAND REFERENCE (Vision Mode)
-- `visual_click`: { "target_name": "description_of_element" }
+- `visual_click`: {{ "target_name": "description_of_element" }}
 - `keyboard`: Same as direct mode.
 
 ### 5. OUTPUT FORMAT RULES
 1. Return **ONLY** raw JSON. No Markdown fencing (```json), no conversational text.
-2. Structure: `{ "mode": "direct|vision", "sequence": [ { "order": 1, "type": "...", ... } ] }`
+2. Structure: {{ "mode": "direct|vision", "sequence": [ {{ "order": 1, "type": "...", ... }} ] }}
 
 ### 6. EXAMPLES
 
 **Input:** "Make iron plate set for bike PB12W3998"
 **Output:**
-{
+{{
   "mode": "direct",
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"},
-    {"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"},
-    {"order": 3, "type": "create_text", "text": "PB12W3998", "desc": "Front Text"},
-    {"order": 4, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
-    {"order": 5, "type": "set_dimensions", "width": "8", "height": "1.2", "desc": "Front Dims"},
-    {"order": 6, "type": "move_object", "direction": "up", "distance": 10, "desc": "Spacing"},
-    {"order": 7, "type": "create_text", "text": "PB12W3998", "desc": "Back Text"},
-    {"order": 8, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"},
-    {"order": 9, "type": "set_dimensions", "width": "10", "height": "1.5", "desc": "Back Dims"},
-    {"order": 10, "type": "move_object", "direction": "down", "distance": 10, "desc": "Spacing"}
+    {{"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"}},
+    {{"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"}},
+    {{"order": 3, "type": "create_text", "text": "PB12W3998", "desc": "Front Text"}},
+    {{"order": 4, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"}},
+    {{"order": 5, "type": "set_dimensions", "width": "8", "height": "1.2", "desc": "Front Dims"}},
+    {{"order": 6, "type": "move_object", "direction": "up", "distance": 10, "desc": "Spacing"}},
+    {{"order": 7, "type": "create_text", "text": "PB12W3998", "desc": "Back Text"}},
+    {{"order": 8, "type": "set_font", "font_name": "Crillee It BT", "desc": "Set Font"}},
+    {{"order": 9, "type": "set_dimensions", "width": "10", "height": "1.5", "desc": "Back Dims"}},
+    {{"order": 10, "type": "move_object", "direction": "down", "distance": 10, "desc": "Spacing"}}
   ],
   "expected_final_state": "FlexiSIGN window showing two text objects with 'PB12W3998' - front plate (8x1.2 inches) and back plate (10x1.5 inches) in Crillee It BT font"
-}
+}}
 
 **Input:** "Govt plate for GJ01G0001"
 **Output:**
-{
+{{
   "mode": "direct",
   "sequence": [
-    {"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"},
-    {"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"},
-    {"order": 3, "type": "create_text", "text": "GJ01G0001", "desc": "Text"},
-    {"order": 4, "type": "apply_style", "style_name": "Govt", "desc": "Apply Template"}
+    {{"order": 1, "type": "keyboard", "value": "ctrl+n", "desc": "New Page"}},
+    {{"order": 2, "type": "ensure_designcentral", "desc": "Open Panel"}},
+    {{"order": 3, "type": "create_text", "text": "GJ01G0001", "desc": "Text"}},
+    {{"order": 4, "type": "apply_style", "style_name": "Govt", "desc": "Apply Template"}}
   ],
   "expected_final_state": "FlexiSIGN window showing government plate with 'GJ01G0001' text with Govt style applied"
-}
+}}
 
 ### 7. IMPORTANT
 You MUST include an "expected_final_state" field describing what the screen should look like after successful execution.
@@ -485,8 +481,15 @@ class GeminiPlannerService:
                     lines = lines[:-1]
                 response_text = '\n'.join(lines)
             
-            # Parse the JSON response
-            plan = json.loads(response_text)
+            # Parse JSON with automatic fix for unescaped backslashes
+            try:
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
+                from json_utils import safe_json_loads
+                plan = safe_json_loads(response_text)
+            except ImportError:
+                plan = json.loads(response_text)
             
             # Validate the plan structure
             self._validate_plan(plan)

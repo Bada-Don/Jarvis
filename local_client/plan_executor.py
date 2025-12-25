@@ -78,6 +78,15 @@ except ImportError:
     PATH_RESOLVER_AVAILABLE = False
     print("⚠️ Warning: path_resolver not available")
 
+# Permission service import (optional)
+try:
+    from permission_service import PermissionService, is_abort_requested
+    PERMISSION_SERVICE_AVAILABLE = True
+except ImportError:
+    PERMISSION_SERVICE_AVAILABLE = False
+    def is_abort_requested():
+        return False
+
 
 class PlanExecutor:
     """
@@ -99,10 +108,10 @@ class PlanExecutor:
     
     # Patterns that indicate an app launch
     APP_LAUNCH_PATTERNS = [
-        r'^win$',           # Windows key alone (Start menu)
-        r'^enter$',         # Enter after typing app name
-        r'^win\+r$',        # Run dialog
-        r'^ctrl\+n$',       # New window in many apps
+        r'^win(?!\+)',     # Windows key alone (not win+something like win+r)
+        # Note: 'enter' is handled specially in _is_app_launch_step based on context
+        # Note: win+r opens Run dialog, not an app directly
+        # Note: ctrl+n creates new documents/tabs, not new app windows
     ]
     
     # Keywords in step descriptions that indicate app launch
@@ -173,6 +182,9 @@ class PlanExecutor:
             except Exception as e:
                 print(f"⚠️ Warning: Could not initialize PathResolver: {e}")
         
+        # Permission service (set externally via set_permission_service)
+        self._permission_service: Optional['PermissionService'] = None
+        
         # Cached vision data (single-pass architecture)
         self._id_map: Optional[dict] = None
         self._box_map: Optional[dict] = None
@@ -196,6 +208,10 @@ class PlanExecutor:
             }, status_type)
         else:
             self.status_callback(message, status_type)
+    
+    def set_permission_service(self, permission_service: 'PermissionService'):
+        """Set the permission service for critical operation checks."""
+        self._permission_service = permission_service
 
     def execute_plan(self, plan: dict, verify: bool = True) -> dict:
         """
@@ -211,21 +227,33 @@ class PlanExecutor:
                 - success: bool - whether execution completed
                 - verified: bool - whether verification passed (if verify=True)
                 - verification_result: dict - full verification details (if verify=True)
+                - aborted: bool - whether execution was aborted by user
         """
         sequence = plan.get('sequence', [])
         if not sequence:
             self._send_status("Empty execution plan", "warning")
-            return {"success": False, "verified": False, "verification_result": None}
+            return {"success": False, "verified": False, "verification_result": None, "aborted": False}
         
         mode = plan.get('mode', 'vision')
         expected_state = plan.get('expected_final_state', '')
         
+        # Check for abort before starting
+        if is_abort_requested():
+            self._send_status("Task aborted by user", "warning")
+            return {"success": False, "verified": False, "verification_result": None, "aborted": True}
+        
         # Route to appropriate execution mode
         # 'direct' or 'flexisign' both use direct automation
         if mode in ('direct', 'flexisign'):
-            exec_success = self._execute_direct_plan(plan)
+            exec_result = self._execute_direct_plan(plan)
         else:
-            exec_success = self._execute_vision_plan(plan)
+            exec_result = self._execute_vision_plan(plan)
+        
+        # Check if aborted during execution
+        if isinstance(exec_result, dict) and exec_result.get("aborted", False):
+            return {"success": False, "verified": False, "verification_result": None, "aborted": True}
+        
+        exec_success = exec_result if isinstance(exec_result, bool) else exec_result.get("success", False)
         
         # Perform verification if requested and expected_state is provided
         verification_result = None
@@ -270,10 +298,11 @@ class PlanExecutor:
         return {
             "success": exec_success,
             "verified": verified,
-            "verification_result": verification_result
+            "verification_result": verification_result,
+            "aborted": False
         }
     
-    def _execute_direct_plan(self, plan: dict) -> bool:
+    def _execute_direct_plan(self, plan: dict) -> dict:
         """
         Execute plan using UIA (no vision/screenshots).
         
@@ -281,11 +310,11 @@ class PlanExecutor:
             plan: Execution plan dict with "sequence" array
             
         Returns:
-            bool: True if all steps completed successfully
+            dict: Result with 'success' and 'aborted' keys
         """
         if not FLEXISIGN_UIA_AVAILABLE:
             self._send_status("FlexiSIGN UIA module not available", "error")
-            return False
+            return {"success": False, "aborted": False}
         
         sequence = plan.get('sequence', [])
         total_steps = len(sequence)
@@ -298,19 +327,31 @@ class PlanExecutor:
                 self._flexisign_uia = FlexiSignUIA()
             except Exception as e:
                 self._send_status(f"Failed to initialize FlexiSIGN UIA: {e}", "error")
-                return False
+                return {"success": False, "aborted": False}
         
         # Activate FlexiSIGN window
         if not self._flexisign_uia.find_and_activate_window():
             self._send_status("Failed to activate FlexiSIGN window", "error")
-            return False
+            return {"success": False, "aborted": False}
         
         self._send_status("FlexiSIGN window activated", "info", progress=5)
         
         # Execute each step
         for i, step in enumerate(sequence):
+            # Check for abort signal
+            if is_abort_requested():
+                self._send_status("Task aborted by user", "warning", progress=0)
+                return {"success": False, "aborted": True}
+            
             step_order = step.get('order', i + 1)
             step_desc = step.get('desc', f"Step {step_order}")
+            
+            # Check for permission on critical operations
+            if self._permission_service and self._permission_service.is_critical_operation(step):
+                self._send_status(f"⚠️ Critical operation detected: {step_desc}", "warning")
+                if not self._permission_service.request_permission_for_step(step):
+                    self._send_status(f"Permission denied for step {step_order}, skipping...", "warning")
+                    continue
             
             progress = int(((i + 1) / total_steps) * 90) + 5
             self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
@@ -344,9 +385,9 @@ class PlanExecutor:
                 continue
         
         self._send_status("Direct automation complete!", "success", progress=100)
-        return True
+        return {"success": True, "aborted": False}
     
-    def _execute_vision_plan(self, plan: dict) -> bool:
+    def _execute_vision_plan(self, plan: dict) -> dict:
         """
         Execute plan using vision-based pipeline (existing logic).
         
@@ -354,7 +395,7 @@ class PlanExecutor:
             plan: Execution plan dict with "sequence" array
             
         Returns:
-            bool: True if all steps completed successfully
+            dict: Result with 'success' and 'aborted' keys
         """
         sequence = plan.get('sequence', [])
         self._mode = plan.get('mode', 'general')
@@ -374,9 +415,21 @@ class PlanExecutor:
         
         # Execute steps
         for i, step in enumerate(sequence):
+            # Check for abort signal
+            if is_abort_requested():
+                self._send_status("Task aborted by user", "warning", progress=0)
+                return {"success": False, "aborted": True}
+            
             step_order = step.get('order', i + 1)
             step_type = step.get('type')
             step_desc = step.get('desc', f"Step {step_order}")
+            
+            # Check for permission on critical operations
+            if self._permission_service and self._permission_service.is_critical_operation(step):
+                self._send_status(f"⚠️ Critical operation detected: {step_desc}", "warning")
+                if not self._permission_service.request_permission_for_step(step):
+                    self._send_status(f"Permission denied for step {step_order}, skipping...", "warning")
+                    continue
             
             progress = int(((i + 1) / total_steps) * 85) + 10
             self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
@@ -462,6 +515,23 @@ class PlanExecutor:
                             f"text='{step.get('text', '')}' success={result.success} desc='{step_desc}'"
                         )
                 
+                # Critical operations that require permission
+                elif step_type == 'delete_file':
+                    result = self._execute_delete_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "delete_file",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'delete_folder':
+                    result = self._execute_delete_folder_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "delete_folder",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
                 else:
                     self._send_status(f"Unknown step type: {step_type}", "warning")
                 
@@ -474,7 +544,7 @@ class PlanExecutor:
                 continue
         
         self._send_status("Execution complete!", "success", progress=100)
-        return True
+        return {"success": True, "aborted": False}
     
     def _execute_direct_step(self, step: dict, sequence: list, current_index: int) -> bool:
         """
@@ -584,9 +654,15 @@ class PlanExecutor:
         desc = step.get('desc', '').lower()
         # ------------------------------------------------------------------
         # FIX: Prevent dialog-triggering shortcuts from being treated
-        #      as application launches (Ctrl+S, Ctrl+O, Ctrl+P, etc.)
+        #      as application launches (Ctrl+S, Ctrl+O, Ctrl+P, F12, etc.)
         # ------------------------------------------------------------------
-        if value in ('ctrl+s', 'ctrl+o', 'ctrl+p'):
+        non_launch_shortcuts = {
+            'ctrl+s', 'ctrl+o', 'ctrl+p', 'ctrl+n', 'ctrl+w', 'ctrl+z', 'ctrl+y',
+            'ctrl+a', 'ctrl+c', 'ctrl+v', 'ctrl+x', 'ctrl+f', 'ctrl+h',
+            'f12', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11',
+            'alt+f4', 'alt+tab', 'escape', 'esc'
+        }
+        if value in non_launch_shortcuts:
             return False
             
         # Check if description mentions launching
@@ -602,6 +678,13 @@ class PlanExecutor:
             # If previous step was typing (not a special key) after Win key
             if prev_step.get('type') == 'keyboard':
                 if not self._is_special_key(prev_value) and len(prev_value) > 1:
+                    # Skip if it's a command-line command (won't create visible window)
+                    if any(cmd in prev_value for cmd in ['cmd /c', 'cmd.exe /c', 'mkdir', 'rmdir', 'del ', 'copy ', 'move ', 'ren ']):
+                        return False
+                    # Skip if it looks like a file path
+                    if '\\' in prev_value or '/' in prev_value:
+                        return False
+                    
                     # Check if there was a Win key press before
                     for j in range(current_index - 1, -1, -1):
                         check_val = sequence[j].get('value', '').lower()
@@ -624,6 +707,7 @@ class PlanExecutor:
     def _get_app_name_from_context(self, sequence: list, current_index: int) -> Optional[str]:
         """
         Try to determine what app is being launched based on recent typed text.
+        Only returns app names that are likely to create visible windows.
         """
         # Look backwards for typed text
         for i in range(current_index - 1, max(-1, current_index - 5), -1):
@@ -632,7 +716,23 @@ class PlanExecutor:
                 value = step.get('value', '')
                 # Skip special keys and shortcuts
                 if not self._is_special_key(value.lower()) and '+' not in value and len(value) > 1:
+                    # Skip command-line commands that don't create visible windows
+                    # These are typically run via Win+R and execute silently
+                    value_lower = value.lower()
+                    if any(cmd in value_lower for cmd in ['cmd /c', 'cmd.exe /c', 'mkdir', 'rmdir', 'del ', 'copy ', 'move ', 'ren ']):
+                        continue
+                    # Skip if it looks like a file path
+                    if '\\' in value or '/' in value:
+                        continue
                     return value
+        
+        # Check last typed text with same filters
+        if self._last_typed_text:
+            last_lower = self._last_typed_text.lower()
+            if any(cmd in last_lower for cmd in ['cmd /c', 'cmd.exe /c', 'mkdir', 'rmdir', 'del ', 'copy ', 'move ', 'ren ']):
+                return None
+            if '\\' in self._last_typed_text or '/' in self._last_typed_text:
+                return None
         
         return self._last_typed_text
     
@@ -1246,6 +1346,98 @@ class PlanExecutor:
                 self._send_status(f"Detected text on screen: {detected_texts}", "info")
         
         return result
+
+
+    # =========================================================================
+    # Critical Operation Step Handlers (require permission)
+    # =========================================================================
+    
+    def _execute_delete_file_step(self, step: dict) -> bool:
+        """
+        Execute a delete_file step - deletes a file from the filesystem.
+        This is a critical operation that requires user permission.
+        
+        Args:
+            step: Step dict with 'path'
+        
+        Returns:
+            bool: True if file was deleted successfully
+        """
+        import os
+        
+        file_path = step.get('path', '')
+        
+        if not file_path:
+            self._send_status("delete_file: missing 'path' parameter", "warning")
+            return False
+        
+        # Normalize path
+        file_path = os.path.normpath(file_path)
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            self._send_status(f"delete_file: file does not exist: {file_path}", "warning")
+            return False
+        
+        if not os.path.isfile(file_path):
+            self._send_status(f"delete_file: path is not a file: {file_path}", "warning")
+            return False
+        
+        try:
+            self._send_status(f"Deleting file: {os.path.basename(file_path)}", "info")
+            os.remove(file_path)
+            self._send_status(f"✓ File deleted successfully", "success")
+            return True
+        except PermissionError:
+            self._send_status(f"delete_file: permission denied for {file_path}", "error")
+            return False
+        except Exception as e:
+            self._send_status(f"delete_file: error - {str(e)}", "error")
+            return False
+    
+    def _execute_delete_folder_step(self, step: dict) -> bool:
+        """
+        Execute a delete_folder step - deletes a folder and its contents.
+        This is a critical operation that requires user permission.
+        
+        Args:
+            step: Step dict with 'path'
+        
+        Returns:
+            bool: True if folder was deleted successfully
+        """
+        import os
+        import shutil
+        
+        folder_path = step.get('path', '')
+        
+        if not folder_path:
+            self._send_status("delete_folder: missing 'path' parameter", "warning")
+            return False
+        
+        # Normalize path
+        folder_path = os.path.normpath(folder_path)
+        
+        # Check if folder exists
+        if not os.path.exists(folder_path):
+            self._send_status(f"delete_folder: folder does not exist: {folder_path}", "warning")
+            return False
+        
+        if not os.path.isdir(folder_path):
+            self._send_status(f"delete_folder: path is not a folder: {folder_path}", "warning")
+            return False
+        
+        try:
+            self._send_status(f"Deleting folder: {os.path.basename(folder_path)}", "info")
+            shutil.rmtree(folder_path)
+            self._send_status(f"✓ Folder deleted successfully", "success")
+            return True
+        except PermissionError:
+            self._send_status(f"delete_folder: permission denied for {folder_path}", "error")
+            return False
+        except Exception as e:
+            self._send_status(f"delete_folder: error - {str(e)}", "error")
+            return False
 
 
 def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float] | None:
