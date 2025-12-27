@@ -30,3 +30,6 @@ uploads/
 backend/uploads/
 backend/outputs/
 backend/inputs/
+
+# Local model files
+local_models/
