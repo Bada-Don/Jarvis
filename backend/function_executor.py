@@ -32,6 +32,9 @@ from functools import wraps
 # Import data models from functiongemma_service
 from functiongemma_service import FunctionCall, ExecutionResult
 
+# Import monitoring
+from monitoring import get_monitoring_dashboard
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -147,6 +150,14 @@ class FunctionExecutor:
         logger.info(f"Executing function: {function_name}")
         logger.debug(f"Arguments: {arguments}")
         
+        # Start monitoring
+        dashboard = get_monitoring_dashboard()
+        operation_id = dashboard.performance_monitor.start_operation(
+            operation_type="function_call",
+            function_name=function_name,
+            parameters=arguments
+        )
+        
         # Start profiling if enabled
         start_time = time.perf_counter() if self.enable_profiling else None
         
@@ -157,6 +168,18 @@ class FunctionExecutor:
             if function_impl is None:
                 error_msg = f"Function '{function_name}' not found in registry"
                 logger.error(error_msg)
+                
+                # Log error to monitoring
+                dashboard.error_tracker.log_error(
+                    error_type="function_not_found",
+                    error_message=error_msg,
+                    function_name=function_name,
+                    parameters=arguments
+                )
+                dashboard.performance_monitor.complete_operation(
+                    operation_id, success=False, error_message=error_msg
+                )
+                
                 return ExecutionResult(
                     success=False,
                     function_name=function_name,
@@ -168,6 +191,18 @@ class FunctionExecutor:
             if self.function_registry.is_placeholder(function_name):
                 error_msg = f"Function '{function_name}' is a placeholder and not yet implemented"
                 logger.warning(error_msg)
+                
+                # Log error to monitoring
+                dashboard.error_tracker.log_error(
+                    error_type="placeholder_function",
+                    error_message=error_msg,
+                    function_name=function_name,
+                    parameters=arguments
+                )
+                dashboard.performance_monitor.complete_operation(
+                    operation_id, success=False, error_message=error_msg
+                )
+                
                 return ExecutionResult(
                     success=False,
                     function_name=function_name,
@@ -184,6 +219,18 @@ class FunctionExecutor:
                 
                 if not is_valid:
                     logger.error(f"Parameter validation failed: {validation_error}")
+                    
+                    # Log error to monitoring
+                    dashboard.error_tracker.log_error(
+                        error_type="parameter_validation",
+                        error_message=validation_error,
+                        function_name=function_name,
+                        parameters=arguments
+                    )
+                    dashboard.performance_monitor.complete_operation(
+                        operation_id, success=False, error_message=validation_error
+                    )
+                    
                     return ExecutionResult(
                         success=False,
                         function_name=function_name,
@@ -219,6 +266,24 @@ class FunctionExecutor:
                 execution_time = time.perf_counter() - start_time
                 self._record_execution_time(function_name, execution_time)
             
+            # Complete monitoring
+            dashboard.performance_monitor.complete_operation(
+                operation_id,
+                success=success,
+                error_message=result.get("message") if not success else None,
+                result=result
+            )
+            
+            # Log error if function returned failure
+            if not success:
+                dashboard.error_tracker.log_error(
+                    error_type="function_execution",
+                    error_message=result.get("message", "Unknown error"),
+                    function_name=function_name,
+                    parameters=arguments,
+                    context={"result": result}
+                )
+            
             return ExecutionResult(
                 success=success,
                 function_name=function_name,
@@ -231,6 +296,25 @@ class FunctionExecutor:
             error_msg = f"Type error calling '{function_name}': {str(e)}"
             logger.error(error_msg)
             logger.debug(traceback.format_exc())
+            
+            # Log error to monitoring
+            dashboard.error_tracker.log_error(
+                error_type="type_error",
+                error_message=error_msg,
+                function_name=function_name,
+                parameters=arguments,
+                stack_trace=traceback.format_exc()
+            )
+            
+            # Record profiling data for errors too
+            if self.enable_profiling and start_time is not None:
+                execution_time = time.perf_counter() - start_time
+                self._record_execution_time(function_name, execution_time)
+            
+            # Complete monitoring
+            dashboard.performance_monitor.complete_operation(
+                operation_id, success=False, error_message=error_msg
+            )
             
             return ExecutionResult(
                 success=False,
@@ -245,17 +329,31 @@ class FunctionExecutor:
             logger.error(error_msg)
             logger.debug(traceback.format_exc())
             
+            # Log error to monitoring
+            dashboard.error_tracker.log_error(
+                error_type="execution_error",
+                error_message=error_msg,
+                function_name=function_name,
+                parameters=arguments,
+                stack_trace=traceback.format_exc()
+            )
+            
+            # Record profiling data for errors too
+            if self.enable_profiling and start_time is not None:
+                execution_time = time.perf_counter() - start_time
+                self._record_execution_time(function_name, execution_time)
+            
+            # Complete monitoring
+            dashboard.performance_monitor.complete_operation(
+                operation_id, success=False, error_message=error_msg
+            )
+            
             return ExecutionResult(
                 success=False,
                 function_name=function_name,
                 result={},
                 error_message=error_msg
             )
-        finally:
-            # Record profiling data even on error
-            if self.enable_profiling and start_time is not None:
-                execution_time = time.perf_counter() - start_time
-                self._record_execution_time(function_name, execution_time)
     
     def execute_sequence(
         self,
