@@ -18,6 +18,7 @@ self-operating-computer-main/
 # IDE
 .vscode/
 .idea/
+.kiro/
 
 # Build artifacts
 *.egg-info/
