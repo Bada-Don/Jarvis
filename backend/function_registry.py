@@ -10,12 +10,14 @@ Key Features:
 - Placeholder function support for future implementations
 - Parameter type validation against schemas
 - Schema generation for FunctionGemma model
+- Automatic schema generation from function signatures and docstrings
 """
 
 import logging
-from typing import Callable, Optional, List, Dict, Tuple
+from typing import Callable, Optional, List, Dict, Tuple, Any, get_type_hints
 from dataclasses import dataclass
 import json
+import inspect
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -428,3 +430,396 @@ class FunctionRegistry:
         self._functions.clear()
         self._schemas.clear()
         logger.info("Function registry cleared")
+    
+    def register_function_auto(
+        self,
+        name: str,
+        implementation: Callable,
+        category: str,
+        description: Optional[str] = None,
+        is_placeholder: bool = False
+    ) -> None:
+        """
+        Register a function with automatic schema generation.
+        
+        Automatically generates a JSON schema from the function's type hints
+        and docstring. This provides a convenient way to register functions
+        without manually writing schemas.
+        
+        Args:
+            name: Function name (must be unique)
+            implementation: Callable function implementation
+            category: Function category (must be in VALID_CATEGORIES)
+            description: Optional description (extracted from docstring if not provided)
+            is_placeholder: Whether this is a placeholder for future implementation
+        
+        Raises:
+            ValueError: If name is empty, category is invalid, or schema generation fails
+            TypeError: If implementation is not callable
+        
+        Example:
+            def create_folder(path: str, confirm: bool = False) -> dict:
+                '''Create a folder at the specified path.
+                
+                Args:
+                    path: Full path to folder to create
+                    confirm: Whether to confirm before creation
+                
+                Returns:
+                    Result dictionary with success status
+                '''
+                # implementation
+                pass
+            
+            registry.register_function_auto(
+                name="create_folder",
+                implementation=create_folder,
+                category="folder_operations"
+            )
+        """
+        # Generate schema automatically
+        schema = self._generate_schema_from_function(implementation, description)
+        
+        # Register using the standard method
+        self.register_function(
+            name=name,
+            implementation=implementation,
+            schema=schema,
+            category=category,
+            is_placeholder=is_placeholder
+        )
+        
+        logger.info(f"Auto-registered function: {name} with generated schema")
+    
+    def _generate_schema_from_function(
+        self,
+        func: Callable,
+        description: Optional[str] = None
+    ) -> dict:
+        """
+        Generate a JSON schema from a function's signature and docstring.
+        
+        Extracts type hints and parameter information to create a valid
+        JSON schema for FunctionGemma compatibility.
+        
+        Args:
+            func: Function to generate schema for
+            description: Optional description (uses docstring if not provided)
+        
+        Returns:
+            JSON schema dict
+        
+        Raises:
+            ValueError: If schema generation fails
+        """
+        # Get function signature
+        try:
+            sig = inspect.signature(func)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Cannot inspect function signature: {e}")
+        
+        # Get type hints
+        try:
+            type_hints = get_type_hints(func)
+        except Exception:
+            type_hints = {}
+        
+        # Extract description from docstring if not provided
+        if description is None:
+            doc = inspect.getdoc(func)
+            if doc:
+                # Use first line of docstring as description
+                description = doc.split('\n')[0].strip()
+            else:
+                description = f"Function {func.__name__}"
+        
+        # Build properties and required fields
+        properties = {}
+        required = []
+        
+        for param_name, param in sig.parameters.items():
+            # Skip self, cls, *args, **kwargs
+            if param_name in ('self', 'cls') or param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD
+            ):
+                continue
+            
+            # Get type hint
+            param_type = type_hints.get(param_name)
+            
+            # Convert Python type to JSON schema type
+            json_type = self._python_type_to_json_type(param_type)
+            
+            # Build property schema
+            prop_schema = {"type": json_type}
+            
+            # Extract parameter description from docstring
+            param_desc = self._extract_param_description(func, param_name)
+            if param_desc:
+                prop_schema["description"] = param_desc
+            
+            properties[param_name] = prop_schema
+            
+            # Check if parameter is required (no default value)
+            if param.default == inspect.Parameter.empty:
+                required.append(param_name)
+        
+        # Build complete schema
+        schema = {
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties
+            }
+        }
+        
+        if required:
+            schema["parameters"]["required"] = required
+        
+        return schema
+    
+    def _python_type_to_json_type(self, python_type: Any) -> str:
+        """
+        Convert a Python type hint to a JSON schema type.
+        
+        Args:
+            python_type: Python type hint
+        
+        Returns:
+            JSON schema type string
+        """
+        if python_type is None or python_type == inspect.Parameter.empty:
+            return "string"  # Default to string
+        
+        # Handle basic types
+        type_mapping = {
+            str: "string",
+            int: "integer",
+            float: "number",
+            bool: "boolean",
+            list: "array",
+            dict: "object",
+            List: "array",
+            Dict: "object"
+        }
+        
+        # Check direct type match
+        if python_type in type_mapping:
+            return type_mapping[python_type]
+        
+        # Check if it's a typing generic
+        origin = getattr(python_type, '__origin__', None)
+        if origin in type_mapping:
+            return type_mapping[origin]
+        
+        # Default to string for unknown types
+        return "string"
+    
+    def _extract_param_description(self, func: Callable, param_name: str) -> Optional[str]:
+        """
+        Extract parameter description from function docstring.
+        
+        Looks for Google-style or NumPy-style parameter documentation.
+        
+        Args:
+            func: Function to extract from
+            param_name: Parameter name to find
+        
+        Returns:
+            Parameter description or None
+        """
+        doc = inspect.getdoc(func)
+        if not doc:
+            return None
+        
+        lines = doc.split('\n')
+        
+        # Look for "Args:" section
+        in_args_section = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Check for Args section start
+            if stripped.lower() in ('args:', 'arguments:', 'parameters:'):
+                in_args_section = True
+                continue
+            
+            # Check for section end
+            if in_args_section and stripped.endswith(':') and not stripped.startswith(' '):
+                break
+            
+            # Look for parameter
+            if in_args_section and stripped.startswith(f"{param_name}:"):
+                # Extract description after colon
+                desc = stripped[len(param_name) + 1:].strip()
+                return desc
+        
+        return None
+    
+    def add_category(self, category: str) -> None:
+        """
+        Add a new valid category to the registry.
+        
+        This allows extending the registry with custom categories beyond
+        the default set (folder_operations, file_operations, etc.).
+        
+        Args:
+            category: Category name to add
+        
+        Raises:
+            ValueError: If category is empty or already exists
+        
+        Example:
+            registry.add_category("network_operations")
+            registry.register_function(
+                name="http_get",
+                implementation=http_get_impl,
+                schema=http_get_schema,
+                category="network_operations"
+            )
+        """
+        if not category or not category.strip():
+            raise ValueError("Category name cannot be empty")
+        
+        if category in self.VALID_CATEGORIES:
+            logger.warning(f"Category '{category}' already exists")
+            return
+        
+        self.VALID_CATEGORIES.add(category)
+        logger.info(f"Added new category: {category}")
+    
+    def remove_category(self, category: str) -> None:
+        """
+        Remove a category from the registry.
+        
+        Note: This will not affect already registered functions in that category,
+        but will prevent new functions from being registered to it.
+        
+        Args:
+            category: Category name to remove
+        
+        Raises:
+            ValueError: If category doesn't exist or has registered functions
+        """
+        if category not in self.VALID_CATEGORIES:
+            raise ValueError(f"Category '{category}' does not exist")
+        
+        # Check if any functions use this category
+        functions_in_category = self.get_functions_by_category(category)
+        if functions_in_category:
+            raise ValueError(
+                f"Cannot remove category '{category}': "
+                f"{len(functions_in_category)} functions still registered"
+            )
+        
+        self.VALID_CATEGORIES.remove(category)
+        logger.info(f"Removed category: {category}")
+    
+    def unregister_function(self, name: str) -> bool:
+        """
+        Unregister a function from the registry.
+        
+        Args:
+            name: Function name to unregister
+        
+        Returns:
+            True if function was unregistered, False if not found
+        """
+        if name not in self._functions:
+            logger.warning(f"Function '{name}' not found for unregistration")
+            return False
+        
+        del self._functions[name]
+        del self._schemas[name]
+        logger.info(f"Unregistered function: {name}")
+        return True
+    
+    def get_placeholder_functions(self) -> List[str]:
+        """
+        Get a list of all placeholder function names.
+        
+        Returns:
+            List of placeholder function names
+        """
+        return [
+            name for name, schema in self._schemas.items()
+            if schema.is_placeholder
+        ]
+    
+    def export_schemas(self, filepath: str) -> None:
+        """
+        Export all function schemas to a JSON file.
+        
+        Useful for documentation, debugging, or sharing schemas.
+        
+        Args:
+            filepath: Path to output JSON file
+        """
+        schemas = self.get_all_schemas()
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(schemas, f, indent=2)
+        
+        logger.info(f"Exported {len(schemas)} schemas to {filepath}")
+    
+    def import_schemas(self, filepath: str) -> int:
+        """
+        Import function schemas from a JSON file.
+        
+        Note: This only imports schemas, not implementations.
+        Functions imported this way will be marked as placeholders.
+        
+        Args:
+            filepath: Path to JSON file with schemas
+        
+        Returns:
+            Number of schemas imported
+        """
+        with open(filepath, 'r', encoding='utf-8') as f:
+            schemas = json.load(f)
+        
+        count = 0
+        for schema_data in schemas:
+            if schema_data.get("type") != "function":
+                continue
+            
+            func_data = schema_data.get("function", {})
+            name = func_data.get("name")
+            
+            if not name:
+                logger.warning("Skipping schema without name")
+                continue
+            
+            # Create placeholder implementation
+            def placeholder_impl(**kwargs):
+                return {
+                    "success": False,
+                    "message": f"Function '{name}' is not yet implemented"
+                }
+            
+            # Determine category (default to "other")
+            category = "other"
+            if "other" not in self.VALID_CATEGORIES:
+                self.add_category("other")
+            
+            # Build schema
+            schema = {
+                "description": func_data.get("description", ""),
+                "parameters": func_data.get("parameters", {"type": "object", "properties": {}})
+            }
+            
+            try:
+                self.register_function(
+                    name=name,
+                    implementation=placeholder_impl,
+                    schema=schema,
+                    category=category,
+                    is_placeholder=True
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to import schema for '{name}': {e}")
+        
+        logger.info(f"Imported {count} schemas from {filepath}")
+        return count

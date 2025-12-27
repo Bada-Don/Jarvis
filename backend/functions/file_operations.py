@@ -4,14 +4,19 @@ File Operations Module
 Provides functions for file management including deletion, renaming, copying, moving, and opening.
 Uses command-line utilities where possible and reuses existing path resolution logic.
 
-Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 8.2
+Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 8.2, 10.1, 10.2, 10.4
 """
 
 import os
 import shutil
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, Optional
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "local_client"))

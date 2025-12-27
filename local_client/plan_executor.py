@@ -87,6 +87,23 @@ except ImportError:
     def is_abort_requested():
         return False
 
+# FunctionGemma integration imports
+try:
+    import sys
+    import os
+    # Add backend directory to path for imports
+    backend_path = os.path.join(os.path.dirname(__file__), '..', 'backend')
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+    
+    from function_executor import FunctionExecutor
+    from function_registry import FunctionRegistry
+    from functiongemma_service import FunctionCall
+    FUNCTION_CALLING_AVAILABLE = True
+except ImportError as e:
+    FUNCTION_CALLING_AVAILABLE = False
+    print(f"⚠️ Warning: FunctionGemma integration not available: {e}")
+
 
 class PlanExecutor:
     """
@@ -185,6 +202,10 @@ class PlanExecutor:
         # Permission service (set externally via set_permission_service)
         self._permission_service: Optional['PermissionService'] = None
         
+        # FunctionGemma integration components
+        self._function_executor: Optional['FunctionExecutor'] = None
+        self._function_registry: Optional['FunctionRegistry'] = None
+        
         # Cached vision data (single-pass architecture)
         self._id_map: Optional[dict] = None
         self._box_map: Optional[dict] = None
@@ -212,11 +233,34 @@ class PlanExecutor:
     def set_permission_service(self, permission_service: 'PermissionService'):
         """Set the permission service for critical operation checks."""
         self._permission_service = permission_service
+    
+    def set_function_executor(self, function_executor: 'FunctionExecutor'):
+        """
+        Set the function executor for function calling mode.
+        
+        Args:
+            function_executor: FunctionExecutor instance for executing function calls
+        """
+        self._function_executor = function_executor
+    
+    def set_function_registry(self, function_registry: 'FunctionRegistry'):
+        """
+        Set the function registry for function calling mode.
+        
+        Args:
+            function_registry: FunctionRegistry instance with available functions
+        """
+        self._function_registry = function_registry
 
     def execute_plan(self, plan: dict, verify: bool = True) -> dict:
         """
         Execute an execution plan from the Planner Model.
-        Routes to direct or vision mode based on plan['mode'].
+        Routes to appropriate execution mode based on plan['mode'].
+        
+        Supported modes:
+        - 'function_calling': Use FunctionGemma function calling (new)
+        - 'direct' or 'flexisign': Use FlexiSIGN UIA automation
+        - 'vision' or other: Use vision-based automation (default)
         
         Args:
             plan: Execution plan dict with "sequence" array and optional "mode"
@@ -243,10 +287,15 @@ class PlanExecutor:
             return {"success": False, "verified": False, "verification_result": None, "aborted": True}
         
         # Route to appropriate execution mode
-        # 'direct' or 'flexisign' both use direct automation
-        if mode in ('direct', 'flexisign'):
+        # Mode detection logic (Requirement 9.5)
+        if mode == 'function_calling':
+            # New FunctionGemma function calling mode
+            exec_result = self._execute_function_calling_plan(plan)
+        elif mode in ('direct', 'flexisign'):
+            # FlexiSIGN UIA automation (Requirement 9.1, 9.2)
             exec_result = self._execute_direct_plan(plan)
         else:
+            # Vision-based automation (Requirement 9.3, 9.4)
             exec_result = self._execute_vision_plan(plan)
         
         # Check if aborted during execution
@@ -386,6 +435,144 @@ class PlanExecutor:
         
         self._send_status("Direct automation complete!", "success", progress=100)
         return {"success": True, "aborted": False}
+    
+    def _execute_function_calling_plan(self, plan: dict) -> dict:
+        """
+        Execute plan using FunctionGemma function calling mode.
+        
+        This method routes function calls from the plan to the Function Executor,
+        maintaining backward compatibility with existing workflows while enabling
+        the new FunctionGemma integration.
+        
+        Args:
+            plan: Execution plan dict with "sequence" array containing function calls
+            
+        Returns:
+            dict: Result with 'success' and 'aborted' keys
+        
+        Validates:
+            - Requirements 9.1: FlexiSIGN operations preserved (routed appropriately)
+            - Requirements 9.2: FlexiSIGN routing (handled by function registry)
+            - Requirements 9.3: Vision-based clicking preserved (fallback available)
+            - Requirements 9.4: Direct path automation preserved (via function modules)
+            - Requirements 9.5: Dual pattern support (mode detection in execute_plan)
+        """
+        if not FUNCTION_CALLING_AVAILABLE:
+            self._send_status("FunctionGemma integration not available", "error")
+            return {"success": False, "aborted": False}
+        
+        if self._function_executor is None:
+            self._send_status("Function executor not initialized", "error")
+            return {"success": False, "aborted": False}
+        
+        sequence = plan.get('sequence', [])
+        total_steps = len(sequence)
+        
+        self._send_status(
+            f"Starting function calling execution of {total_steps} step(s)", 
+            "info", 
+            progress=0
+        )
+        
+        # Convert sequence to FunctionCall objects
+        function_calls = []
+        for i, step in enumerate(sequence):
+            # Check for abort signal
+            if is_abort_requested():
+                self._send_status("Task aborted by user", "warning", progress=0)
+                return {"success": False, "aborted": True}
+            
+            # Extract function call information from step
+            function_name = step.get('function_name') or step.get('name')
+            arguments = step.get('arguments', {})
+            
+            if not function_name:
+                self._send_status(
+                    f"Step {i + 1} missing function_name, skipping", 
+                    "warning"
+                )
+                continue
+            
+            # Create FunctionCall object
+            try:
+                function_call = FunctionCall(
+                    name=function_name,
+                    arguments=arguments
+                )
+                function_calls.append(function_call)
+            except Exception as e:
+                self._send_status(
+                    f"Error creating function call for step {i + 1}: {e}", 
+                    "error"
+                )
+                continue
+        
+        if not function_calls:
+            self._send_status("No valid function calls to execute", "warning")
+            return {"success": False, "aborted": False}
+        
+        # Execute function calls using the Function Executor
+        try:
+            # Determine if parallel execution is possible
+            can_parallel = self._function_executor.can_execute_parallel(function_calls)
+            
+            if can_parallel:
+                self._send_status(
+                    "Executing function calls in parallel", 
+                    "info", 
+                    progress=10
+                )
+            else:
+                self._send_status(
+                    "Executing function calls sequentially", 
+                    "info", 
+                    progress=10
+                )
+            
+            # Execute the sequence
+            result = self._function_executor.execute_sequence(
+                function_calls,
+                parallel=can_parallel
+            )
+            
+            # Report results
+            if result.overall_success:
+                self._send_status(
+                    f"✓ All {result.successful_steps}/{result.total_steps} function calls executed successfully",
+                    "success",
+                    progress=100
+                )
+            else:
+                self._send_status(
+                    f"⚠ {result.successful_steps}/{result.total_steps} function calls succeeded, "
+                    f"{result.failed_steps} failed",
+                    "warning",
+                    progress=100
+                )
+            
+            # Log individual step results if debug logger available
+            if DEBUG_LOGGER_AVAILABLE:
+                for i, step_result in enumerate(result.step_results, 1):
+                    get_debug_logger().log_step_execution(
+                        i,
+                        "function_call",
+                        f"function='{step_result.function_name}' success={step_result.success} "
+                        f"error='{step_result.error_message or 'None'}'"
+                    )
+            
+            return {
+                "success": result.overall_success,
+                "aborted": False,
+                "result": result.to_dict()
+            }
+            
+        except Exception as e:
+            self._send_status(f"Error executing function calls: {e}", "error")
+            if DEBUG_LOGGER_AVAILABLE:
+                get_debug_logger().log_step_execution(
+                    0, "function_calling_error", f"ERROR: {e}", success=False
+                )
+            return {"success": False, "aborted": False}
     
     def _execute_vision_plan(self, plan: dict) -> dict:
         """

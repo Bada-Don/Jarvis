@@ -5,13 +5,18 @@ Provides functions for keyboard automation including typing text, pressing keys,
 executing hotkeys, and repeating key presses. Reuses timing constants and key
 mapping logic from PlanExecutor.
 
-Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 8.3
+Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 8.3, 10.1, 10.2
 """
 
 import time
+import logging
 from typing import Dict
 
 import pyautogui
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # Timing configuration (reused from PlanExecutor)
@@ -102,13 +107,16 @@ def type_text(text: str, interval: float = None) -> Dict[str, any]:
     Returns:
         {"success": bool, "message": str, "text": str, "length": int}
         
-    Requirements: 5.1, 5.5, 8.3
+    Requirements: 5.1, 5.5, 8.3, 10.1, 10.2
     """
     try:
+        # Requirement 10.1: Descriptive error messages for invalid parameters
         if text is None:
+            error_msg = "Text cannot be None. Provide a string to type."
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": "Text cannot be None",
+                "message": error_msg,
                 "text": None,
                 "length": 0
             }
@@ -122,12 +130,17 @@ def type_text(text: str, interval: float = None) -> Dict[str, any]:
         
         # Validate interval
         if interval < 0:
+            error_msg = f"Interval must be non-negative, got: {interval}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": f"Interval must be non-negative, got: {interval}",
+                "message": error_msg,
                 "text": text_str,
                 "length": len(text_str)
             }
+        
+        logger.info(f"Typing text (length: {len(text_str)}, interval: {interval})")
+        logger.debug(f"Text content: '{text_str[:50]}{'...' if len(text_str) > 50 else ''}'")
         
         # Small delay before typing (reused from PlanExecutor)
         time.sleep(DELAY_BEFORE_TYPING)
@@ -135,6 +148,7 @@ def type_text(text: str, interval: float = None) -> Dict[str, any]:
         # Type the text using pyautogui
         pyautogui.typewrite(text_str, interval=interval)
         
+        logger.info(f"✓ Typed {len(text_str)} characters successfully")
         return {
             "success": True,
             "message": f"Typed {len(text_str)} characters successfully",
@@ -143,9 +157,12 @@ def type_text(text: str, interval: float = None) -> Dict[str, any]:
         }
         
     except Exception as e:
+        # Requirement 10.2: Logging with context for all failures
+        error_msg = f"Failed to type text: {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return {
             "success": False,
-            "message": f"Failed to type text: {str(e)}",
+            "message": error_msg,
             "text": text_str if 'text_str' in locals() else None,
             "length": 0
         }
@@ -273,13 +290,16 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
     Returns:
         {"success": bool, "message": str, "key": str, "count": int, "actual_count": int}
         
-    Requirements: 5.4, 5.5, 8.3
+    Requirements: 5.4, 5.5, 8.3, 10.1, 10.2
     """
     try:
+        # Requirement 10.1: Descriptive error messages for invalid parameters
         if not key or not key.strip():
+            error_msg = "Key cannot be empty. Provide a valid key name."
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": "Key cannot be empty",
+                "message": error_msg,
                 "key": None,
                 "count": count,
                 "actual_count": 0
@@ -287,18 +307,24 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
         
         # Validate count parameter
         if not isinstance(count, int):
+            error_msg = (
+                f"Count must be an integer, got: {type(count).__name__} (value: {count})"
+            )
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": f"Count must be an integer, got: {type(count).__name__}",
+                "message": error_msg,
                 "key": key,
                 "count": count,
                 "actual_count": 0
             }
         
         if count <= 0:
+            error_msg = f"Count must be positive, got: {count}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": f"Count must be positive, got: {count}",
+                "message": error_msg,
                 "key": key,
                 "count": count,
                 "actual_count": 0
@@ -307,9 +333,14 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
         # Limit count to prevent accidental infinite loops
         MAX_REPEAT_COUNT = 1000
         if count > MAX_REPEAT_COUNT:
+            error_msg = (
+                f"Count exceeds maximum allowed ({MAX_REPEAT_COUNT}), got: {count}. "
+                f"This limit prevents accidental infinite loops."
+            )
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": f"Count exceeds maximum allowed ({MAX_REPEAT_COUNT}), got: {count}",
+                "message": error_msg,
                 "key": key,
                 "count": count,
                 "actual_count": 0
@@ -317,6 +348,8 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
         
         key_lower = key.strip().lower()
         is_special = _is_special_key(key_lower)
+        
+        logger.info(f"Pressing key '{key}' {count} times")
         
         # Press the key multiple times
         for i in range(count):
@@ -329,6 +362,7 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
         # Final delay after all presses
         time.sleep(DELAY_AFTER_KEY)
         
+        logger.info(f"✓ Pressed key '{key}' {count} times successfully")
         return {
             "success": True,
             "message": f"Pressed key '{key}' {count} times successfully",
@@ -339,9 +373,12 @@ def press_key_repeat(key: str, count: int) -> Dict[str, any]:
         }
         
     except Exception as e:
+        # Requirement 10.2: Logging with context for all failures
+        error_msg = f"Failed to repeat key press '{key}' {count} times: {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return {
             "success": False,
-            "message": f"Failed to repeat key press: {str(e)}",
+            "message": error_msg,
             "key": key if 'key' in locals() else None,
             "count": count if 'count' in locals() else 0,
             "actual_count": 0

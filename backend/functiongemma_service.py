@@ -15,9 +15,12 @@ Key Features:
 
 import os
 import logging
+import gc
+import psutil
 from typing import List, Dict, Optional, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -87,7 +90,8 @@ class FunctionGemmaPlannerService:
         self, 
         model_path: str = None,
         function_registry = None,
-        lazy_load: bool = True
+        lazy_load: bool = True,
+        auto_unload_timeout: int = 300  # Auto-unload after 5 minutes of inactivity
     ):
         """
         Initialize the FunctionGemma Planner Service.
@@ -96,6 +100,7 @@ class FunctionGemmaPlannerService:
             model_path: Path to local FunctionGemma model. If None, uses default path.
             function_registry: Registry of available functions. Can be set later.
             lazy_load: If True, delay model loading until first use (default: True)
+            auto_unload_timeout: Seconds of inactivity before auto-unloading model (default: 300)
         
         Raises:
             ValueError: If model_path is invalid
@@ -123,17 +128,23 @@ class FunctionGemmaPlannerService:
         
         self.model_path = model_path
         self.function_registry = function_registry
+        self.auto_unload_timeout = auto_unload_timeout
         
         # Model components (loaded lazily if lazy_load=True)
         self.processor = None
         self.model = None
         self._model_loaded = False
+        self._last_used = None  # Track last usage for auto-unload
+        self._memory_before_load = 0  # Track memory usage
         
         # Load model immediately if not lazy loading
         if not lazy_load:
             self.load_model()
         
-        logger.info(f"FunctionGemmaPlannerService initialized (lazy_load={lazy_load})")
+        logger.info(
+            f"FunctionGemmaPlannerService initialized "
+            f"(lazy_load={lazy_load}, auto_unload_timeout={auto_unload_timeout}s)"
+        )
     
     def load_model(self) -> bool:
         """
@@ -141,6 +152,7 @@ class FunctionGemmaPlannerService:
         
         Uses AutoProcessor (not AutoTokenizer) as specified in requirements.
         Implements model caching by keeping model in memory after first load.
+        Monitors memory usage during loading for optimization.
         
         Returns:
             True if model loaded successfully, False otherwise
@@ -152,9 +164,15 @@ class FunctionGemmaPlannerService:
         """
         if self._model_loaded:
             logger.info("Model already loaded (using cached instance)")
+            self._last_used = datetime.now()
             return True
         
         try:
+            # Measure memory before loading
+            process = psutil.Process()
+            self._memory_before_load = process.memory_info().rss / 1024 / 1024  # MB
+            logger.info(f"Memory before model load: {self._memory_before_load:.2f} MB")
+            
             logger.info(f"Loading FunctionGemma model from: {self.model_path}")
             
             # Import transformers (lazy import to avoid startup overhead)
@@ -181,17 +199,29 @@ class FunctionGemmaPlannerService:
                 local_files_only=True
             )
             
-            # Load model
-            logger.info("Loading model...")
+            # Load model with optimizations
+            logger.info("Loading model with optimizations...")
             self.model = AutoModelForCausalLM.from_pretrained(
                 "google/functiongemma-270m-it",
                 cache_dir=self.model_path,
                 local_files_only=True,
-                device_map="auto"  # Automatically select best device (CPU/GPU)
+                device_map="auto",  # Automatically select best device (CPU/GPU)
+                low_cpu_mem_usage=True,  # Optimize memory usage during loading
+                torch_dtype="auto"  # Use optimal dtype for device
             )
             
             self._model_loaded = True
-            logger.info("✓ FunctionGemma model loaded successfully")
+            self._last_used = datetime.now()
+            
+            # Measure memory after loading
+            memory_after = process.memory_info().rss / 1024 / 1024  # MB
+            memory_used = memory_after - self._memory_before_load
+            
+            logger.info(
+                f"✓ FunctionGemma model loaded successfully\n"
+                f"  Memory after load: {memory_after:.2f} MB\n"
+                f"  Memory used by model: {memory_used:.2f} MB"
+            )
             return True
             
         except FileNotFoundError as e:
@@ -205,9 +235,26 @@ class FunctionGemmaPlannerService:
             raise Exception(f"Model loading failed: {e}") from e
     
     def _ensure_model_loaded(self):
-        """Ensure model is loaded before use (for lazy loading)."""
+        """
+        Ensure model is loaded before use (for lazy loading).
+        Also checks for auto-unload timeout and reloads if necessary.
+        """
+        # Check if model should be auto-unloaded due to inactivity
+        if self._model_loaded and self._last_used and self.auto_unload_timeout > 0:
+            time_since_use = (datetime.now() - self._last_used).total_seconds()
+            if time_since_use > self.auto_unload_timeout:
+                logger.info(
+                    f"Model inactive for {time_since_use:.0f}s "
+                    f"(timeout: {self.auto_unload_timeout}s). Auto-unloading..."
+                )
+                self.unload_model()
+        
+        # Load model if not loaded
         if not self._model_loaded:
             self.load_model()
+        else:
+            # Update last used timestamp
+            self._last_used = datetime.now()
     
     def set_function_registry(self, function_registry):
         """
@@ -474,18 +521,56 @@ class FunctionGemmaPlannerService:
         Unload the model from memory.
         
         Useful for freeing memory when the model is not needed for extended periods.
+        Measures memory freed for optimization tracking.
         """
         if self._model_loaded:
-            logger.info("Unloading model from memory")
+            # Measure memory before unload
+            process = psutil.Process()
+            memory_before = process.memory_info().rss / 1024 / 1024  # MB
+            
+            logger.info("Unloading model from memory...")
             self.model = None
             self.processor = None
             self._model_loaded = False
+            self._last_used = None
             
-            # Force garbage collection
-            import gc
+            # Force garbage collection to free memory immediately
             gc.collect()
             
-            logger.info("Model unloaded")
+            # Measure memory after unload
+            memory_after = process.memory_info().rss / 1024 / 1024  # MB
+            memory_freed = memory_before - memory_after
+            
+            logger.info(
+                f"Model unloaded\n"
+                f"  Memory before unload: {memory_before:.2f} MB\n"
+                f"  Memory after unload: {memory_after:.2f} MB\n"
+                f"  Memory freed: {memory_freed:.2f} MB"
+            )
+    
+    def get_memory_usage(self) -> Dict[str, float]:
+        """
+        Get current memory usage statistics.
+        
+        Returns:
+            Dict with memory statistics in MB:
+            - current: Current process memory
+            - model_overhead: Estimated model memory (if loaded)
+            - available: Available system memory
+        """
+        process = psutil.Process()
+        current_memory = process.memory_info().rss / 1024 / 1024  # MB
+        available_memory = psutil.virtual_memory().available / 1024 / 1024  # MB
+        
+        model_overhead = 0
+        if self._model_loaded and self._memory_before_load > 0:
+            model_overhead = current_memory - self._memory_before_load
+        
+        return {
+            "current": current_memory,
+            "model_overhead": model_overhead,
+            "available": available_memory
+        }
     
     def is_loaded(self) -> bool:
         """Check if model is currently loaded."""

@@ -4,15 +4,20 @@ Folder Operations Module
 Provides functions for folder management including creation, deletion, opening, and listing.
 Uses command-line utilities where possible and reuses existing path resolution logic.
 
-Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 8.1
+Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 8.1, 10.1, 10.2, 10.4
 """
 
 import os
 import shutil
 import subprocess
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "local_client"))
@@ -33,15 +38,20 @@ def create_folder(path: str) -> Dict[str, any]:
     Returns:
         {"success": bool, "message": str, "path": str}
         
-    Requirements: 3.1, 3.5
+    Requirements: 3.1, 3.5, 10.1, 10.2
     """
     try:
+        # Requirement 10.1: Descriptive error messages for invalid parameters
         if not path or not path.strip():
+            error_msg = "Path cannot be empty. Provide a valid folder path."
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": "Path cannot be empty",
+                "message": error_msg,
                 "path": None
             }
+        
+        logger.info(f"Creating folder: '{path}'")
         
         # Resolve the path using PathResolver
         resolver = PathResolver()
@@ -56,6 +66,7 @@ def create_folder(path: str) -> Dict[str, any]:
             parent_dir = config.default_save_directory
             folder_name = path_parts[0]
             full_path = os.path.join(parent_dir, folder_name)
+            logger.debug(f"Using default directory: {parent_dir}")
         else:
             # Multiple parts - resolve parent, then add new folder
             parent_path = '\\'.join(path_parts[:-1])
@@ -66,14 +77,17 @@ def create_folder(path: str) -> Dict[str, any]:
             
             if parent_result.success:
                 full_path = os.path.join(parent_result.resolved_path, folder_name)
+                logger.debug(f"Resolved parent: {parent_result.resolved_path}")
             else:
                 # Parent doesn't exist or couldn't be resolved
                 # Try to create the full path as-is
                 full_path = os.path.abspath(path)
+                logger.debug(f"Parent not found, using absolute path: {full_path}")
         
         # Create the folder using os.makedirs (command-line utility)
         os.makedirs(full_path, exist_ok=True)
         
+        logger.info(f"✓ Folder created: {full_path}")
         return {
             "success": True,
             "message": f"Folder created successfully: {full_path}",
@@ -81,21 +95,28 @@ def create_folder(path: str) -> Dict[str, any]:
         }
         
     except PermissionError as e:
+        # Requirement 10.2: Logging with context for all failures
+        error_msg = f"Permission denied when creating folder '{path}': {str(e)}"
+        logger.error(error_msg)
         return {
             "success": False,
-            "message": f"Permission denied: {str(e)}",
+            "message": error_msg,
             "path": None
         }
     except OSError as e:
+        error_msg = f"Failed to create folder '{path}': {str(e)}"
+        logger.error(error_msg)
         return {
             "success": False,
-            "message": f"Failed to create folder: {str(e)}",
+            "message": error_msg,
             "path": None
         }
     except Exception as e:
+        error_msg = f"Unexpected error creating folder '{path}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return {
             "success": False,
-            "message": f"Unexpected error creating folder: {str(e)}",
+            "message": error_msg,
             "path": None
         }
 
@@ -113,59 +134,83 @@ def delete_folder(path: str, confirm_non_empty: bool = True) -> Dict[str, any]:
     Returns:
         {"success": bool, "message": str, "was_empty": bool}
         
-    Requirements: 3.2, 3.5
+    Requirements: 3.2, 3.5, 10.1, 10.2, 10.4
     """
     try:
+        # Requirement 10.1: Descriptive error messages for invalid parameters
         if not path or not path.strip():
+            error_msg = "Path cannot be empty. Provide a valid folder path."
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": "Path cannot be empty",
+                "message": error_msg,
                 "was_empty": None
             }
+        
+        logger.info(f"Attempting to delete folder: '{path}'")
         
         # Resolve the path using PathResolver
         resolver = PathResolver()
         result = resolver.resolve(path)
         
         if not result.success:
+            # Requirement 10.4: Clear error messages for missing resources
+            error_msg = (
+                f"Could not resolve path '{path}': {result.error_message}. "
+                f"The folder may not exist or the path is invalid."
+            )
+            logger.warning(error_msg)
             return {
                 "success": False,
-                "message": f"Could not resolve path: {result.error_message}",
+                "message": error_msg,
                 "was_empty": None
             }
         
         full_path = result.resolved_path
+        logger.debug(f"Resolved path: {full_path}")
         
         # Check if path exists
         if not os.path.exists(full_path):
+            # Requirement 10.4: Clear error messages for missing resources
+            error_msg = f"Folder does not exist: {full_path}"
+            logger.warning(error_msg)
             return {
                 "success": False,
-                "message": f"Folder does not exist: {full_path}",
+                "message": error_msg,
                 "was_empty": None
             }
         
         # Check if it's a directory
         if not os.path.isdir(full_path):
+            error_msg = f"Path is not a folder: {full_path}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "message": f"Path is not a folder: {full_path}",
+                "message": error_msg,
                 "was_empty": None
             }
         
         # Check if folder is empty
         is_empty = len(os.listdir(full_path)) == 0
+        logger.debug(f"Folder is {'empty' if is_empty else 'not empty'}")
         
         # Safety check for non-empty folders
         if not is_empty and confirm_non_empty:
+            error_msg = (
+                f"Folder is not empty: {full_path}. "
+                f"Set confirm_non_empty=False to delete anyway."
+            )
+            logger.warning(error_msg)
             return {
                 "success": False,
-                "message": f"Folder is not empty. Set confirm_non_empty=False to delete anyway: {full_path}",
+                "message": error_msg,
                 "was_empty": False
             }
         
         # Delete the folder using shutil.rmtree (command-line utility)
         shutil.rmtree(full_path)
         
+        logger.info(f"✓ Folder deleted: {full_path}")
         return {
             "success": True,
             "message": f"Folder deleted successfully: {full_path}",
@@ -173,21 +218,28 @@ def delete_folder(path: str, confirm_non_empty: bool = True) -> Dict[str, any]:
         }
         
     except PermissionError as e:
+        # Requirement 10.2: Logging with context for all failures
+        error_msg = f"Permission denied when deleting folder '{path}': {str(e)}"
+        logger.error(error_msg)
         return {
             "success": False,
-            "message": f"Permission denied: {str(e)}",
+            "message": error_msg,
             "was_empty": None
         }
     except OSError as e:
+        error_msg = f"Failed to delete folder '{path}': {str(e)}"
+        logger.error(error_msg)
         return {
             "success": False,
-            "message": f"Failed to delete folder: {str(e)}",
+            "message": error_msg,
             "was_empty": None
         }
     except Exception as e:
+        error_msg = f"Unexpected error deleting folder '{path}': {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return {
             "success": False,
-            "message": f"Unexpected error deleting folder: {str(e)}",
+            "message": error_msg,
             "was_empty": None
         }
 
