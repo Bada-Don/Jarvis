@@ -6,6 +6,13 @@
 SERVER_URL = r"http://localhost:5000"
 
 # =============================================================================
+# PLANNER MODEL CONFIGURATION
+# =============================================================================
+# Set to True to use local FunctionGemma model (saves API costs, runs offline)
+# Set to False to use Gemini API (requires GEMINI_API_KEY in backend/.env)
+USE_LOCAL_MODEL = True
+
+# =============================================================================
 # SYSTEM INFORMATION
 # =============================================================================
 # Windows username for path generation

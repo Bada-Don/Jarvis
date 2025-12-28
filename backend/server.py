@@ -1,11 +1,32 @@
 import os
+import sys
 import base64
 import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from datetime import datetime
-from gemini_service import GeminiPlannerService
+
+# Import config from local_client
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'local_client'))
+import config
+
+# Try to use FunctionGemma (local) first, fall back to Gemini API if not available
+USE_LOCAL_MODEL = getattr(config, 'USE_LOCAL_MODEL', True)
+
+if USE_LOCAL_MODEL:
+    try:
+        from functiongemma_planner_adapter import FunctionGemmaPlannerAdapter
+        print("🤖 Using FunctionGemma (local model) for planning")
+        PLANNER_CLASS = FunctionGemmaPlannerAdapter
+    except Exception as e:
+        print(f"⚠ FunctionGemma not available ({e}), falling back to Gemini API")
+        from gemini_service import GeminiPlannerService
+        PLANNER_CLASS = GeminiPlannerService
+else:
+    from gemini_service import GeminiPlannerService
+    print("🤖 Using Gemini API for planning")
+    PLANNER_CLASS = GeminiPlannerService
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -19,13 +40,16 @@ LOG_FILE = 'logs.txt'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Initialize Gemini Planner Service
+# Initialize Planner Service (FunctionGemma or Gemini API)
 planner_service = None
 try:
-    planner_service = GeminiPlannerService()
-    print("✓ Gemini Planner Service initialized successfully")
+    planner_service = PLANNER_CLASS()
+    service_name = "FunctionGemma (local)" if USE_LOCAL_MODEL else "Gemini API"
+    print(f"✓ Planner Service initialized successfully ({service_name})")
 except ValueError as e:
-    print(f"⚠ Gemini Planner Service not available: {e}")
+    print(f"⚠ Planner Service not available: {e}")
+except Exception as e:
+    print(f"⚠ Planner Service initialization failed: {e}")
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -100,7 +124,7 @@ def process_instruction():
     if planner_service is None:
         return jsonify({
             "status": "error",
-            "response": "Planner service not available. Check GEMINI_API_KEY."
+            "response": "Planner service not available. Check configuration."
         }), 500
     
     try:
@@ -284,4 +308,19 @@ if __name__ == '__main__':
     print("=" * 50)
     print("🤖 JARVIS Backend Server Starting...")
     print("=" * 50)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=True)
+    
+    # Only watch Python files in the backend directory, not venv
+    # This prevents torch library changes from triggering restarts
+    extra_dirs = [os.path.dirname(os.path.abspath(__file__))]
+    extra_files = []
+    for extra_dir in extra_dirs:
+        for dirname, dirs, files in os.walk(extra_dir):
+            # Skip venv, __pycache__, and other non-code directories
+            dirs[:] = [d for d in dirs if d not in ['venv', '__pycache__', '.git', 'node_modules', 'weights', 'uploads']]
+            for filename in files:
+                if filename.endswith('.py'):
+                    filepath = os.path.join(dirname, filename)
+                    if os.path.isfile(filepath):
+                        extra_files.append(filepath)
+    
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=True, extra_files=extra_files)
