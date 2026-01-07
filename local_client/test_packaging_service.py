@@ -23,8 +23,8 @@ def test_packaging_service():
     print("\n1. Testing initialization...")
     project_root = Path(__file__).parent.parent
     service = PackagingService(str(project_root))
-    print(f"   ✓ Service initialized with project root: {service.project_root}")
-    print(f"   ✓ Build directory: {service.build_dir}")
+    print(f"   - Service initialized with project root: {service.project_root_str}")
+    print(f"   - Build directory: {service.build_dir_str}")
     
     # Test 2: Generate spec file
     print("\n2. Testing spec file generation...")
@@ -36,7 +36,7 @@ def test_packaging_service():
     }
     
     spec_content = service.get_build_spec(options)
-    print(f"   ✓ Spec file generated ({len(spec_content)} characters)")
+    print(f"   - Spec file generated ({len(spec_content)} characters)")
     
     # Verify spec content contains expected elements
     expected_elements = [
@@ -44,7 +44,7 @@ def test_packaging_service():
         'Analysis',
         'PYZ',
         'EXE',
-        'google.generativeai',
+        'google.genai',
         'pyautogui',
         'backend',
         'local_client'
@@ -56,10 +56,10 @@ def test_packaging_service():
             missing.append(element)
     
     if missing:
-        print(f"   ✗ Missing elements in spec: {missing}")
+        print(f"   x Missing elements in spec: {missing}")
         return False
     else:
-        print(f"   ✓ All expected elements present in spec")
+        print(f"   - All expected elements present in spec")
     
     # Test 3: Test spec with different options
     print("\n3. Testing spec with different options...")
@@ -73,15 +73,15 @@ def test_packaging_service():
     spec_content_2 = service.get_build_spec(options_no_console)
     
     if 'console=False' in spec_content_2:
-        print("   ✓ Console mode correctly set to False")
+        print("   - Console mode correctly set to False")
     else:
-        print("   ✗ Console mode not correctly set")
+        print("   x Console mode not correctly set")
         return False
     
     if 'COLLECT' in spec_content_2:
-        print("   ✓ Directory-based build (COLLECT) present")
+        print("   - Directory-based build (COLLECT) present")
     else:
-        print("   ✗ Directory-based build not correctly configured")
+        print("   x Directory-based build not correctly configured")
         return False
     
     # Test 4: Test build status
@@ -89,19 +89,19 @@ def test_packaging_service():
     status = service.get_build_status()
     
     if not status['is_building']:
-        print("   ✓ Initial build status is not building")
+        print("   - Initial build status is not building")
     else:
-        print("   ✗ Initial build status incorrect")
+        print("   x Initial build status incorrect")
         return False
     
     if status['progress'] == 0:
-        print("   ✓ Initial progress is 0")
+        print("   - Initial progress is 0")
     else:
-        print("   ✗ Initial progress incorrect")
+        print("   x Initial progress incorrect")
         return False
     
     print("\n" + "=" * 60)
-    print("All tests passed! ✓")
+    print("All tests passed! -")
     print("=" * 60)
     return True
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         success = test_packaging_service()
         sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"\n✗ Test failed with error: {e}")
+        print(f"\n- Test failed with error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

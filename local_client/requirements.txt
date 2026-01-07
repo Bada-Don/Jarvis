@@ -22,6 +22,9 @@ watchdog>=3.0.0
 # Process management
 psutil>=5.9.0
 
+# Gemini AI for Vision Service
+google-genai
+
 # Note: GPU acceleration not available for older GPUs (compute capability < 3.7)
 
 # Settings Interface dependencies

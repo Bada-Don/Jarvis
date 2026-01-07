@@ -224,7 +224,7 @@ class PackagingService:
         
         # Build hidden imports list
         hidden_imports = [
-            'google.generativeai',
+            'google.genai',
             'pyautogui',
             'pygetwindow',
             'PIL',

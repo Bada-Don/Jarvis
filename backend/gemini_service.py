@@ -8,7 +8,7 @@ Supports both FlexiSIGN-specific tasks and general computer automation.
 
 import os
 import json
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 
@@ -396,23 +396,14 @@ class GeminiPlannerService:
         self.config = config
         
         # Interpolate config values into prompts
-        general_prompt = GENERAL_SYSTEM_PROMPT.format(**config)
-        flexisign_prompt = FLEXISIGN_SYSTEM_PROMPT.format(**config)
+        self.general_prompt = GENERAL_SYSTEM_PROMPT.format(**config)
+        self.flexisign_prompt = FLEXISIGN_SYSTEM_PROMPT.format(**config)
         
-        # Configure the Gemini API
-        genai.configure(api_key=self.api_key)
+        # Initialize the GenAI Client
+        self.client = genai.Client(api_key=self.api_key)
         
-        # Initialize models for different modes with interpolated prompts
-        # Using gemini-2.5-flash for better quota limits
-        self.general_model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
-            system_instruction=general_prompt
-        )
-        
-        self.flexisign_model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
-            system_instruction=flexisign_prompt
-        )
+        # Using gemini-2.5-flash for latest features and performance
+        self.model_name = 'gemini-2.5-flash'
     
     def detect_mode(self, user_command: str) -> str:
         """
@@ -463,12 +454,18 @@ class GeminiPlannerService:
         if mode is None:
             mode = self.detect_mode(user_command)
         
-        # Select appropriate model
-        model = self.flexisign_model if mode == "flexisign" else self.general_model
+        # Select appropriate prompt
+        system_prompt = self.flexisign_prompt if mode == "flexisign" else self.general_prompt
         
         try:
             # Generate the plan using Gemini
-            response = model.generate_content(user_command)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=user_command,
+                config={
+                    'system_instruction': system_prompt
+                }
+            )
             
             # Extract the text response
             response_text = response.text.strip()

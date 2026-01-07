@@ -27,11 +27,11 @@ except ImportError:
 
 # Import Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
-    print("⚠️ Warning: google-generativeai not installed")
+    print("⚠️ Warning: google-genai not installed")
 
 # Import FastSAM
 try:
@@ -241,10 +241,10 @@ class VisionService:
         
         # Configure Gemini
         if GEMINI_AVAILABLE:
-            genai.configure(api_key=self.api_key)
-            self.vision_model = genai.GenerativeModel('gemini-2.5-flash')
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = 'gemini-2.5-flash'
         else:
-            self.vision_model = None
+            self.client = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")
         
         # Load FastSAM model
@@ -363,7 +363,21 @@ Now identify these targets in the image: {targets_str}
 Return ONLY a JSON object with the mappings."""
 
         try:
-            response = self.vision_model.generate_content([prompt, pil_image])
+            # Prepare image part for the new SDK
+            import io
+            img_byte_arr = io.BytesIO()
+            pil_image.save(img_byte_arr, format='PNG')
+            image_data = img_byte_arr.getvalue()
+            
+            from google.genai import types
+            
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_data, mime_type='image/png')
+                ]
+            )
             response_text = response.text.strip()
             
             # Handle markdown code blocks
@@ -457,7 +471,21 @@ Analyze the screenshot and determine if this expected state has been achieved.
 Return ONLY a JSON object with your assessment."""
 
         try:
-            response = self.vision_model.generate_content([prompt, pil_image])
+            # Prepare image part
+            import io
+            img_byte_arr = io.BytesIO()
+            pil_image.save(img_byte_arr, format='PNG')
+            image_data = img_byte_arr.getvalue()
+            
+            from google.genai import types
+            
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_data, mime_type='image/png')
+                ]
+            )
             response_text = response.text.strip()
             
             # Handle markdown code blocks
