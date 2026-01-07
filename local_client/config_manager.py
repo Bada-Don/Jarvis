@@ -10,6 +10,10 @@ import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from dotenv import get_key, set_key
+
+# Path to the backend .env file
+ENV_PATH = Path(__file__).parent.parent / "backend" / ".env"
 
 
 # Settings schema with default values and metadata
@@ -26,6 +30,18 @@ SETTINGS_SCHEMA = {
             "default": "",
             "required": True,
             "description": "Windows username for path generation"
+        }
+    },
+    "llm": {
+        "LLM_PROVIDER": {
+            "type": "string",
+            "default": "gemini",
+            "description": "LLM Provider (gemini or openai)"
+        },
+        "OPENAI_API_KEY": {
+            "type": "string",
+            "default": "",
+            "description": "OpenAI API Key (leave empty to use env var)"
         }
     },
     "paths": {
@@ -278,6 +294,15 @@ class ConfigManager:
                         config_dict[category] = {}
                     config_dict[category][var_name] = value
         
+        # Override sensitive keys from .env
+        try:
+            if ENV_PATH.exists():
+                api_key = get_key(ENV_PATH, "OPENAI_API_KEY")
+                if api_key and "llm" in config_dict:
+                    config_dict["llm"]["OPENAI_API_KEY"] = api_key
+        except Exception as e:
+            print(f"Warning: Could not read .env file: {e}")
+
         return config_dict
     
     def write_config(self, settings: Dict[str, Dict[str, Any]]) -> bool:
@@ -301,6 +326,27 @@ class ConfigManager:
             # Update each setting in the content
             for category, category_settings in settings.items():
                 for key, value in category_settings.items():
+                    
+                    # Intercept sensitive keys
+                    if key == "OPENAI_API_KEY":
+                        try:
+                            # Write to .env
+                            if not ENV_PATH.parent.exists():
+                                ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+                            if not ENV_PATH.exists():
+                                 with open(ENV_PATH, 'w') as f:
+                                     f.write("")
+                            
+                            # Only update if value is not empty (or handle clearing?)
+                            # If value is provided, update .env
+                            if value:
+                                set_key(ENV_PATH, "OPENAI_API_KEY", str(value))
+                            
+                            # Always clear from config.py to avoid storing secrets
+                            value = ""
+                        except Exception as e:
+                            print(f"Error writing to .env: {e}")
+                    
                     content = self._update_setting_in_content(content, key, value)
             
             # Write back to file

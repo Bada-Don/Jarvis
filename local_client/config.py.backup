@@ -6,11 +6,19 @@
 SERVER_URL = r"http://localhost:5000"
 
 # =============================================================================
+# LLM SETTINGS
+# =============================================================================
+# Provider: 'gemini' or 'openai'
+LLM_PROVIDER = 'openai'
+# Leave empty to use environment variable OPENAI_API_KEY
+OPENAI_API_KEY = ''
+
+# =============================================================================
 # SYSTEM INFORMATION
 # =============================================================================
 # Windows username for path generation
 # This is used by the planner model to generate correct file paths
-WINDOWS_USERNAME = 'harshitsingla'
+WINDOWS_USERNAME = 'harsh'
 
 # User-specific paths (used in AI prompts)
 # These paths are injected into the system prompts dynamically

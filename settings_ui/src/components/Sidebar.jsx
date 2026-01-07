@@ -21,6 +21,7 @@ import { useTheme } from "./ThemeProvider";
 
 const navigationItems = [
   { id: "system", label: "System Settings", icon: Settings },
+  { id: "llm", label: "LLM Provider", icon: Bot },
   { id: "timing", label: "Timing Configuration", icon: Clock },
   { id: "paths", label: "Path Management", icon: Folder },
   { id: "flexisign", label: "FlexiSIGN Settings", icon: Printer },
@@ -37,7 +38,7 @@ export default function Sidebar({ hasUnsavedChanges }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { theme } = useTheme();
-  
+
   // Determine if we're in dark mode (for logo glow effect)
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -83,31 +84,27 @@ export default function Sidebar({ hasUnsavedChanges }) {
         fixed lg:relative inset-y-0 left-0
         transition-all duration-300 ease-in-out
         ${isCollapsed ? "w-20" : "w-64"}
-        ${
-          isMobileMenuOpen
+        ${isMobileMenuOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0"
-        }
+          }
       `}
       >
         {/* Header */}
         <div className="p-6 border-b border-border bg-card">
           <div className="flex items-center justify-between  ">
             <div
-              className={`flex items-center transition-all duration-300 ${
-                isCollapsed ? "justify-center w-full" : ""
-              }`}
+              className={`flex items-center transition-all duration-300 ${isCollapsed ? "justify-center w-full" : ""
+                }`}
             >
               <JarvisLogo
-                className={`transition-all duration-300 text-primary ${
-                  isCollapsed ? "w-8 h-8" : "w-8 h-8 mr-3 ml-auto"
-                }`}
+                className={`transition-all duration-300 text-primary ${isCollapsed ? "w-8 h-8" : "w-8 h-8 mr-3 ml-auto"
+                  }`}
                 style={{ filter: isDark ? "drop-shadow(0 0 8px #16e2d7)" : "none" }}
               />
               <h1
-                className={`text-l font-bold text-foreground whitespace-nowrap transition-all duration-300 ${
-                  isCollapsed ? "hidden" : "block"
-                }`}
+                className={`text-l font-bold text-foreground whitespace-nowrap transition-all duration-300 ${isCollapsed ? "hidden" : "block"
+                  }`}
               >
                 JARVIS SETTINGS
               </h1>
@@ -119,9 +116,8 @@ export default function Sidebar({ hasUnsavedChanges }) {
               title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               <ChevronLeft
-                className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${
-                  isCollapsed ? "rotate-180" : ""
-                }`}
+                className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""
+                  }`}
               />
             </button>
           </div>
@@ -151,10 +147,9 @@ export default function Sidebar({ hasUnsavedChanges }) {
                     w-full text-left px-4 py-3 rounded-lg transition-all duration-200
                     flex items-center group
                     ${isCollapsed ? "justify-center" : "space-x-3"}
-                    ${
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-m scale-[1.02]"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:shadow-s"
+                    ${isActive
+                      ? "bg-primary text-primary-foreground shadow-m scale-[1.02]"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:shadow-s"
                     }
                   `}
                   title={isCollapsed ? item.label : undefined}
@@ -162,9 +157,8 @@ export default function Sidebar({ hasUnsavedChanges }) {
                   {({ isActive }) => (
                     <>
                       <span
-                        className={`transition-transform duration-200 ${
-                          isActive ? "" : "group-hover:scale-110"
-                        }`}
+                        className={`transition-transform duration-200 ${isActive ? "" : "group-hover:scale-110"
+                          }`}
                       >
                         <item.icon className="w-5 h-5" />
                       </span>
@@ -192,9 +186,8 @@ export default function Sidebar({ hasUnsavedChanges }) {
         {/* Footer */}
         <div className="p-4 border-t border-border bg-muted/50">
           <div
-            className={`text-xs text-muted-foreground ${
-              isCollapsed ? "text-center" : "text-center"
-            }`}
+            className={`text-xs text-muted-foreground ${isCollapsed ? "text-center" : "text-center"
+              }`}
           >
             {isCollapsed ? (
               <JarvisLogo className="w-6 h-6 mx-auto opacity-50 text-primary" />

@@ -66,10 +66,10 @@ export default function FormField({
   const handleBrowse = async () => {
     setIsValidating(true);
     try {
-      const path = pathType === 'folder' 
+      const path = pathType === 'folder'
         ? await api.browseFolder(`Select ${label}`)
         : await api.browseFile(`Select ${label}`, fileTypes);
-      
+
       if (path) {
         handleChange(path);
       }
@@ -83,9 +83,10 @@ export default function FormField({
   const renderInput = () => {
     switch (type) {
       case 'text':
+      case 'password':
         return (
           <input
-            type="text"
+            type={type}
             value={value || ''}
             onChange={(e) => handleChange(e.target.value)}
             placeholder={placeholder}

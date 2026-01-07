@@ -1,16 +1,15 @@
 """
-Gemini Planner Service for Two-Model Pipeline
+Planner Service for Two-Model Pipeline
 
-This module provides the GeminiPlannerService class that uses Gemini Flash Lite
+This module provides the PlannerService class that uses an LLM (Gemini or OpenAI)
 to convert natural language commands into structured execution plans.
 Supports both FlexiSIGN-specific tasks and general computer automation.
 """
 
 import os
 import json
-from google import genai
 from dotenv import load_dotenv
-
+from llm_provider import GeminiProvider, OpenAIProvider
 
 # Load environment variables from .env file
 load_dotenv()
@@ -337,9 +336,9 @@ You MUST include an "expected_final_state" field describing what the screen shou
 """
 
 
-class GeminiPlannerService:
+class PlannerService:
     """
-    Service class for generating execution plans using Gemini Flash Lite.
+    Service class for generating execution plans using an LLM.
     
     Supports two modes:
     - General: For any computer automation task
@@ -348,32 +347,21 @@ class GeminiPlannerService:
     
     def __init__(self, api_key: str = None, config: dict = None):
         """
-        Initialize the GeminiPlannerService.
+        Initialize the PlannerService.
         
         Args:
-            api_key: Optional Gemini API key. If not provided, will attempt
-                    to load from GEMINI_API_KEY environment variable.
+            api_key: Optional API key override. 
             config: Optional configuration dict with user-specific values.
-                   If not provided, will attempt to load from local_client.config
-        
-        Raises:
-            ValueError: If no API key is provided or found in environment.
         """
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY')
-        
-        if not self.api_key:
-            raise ValueError(
-                "Gemini API key not configured. "
-                "Set GEMINI_API_KEY environment variable or pass api_key parameter."
-            )
-        
         # Load config if not provided
         if config is None:
             try:
                 # Try to import config from local_client
                 import sys
                 from pathlib import Path
-                sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
+                local_client_path = Path(__file__).parent.parent / "local_client"
+                if str(local_client_path) not in sys.path:
+                    sys.path.insert(0, str(local_client_path))
                 import config as user_config
                 
                 config = {
@@ -383,6 +371,8 @@ class GeminiPlannerService:
                     'DOWNLOADS_PATH': getattr(user_config, 'DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
                     'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
                 }
+                self.llm_provider = getattr(user_config, 'LLM_PROVIDER', 'gemini')
+                self.openai_key = getattr(user_config, 'OPENAI_API_KEY', '')
             except Exception as e:
                 print(f"Warning: Could not load config, using defaults: {e}")
                 config = {
@@ -392,18 +382,37 @@ class GeminiPlannerService:
                     'DOWNLOADS_PATH': r'C:\Users\user\Downloads',
                     'STICKERS_PATH': r'D:\Stickers\New Briefcase',
                 }
+                self.llm_provider = 'gemini'
+                self.openai_key = ''
         
+        # Ensure LLM provider settings are available
+        self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
+        self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
+
         self.config = config
         
         # Interpolate config values into prompts
         self.general_prompt = GENERAL_SYSTEM_PROMPT.format(**config)
         self.flexisign_prompt = FLEXISIGN_SYSTEM_PROMPT.format(**config)
         
-        # Initialize the GenAI Client
-        self.client = genai.Client(api_key=self.api_key)
+        # Initialize the Provider
+        self.init_provider(api_key)
         
-        # Using gemini-2.5-flash for latest features and performance
-        self.model_name = 'gemini-2.5-flash'
+    def init_provider(self, str_api_key_override=None):
+        """Initialize the LLM provider based on configuration."""
+        if self.llm_provider == 'openai':
+             api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
+             if not api_key:
+                 raise ValueError("OpenAI API key not configured. Set OPENAI_API_KEY in config or env.")
+             self.provider = OpenAIProvider(api_key=api_key)
+        else:
+             # Default to Gemini
+             api_key = str_api_key_override or os.getenv('GEMINI_API_KEY')
+             if not api_key:
+                 raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
+             self.provider = GeminiProvider(api_key=api_key)
+        
+        print(f"Initialized Planner with {self.llm_provider} provider")
     
     def detect_mode(self, user_command: str) -> str:
         """
@@ -442,10 +451,6 @@ class GeminiPlannerService:
         
         Returns:
             dict: Parsed execution plan with "sequence" array and "mode" field.
-        
-        Raises:
-            ValueError: If the model returns invalid JSON.
-            Exception: If the API call fails.
         """
         if not user_command or not user_command.strip():
             raise ValueError("User command cannot be empty")
@@ -458,17 +463,13 @@ class GeminiPlannerService:
         system_prompt = self.flexisign_prompt if mode == "flexisign" else self.general_prompt
         
         try:
-            # Generate the plan using Gemini
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=user_command,
-                config={
-                    'system_instruction': system_prompt
-                }
+            # Generate the content using the abstract provider
+            response_text = self.provider.generate_content(
+                system_prompt=system_prompt,
+                user_prompt=user_command
             )
             
-            # Extract the text response
-            response_text = response.text.strip()
+            response_text = response_text.strip()
             
             # Clean up response if it contains markdown code blocks
             if response_text.startswith('```'):
@@ -482,7 +483,10 @@ class GeminiPlannerService:
             try:
                 import sys
                 from pathlib import Path
-                sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
+                # Add local_client to sys.path to import json_utils
+                local_client_path = Path(__file__).parent.parent / "local_client"
+                if str(local_client_path) not in sys.path:
+                    sys.path.insert(0, str(local_client_path))
                 from json_utils import safe_json_loads
                 plan = safe_json_loads(response_text)
             except ImportError:

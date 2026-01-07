@@ -14,5 +14,8 @@ pyautogui
 # Gemini AI for Planner Model
 google-genai
 
+# OpenAI SDK
+openai
+
 # Environment variable management
 python-dotenv

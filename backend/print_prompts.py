@@ -1,12 +1,17 @@
 """Print the fully interpolated system prompts."""
 
 import sys
+import codecs
 from pathlib import Path
+
+# Force UTF-8 for stdout
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 # Add local_client to path for config import
 sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
 
-from gemini_service import GENERAL_SYSTEM_PROMPT, FLEXISIGN_SYSTEM_PROMPT
+from planner_service import GENERAL_SYSTEM_PROMPT, FLEXISIGN_SYSTEM_PROMPT
 
 try:
     import config as user_config

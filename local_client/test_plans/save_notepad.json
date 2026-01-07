@@ -21,21 +21,28 @@
     {
       "order": 4,
       "type": "keyboard",
-      "value": "Hello",
-      "desc": "Type Hello"
+      "value": "Hello World!",
+      "desc": "Type 'Hello World!' in Notepad"
     },
     {
       "order": 5,
       "type": "keyboard",
       "value": "ctrl+s",
-      "desc": "Open Save As dialog"
+      "desc": "Open Save dialog"
     },
     {
       "order": 6,
-      "type": "save_file",
-      "path": "C:\\\\Users\\\\harsh\\\\OneDrive\\\\Desktop\\\\Hello.txt",
-      "desc": "Save file to Desktop"
+      "type": "keyboard",
+      "value": "C:\\Users\\harsh\\OneDrive\\Desktop\\file.txt",
+      "desc": "Enter full path to save file.txt on Desktop"
+    },
+    {
+      "order": 7,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Save the file"
     }
   ],
-  "expected_final_state": "Notepad window open with 'Hello' typed and saved as 'Hello.txt' on the Desktop."
+  "expected_final_state": "Notepad window with 'Hello World!' has been saved as file.txt on the Desktop",
+  "mode": "general"
 }

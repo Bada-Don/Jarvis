@@ -55,7 +55,7 @@ class TestDirectAutomationPlanGeneration(unittest.TestCase):
         if not cls.api_key:
             raise unittest.SkipTest("GEMINI_API_KEY not set - skipping integration tests")
         
-        from gemini_service import GeminiPlannerService
+        from planner_service import GeminiPlannerService
         cls.GeminiPlannerService = GeminiPlannerService
     
     def test_plan_generation_uses_direct_mode(self):

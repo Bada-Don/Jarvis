@@ -6,6 +6,14 @@
 SERVER_URL = r"http://localhost:5000"
 
 # =============================================================================
+# LLM SETTINGS
+# =============================================================================
+# Provider: 'gemini' or 'openai'
+LLM_PROVIDER = 'openai'
+# Leave empty to use environment variable OPENAI_API_KEY
+OPENAI_API_KEY = ''
+
+# =============================================================================
 # SYSTEM INFORMATION
 # =============================================================================
 # Windows username for path generation

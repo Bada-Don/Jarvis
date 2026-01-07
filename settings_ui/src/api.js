@@ -67,17 +67,17 @@ class APIService {
   async getSettings() {
     // Wait for PyWebView to be ready (important on first load)
     await this.waitForPyWebView();
-    
+
     if (!this.isReady()) {
       console.warn('PyWebView API not available - returning mock data');
       // Return mock data for development
       return this.getMockSettings();
     }
-    
+
     console.log('Calling Python backend: get_settings()');
     const response = await window.pywebview.api.get_settings();
     console.log('Response from Python backend:', response.success ? '✓ Success' : '✗ Failed');
-    
+
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to get settings');
     }
@@ -86,15 +86,15 @@ class APIService {
 
   async saveSettings(settings) {
     await this.waitForPyWebView();
-    
+
     if (!this.isReady()) {
       console.warn('Mock: Saving settings (PyWebView not available)', settings);
       return;
     }
-    
+
     console.log('Calling Python backend: save_settings()');
     const response = await window.pywebview.api.save_settings(settings);
-    
+
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to save settings');
     }
@@ -277,8 +277,8 @@ class APIService {
       },
       prompts: {
         planner: {
-          GENERAL_SYSTEM_PROMPT: 'You are JARVIS, an AI assistant that automates computer tasks...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/gemini_service.py)',
-          FLEXISIGN_SYSTEM_PROMPT: 'You are a FlexiSIGN Automation Agent...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/gemini_service.py)',
+          GENERAL_SYSTEM_PROMPT: 'You are JARVIS, an AI assistant that automates computer tasks...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/planner_service.py)',
+          FLEXISIGN_SYSTEM_PROMPT: 'You are a FlexiSIGN Automation Agent...\n\n(This is mock data for development. In production, the actual prompt will be loaded from backend/planner_service.py)',
         },
         vision: {
           GENERAL_VISION_PROMPT: 'Vision prompt for general UI element identification...\n\n(This is mock data for development. In production, the actual prompt will be loaded from local_client/vision_service.py)',

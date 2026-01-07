@@ -15,14 +15,14 @@ from typing import Dict, List, Optional, Tuple
 PROMPT_SCHEMA = {
     "planner": {
         "GENERAL_SYSTEM_PROMPT": {
-            "file": "backend/gemini_service.py",
+            "file": "backend/planner_service.py",
             "variable": "GENERAL_SYSTEM_PROMPT",
             "language": "markdown",
             "description": "System prompt for general computer automation",
             "required_placeholders": []
         },
         "FLEXISIGN_SYSTEM_PROMPT": {
-            "file": "backend/gemini_service.py",
+            "file": "backend/planner_service.py",
             "variable": "FLEXISIGN_SYSTEM_PROMPT",
             "language": "markdown",
             "description": "System prompt for FlexiSIGN automation",
@@ -66,7 +66,7 @@ class PromptManager:
         Initialize PromptManager with path to a service file
         
         Args:
-            service_path: Path to the Python service file (e.g., gemini_service.py)
+            service_path: Path to the Python service file (e.g., planner_service.py)
         """
         self.service_path = Path(service_path)
         

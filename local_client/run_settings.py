@@ -91,7 +91,7 @@ def check_dependencies():
         'local_client/config_manager.py',
         'local_client/prompt_manager.py',
         'local_client/validation_service.py',
-        'backend/gemini_service.py',
+        'backend/planner_service.py',
         'local_client/vision_service.py',
     ]
     

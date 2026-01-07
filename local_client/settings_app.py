@@ -966,7 +966,7 @@ def main(dev_mode=False):
             print("  - local_client/config_manager.py")
             print("  - local_client/prompt_manager.py")
             print("  - local_client/validation_service.py")
-            print("  - backend/gemini_service.py")
+            print("  - backend/planner_service.py")
             print("  - local_client/vision_service.py")
             sys.exit(1)
         

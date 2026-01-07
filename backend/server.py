@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from datetime import datetime
-from gemini_service import GeminiPlannerService
+from planner_service import PlannerService
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -22,7 +22,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 # Initialize Gemini Planner Service
 planner_service = None
 try:
-    planner_service = GeminiPlannerService()
+    planner_service = PlannerService()
     print("✓ Gemini Planner Service initialized successfully")
 except ValueError as e:
     print(f"⚠ Gemini Planner Service not available: {e}")
