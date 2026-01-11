@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, RefreshCw, Search, X, Info } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Search, X, Info, Mic, MicOff } from 'lucide-react';
 import './App.css';
 import { api } from './api';
 import Loader from './components/Loader';
@@ -209,16 +209,31 @@ function AppContent() {
               setIsSettingsOpen(true);
               navigate('/system');
             }}
-            isListening={isListening}
-            toggleListening={() => setIsListening(!isListening)}
           />
         }
         centerPanel={
-          <VoiceOrb
-            isListening={isListening}
-            chromaRGBr={isListening ? 9.0 : 7.5}
-            cameraZoom={isListening ? 180 : 150}
-          />
+          <div className="flex flex-col items-center justify-center h-full w-full relative">
+            <div className="flex-1 w-full relative">
+              <VoiceOrb
+                isListening={isListening}
+                chromaRGBr={isListening ? 9.0 : 7.5}
+                cameraZoom={isListening ? 180 : 150}
+              />
+            </div>
+
+            <div className="absolute bottom-10 z-20">
+              <button
+                onClick={() => setIsListening(!isListening)}
+                className={`flex items-center justify-center gap-3 px-8 py-3 rounded-full border transition-all duration-300 backdrop-blur-md ${isListening
+                    ? 'bg-red-500/20 border-red-500/50 text-red-500 hover:bg-red-500/30 shadow-[0_0_25px_rgba(239,68,68,0.3)]'
+                    : 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30 shadow-[0_0_25px_rgba(20,184,166,0.3)]'
+                  }`}
+              >
+                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                <span className="font-bold tracking-wide uppercase">{isListening ? 'Stop Listening' : 'Start Listening'}</span>
+              </button>
+            </div>
+          </div>
         }
         rightPanel={<ChatPanel />}
         overlay={

@@ -1,21 +1,52 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { gsap } from 'gsap';
+import { motion } from 'framer-motion';
 import { noiseVertexShader, fragmentShader } from './shaders';
+import { StatusDisplay } from './StatusDisplay';
 
-const VoiceOrb = ({
-    perlinTime = 25.0,
+const globConfig = {
+    perlinTime: 50.0,
+    perlinDNoise: 0.0,
+    chromaRGBr: 255,
+    chromaRGBg: 255,
+    chromaRGBb: 255,
+    chromaRGBn: 255,
+    chromaRGBm: 255,
+    sphereWireframe: true,
+    spherePoints: true,
+    spherePsize: 0.3,
+    cameraSpeedY: 0.0,
+    cameraSpeedX: 0.0,
+    cameraZoom: 170,
+    cameraGuide: false,
+    perlinMorph: 5.5,
+};
+
+// Internal AbstractBall logic adapted to React component
+const AbstractBall = ({
+    perlinTime = 50.0,
     perlinMorph = 25.0,
-    perlinDNoise = 0.0,
-    chromaRGBr = 7.5,
-    chromaRGBg = 5.0,
-    chromaRGBb = 7.0,
-    chromaRGBn = 1.0,
-    chromaRGBm = 1.0,
-    sphereWireframe = false, // Not fully supported with shader material easily without tweaks, keeping for prop compat with caller
+    perlinDNoise = 2.5,
+    chromaRGBr = 255,
+    chromaRGBg = 255,
+    chromaRGBb = 255,
+    chromaRGBn = 255,
+    chromaRGBm = 255,
+    sphereWireframe = false,
+    spherePoints = false,
     spherePsize = 1.0,
-    cameraZoom = 150,
+    cameraSpeedY = 0.0,
+    cameraSpeedX = 0.0,
+    cameraZoom = 175,
 }) => {
     const mountRef = useRef(null);
+    const sceneRef = useRef(null);
+    const cameraRef = useRef(null);
+    const rendererRef = useRef(null);
+    const materialRef = useRef(null);
+    const meshRef = useRef(null);
+    const pointRef = useRef(null);
     const uniformsRef = useRef({
         time: { value: 0.0 },
         RGBr: { value: chromaRGBr / 10 },
@@ -31,6 +62,11 @@ const VoiceOrb = ({
     useEffect(() => {
         if (!mountRef.current) return;
 
+        // Cleanup any existing children to prevent duplicates
+        while (mountRef.current.firstChild) {
+            mountRef.current.removeChild(mountRef.current.firstChild);
+        }
+
         const width = mountRef.current.clientWidth;
         const height = mountRef.current.clientHeight;
 
@@ -43,7 +79,7 @@ const VoiceOrb = ({
         renderer.shadowMap.enabled = true;
         mountRef.current.appendChild(renderer.domElement);
 
-        const geometry = new THREE.IcosahedronGeometry(20, 30); // increased density for smoother noise
+        const geometry = new THREE.IcosahedronGeometry(20, 20);
 
         const material = new THREE.ShaderMaterial({
             uniforms: uniformsRef.current,
@@ -54,11 +90,14 @@ const VoiceOrb = ({
         });
 
         const mesh = new THREE.Mesh(geometry, material);
+        const point = new THREE.Points(geometry, material);
+
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        // morphTargetsRelative is not needed for vertex displacement shader approach
+        mesh.geometry.morphTargetsRelative = true;
 
         scene.add(mesh);
+        scene.add(point);
 
         let animationFrameId;
 
@@ -67,7 +106,6 @@ const VoiceOrb = ({
             uniformsRef.current.morph.value = perlinMorph;
             uniformsRef.current.dnoise.value = perlinDNoise;
 
-            // Update other uniforms if props change
             uniformsRef.current.RGBr.value = chromaRGBr / 10;
             uniformsRef.current.RGBg.value = chromaRGBg / 10;
             uniformsRef.current.RGBb.value = chromaRGBb / 10;
@@ -75,9 +113,17 @@ const VoiceOrb = ({
             uniformsRef.current.RGBm.value = chromaRGBm;
             uniformsRef.current.psize.value = spherePsize;
 
-            mesh.rotation.y += 0.002;
-            mesh.rotation.x += 0.001;
+            mesh.rotation.y += cameraSpeedY / 100;
+            mesh.rotation.z += cameraSpeedX / 100;
+            point.rotation.y = mesh.rotation.y;
+            point.rotation.z = mesh.rotation.z;
 
+            // Toggle visibility based on props
+            material.wireframe = sphereWireframe;
+            mesh.visible = !spherePoints;
+            point.visible = spherePoints;
+
+            camera.lookAt(scene.position);
             renderer.render(scene, camera);
             animationFrameId = requestAnimationFrame(animate);
         };
@@ -95,22 +141,77 @@ const VoiceOrb = ({
 
         window.addEventListener('resize', handleResize);
 
+        sceneRef.current = scene;
+        cameraRef.current = camera;
+
         return () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(animationFrameId);
-            if (mountRef.current && renderer.domElement) {
-                mountRef.current.removeChild(renderer.domElement);
+            // Strict cleanup
+            if (mountRef.current) {
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
+                }
             }
             renderer.dispose();
             geometry.dispose();
             material.dispose();
         };
     }, [
-        perlinTime, perlinMorph, perlinDNoise, sphereWireframe,
-        chromaRGBr, chromaRGBg, chromaRGBb, chromaRGBn, chromaRGBm, spherePsize, cameraZoom
+        sphereWireframe, spherePoints
+        // Trigger re-init only if structural props change
     ]);
 
-    return <div ref={mountRef} className="w-full h-full" />;
+    // GSAP Animations
+    useEffect(() => {
+        if (cameraRef.current) {
+            gsap.to(cameraRef.current.position, {
+                duration: 2,
+                z: 300 - cameraZoom
+            });
+        }
+        gsap.to(uniformsRef.current.RGBr, { duration: 1, value: Math.random() * 10 });
+        gsap.to(uniformsRef.current.RGBg, { duration: 1, value: Math.random() * 10 });
+        gsap.to(uniformsRef.current.RGBb, { duration: 1, value: Math.random() * 10 });
+        gsap.to(uniformsRef.current.RGBn, { duration: 1, value: Math.random() * 2 });
+        gsap.to(uniformsRef.current.RGBm, { duration: 1, value: Math.random() * 5 });
+    }, [cameraZoom]);
+
+    return <div ref={mountRef} className="w-full h-full min-h-[400px]" />;
+};
+
+const VoiceOrb = ({ isListening }) => {
+    const [config, setConfig] = useState(globConfig);
+
+    useEffect(() => {
+        if (isListening) {
+            setConfig({
+                ...globConfig,
+                perlinTime: 20.0,
+                perlinMorph: 25.0,
+            });
+        } else {
+            setConfig({
+                ...globConfig,
+            });
+        }
+    }, [isListening]);
+
+    return (
+        <div className="relative w-full h-full flex flex-col justify-center items-center">
+            <motion.div
+                layout
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+                className="w-full flex justify-center items-center h-full"
+            >
+                <div style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <AbstractBall {...config} />
+                </div>
+            </motion.div>
+
+            <StatusDisplay status={isListening ? "Listening..." : "Idle"} />
+        </div>
+    );
 };
 
 export default VoiceOrb;
