@@ -341,7 +341,7 @@ class VisionService:
         Returns:
             dict: Mapping of target names to element IDs (or None if not found)
         """
-        if self.vision_model is None:
+        if self.client is None:
             raise RuntimeError("Gemini Vision model not available. Cannot map targets.")
         
         if not targets:
@@ -443,7 +443,7 @@ Return ONLY a JSON object with the mappings."""
                 - missing_elements: list[str]
                 - corrective_actions: list[str]
         """
-        if self.vision_model is None:
+        if self.client is None:
             raise RuntimeError("Gemini Vision model not available. Cannot verify task.")
         
         if not expected_state:

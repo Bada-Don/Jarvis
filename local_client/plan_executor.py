@@ -197,6 +197,10 @@ class PlanExecutor:
         
         # Window manager suppression flag for modal dialogs (Save/Open)
         self._suppress_window_manager: bool = False
+        
+        # Track UI state changes for adaptive re-scanning
+        self._ui_changed_since_scan: bool = False
+        self._last_visual_click_index: int = -1
     
     def _send_status(self, message: str, status_type: str = "info", progress: int = None):
         """Send status update via callback."""
@@ -409,9 +413,8 @@ class PlanExecutor:
         self._screenshot_taken = False
         self._pending_app_name = None
         self._last_typed_text = None
-        
-        # Collect all visual targets for batch mapping
-        visual_targets = self._collect_visual_targets(sequence)
+        self._ui_changed_since_scan = False
+        self._last_visual_click_index = -1
         
         # Execute steps
         for i, step in enumerate(sequence):
@@ -437,6 +440,13 @@ class PlanExecutor:
             try:
                 if step_type == 'keyboard':
                     self._execute_keyboard_step(step, sequence, i)
+                    
+                    # Mark UI as changed if this was a typing action (not just navigation keys)
+                    value = step.get('value', '').lower()
+                    if not self._is_special_key(value) or value in ['enter', 'return', 'backspace', 'delete', 'del']:
+                        # Typing text or pressing Enter/Backspace can change UI content
+                        self._ui_changed_since_scan = True
+                    
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
                             step_order, "keyboard", 
@@ -444,21 +454,38 @@ class PlanExecutor:
                         )
                     
                 elif step_type == 'visual_click':
-                    # Single-pass: take screenshot and map targets on first visual click
-                    if not self._screenshot_taken and visual_targets:
-                        self._perform_vision_pass(visual_targets)
-                    
                     target_name = step.get('target_name')
-                    if target_name:
-                        self._execute_visual_click(target_name)
-                        if DEBUG_LOGGER_AVAILABLE:
-                            element_id = self._id_map.get(target_name) if self._id_map else None
-                            get_debug_logger().log_step_execution(
-                                step_order, "visual_click",
-                                f"target='{target_name}' id={element_id} desc='{step_desc}'"
-                            )
-                    else:
+                    if not target_name:
                         self._send_status(f"Missing target_name in step {step_order}", "warning")
+                        continue
+                    
+                    # Adaptive re-scanning: Check if we need to re-scan
+                    needs_rescan = False
+                    
+                    if not self._screenshot_taken:
+                        # First visual click - always scan
+                        needs_rescan = True
+                    elif self._ui_changed_since_scan:
+                        # UI has changed since last scan - need to re-scan
+                        needs_rescan = True
+                        self._send_status("UI changed detected, re-scanning for visual elements...", "info")
+                    
+                    if needs_rescan:
+                        # Collect remaining visual targets from this point forward
+                        remaining_targets = self._collect_remaining_visual_targets(sequence, i)
+                        if remaining_targets:
+                            self._perform_vision_pass(remaining_targets)
+                            self._ui_changed_since_scan = False
+                    
+                    self._execute_visual_click(target_name)
+                    self._last_visual_click_index = i
+                    
+                    if DEBUG_LOGGER_AVAILABLE:
+                        element_id = self._id_map.get(target_name) if self._id_map else None
+                        get_debug_logger().log_step_execution(
+                            step_order, "visual_click",
+                            f"target='{target_name}' id={element_id} desc='{step_desc}'"
+                        )
                 
                 # Direct Path Automation step types
                 elif step_type == 'save_file':
@@ -623,6 +650,20 @@ class PlanExecutor:
                     targets.append(target)
         return targets
     
+    def _collect_remaining_visual_targets(self, sequence: list, current_index: int) -> list[str]:
+        """
+        Collect visual targets from current_index onwards.
+        Used for adaptive re-scanning when UI has changed.
+        """
+        targets = []
+        for i in range(current_index, len(sequence)):
+            step = sequence[i]
+            if step.get('type') == 'visual_click':
+                target = step.get('target_name')
+                if target and target not in targets:
+                    targets.append(target)
+        return targets
+    
     def _perform_vision_pass(self, targets: list[str]):
         """Perform single-pass vision: screenshot, SoM detection, and target mapping."""
         self._send_status("Capturing screen...", "info")
@@ -685,13 +726,17 @@ class PlanExecutor:
                     if '\\' in prev_value or '/' in prev_value:
                         return False
                     
-                    # Check if there was a Win key press before
-                    for j in range(current_index - 1, -1, -1):
+                    # Check if there was a Win key press before, but only within the last 3 steps
+                    # This prevents false positives when Enter is used in other contexts (like search within apps)
+                    for j in range(current_index - 1, max(-1, current_index - 4), -1):
                         check_val = sequence[j].get('value', '').lower()
                         if check_val == 'win' or check_val == 'windows':
                             return True
-                        # Stop if we hit another Enter (different context)
+                        # Stop if we hit another Enter or app launch (different context)
                         if check_val == 'enter':
+                            break
+                        # Stop if we hit a hotkey that changes context (like Ctrl+F for search)
+                        if '+' in check_val and any(mod in check_val for mod in ['ctrl', 'alt']):
                             break
         
         # Check patterns
