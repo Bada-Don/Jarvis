@@ -1,0 +1,42 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "keyboard",
+      "value": "win",
+      "desc": "Open Start menu"
+    },
+    {
+      "order": 2,
+      "type": "keyboard",
+      "value": "whatsapp",
+      "desc": "Search for WhatsApp"
+    },
+    {
+      "order": 3,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Launch WhatsApp"
+    },
+    {
+      "order": 4,
+      "type": "visual_click",
+      "target_name": "search_icon_whatsapp",
+      "desc": "Click on Search icon in WhatsApp"
+    },
+    {
+      "order": 5,
+      "type": "keyboard",
+      "value": "Harshit Singla",
+      "desc": "Type contact name in search"
+    },
+    {
+      "order": 6,
+      "type": "visual_click",
+      "target_name": "chat_harshit_singla",
+      "desc": "Select chat with Harshit Singla"
+    }
+  ],
+  "expected_final_state": "WhatsApp window open with chat of Harshit Singla visible",
+  "mode": "general"
+}
