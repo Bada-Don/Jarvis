@@ -16,6 +16,11 @@ easyocr>=1.7.0
 pywin32>=306
 comtypes>=1.4.0
 
+# UI Automation for enhanced desktop app readiness detection (optional but recommended)
+# Provides deterministic state detection for desktop applications
+# Graceful fallback to basic window checks if not installed
+uiautomation>=2.0.0  # Optional: Enhanced desktop app detection
+
 # File watching (for run_client.py)
 watchdog>=3.0.0
 

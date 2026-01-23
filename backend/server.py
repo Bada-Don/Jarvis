@@ -11,7 +11,16 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload size
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=50 * 1024 * 1024)
+
+# Configure SocketIO with longer timeouts for automation tasks
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins="*", 
+    max_http_buffer_size=50 * 1024 * 1024,
+    ping_timeout=60,  # Wait 60 seconds for ping response before disconnecting
+    ping_interval=25,  # Send ping every 25 seconds to keep connection alive
+    async_mode='eventlet'  # Use eventlet for better long-running task support
+)
 
 UPLOAD_FOLDER = 'uploads'
 LOG_FILE = 'logs.txt'

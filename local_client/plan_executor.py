@@ -87,6 +87,17 @@ except ImportError:
     def is_abort_requested():
         return False
 
+# Readiness detection imports
+try:
+    from readiness_detector import (
+        get_browser_detector, get_desktop_detector, get_filesystem_detector,
+        ReadinessState
+    )
+    READINESS_DETECTOR_AVAILABLE = True
+except ImportError:
+    READINESS_DETECTOR_AVAILABLE = False
+    print("⚠️ Warning: readiness_detector not available")
+
 
 class PlanExecutor:
     """
@@ -201,6 +212,15 @@ class PlanExecutor:
         # Track UI state changes for adaptive re-scanning
         self._ui_changed_since_scan: bool = False
         self._last_visual_click_index: int = -1
+        
+        # Readiness detectors
+        self._browser_detector = get_browser_detector(self.status_callback) if READINESS_DETECTOR_AVAILABLE else None
+        self._desktop_detector = get_desktop_detector(self.status_callback) if READINESS_DETECTOR_AVAILABLE else None
+        self._filesystem_detector = get_filesystem_detector(self.status_callback) if READINESS_DETECTOR_AVAILABLE else None
+        
+        # Track last app launch for readiness detection
+        self._last_launched_app: Optional[str] = None
+        self._last_launch_step_index: int = -1
     
     def _send_status(self, message: str, status_type: str = "info", progress: int = None):
         """Send status update via callback."""
@@ -458,6 +478,10 @@ class PlanExecutor:
                     if not target_name:
                         self._send_status(f"Missing target_name in step {step_order}", "warning")
                         continue
+                    
+                    # CRITICAL: Wait for application/page readiness before first visual click
+                    if not self._screenshot_taken:
+                        self._wait_for_readiness_before_vision(sequence, i)
                     
                     # Adaptive re-scanning: Check if we need to re-scan
                     needs_rescan = False
@@ -833,6 +857,7 @@ class PlanExecutor:
     def _handle_app_launch(self, sequence: list, current_index: int):
         """
         Handle post-app-launch window activation.
+        Tracks launched app for readiness detection.
         """
         # Skip if window manager is suppressed (during modal dialogs)
         if self._suppress_window_manager:
@@ -846,6 +871,11 @@ class PlanExecutor:
         
         # Try to determine what app was launched
         app_name = self._get_app_name_from_context(sequence, current_index)
+        
+        # Track for readiness detection
+        if app_name:
+            self._last_launched_app = app_name.lower()
+            self._last_launch_step_index = current_index
         
         if app_name:
             self._send_status(f"Waiting for {app_name} window...", "info")
@@ -1161,6 +1191,8 @@ class PlanExecutor:
         Uses filesystem-based path resolution (no UI/OCR) and opens the folder
         using 'explorer' command.
         
+        Includes retry logic with filesystem readiness detection for newly created folders.
+        
         Args:
             step: Step dict with 'path' (fuzzy path query)
         
@@ -1188,12 +1220,31 @@ class PlanExecutor:
                 error_message="Path parameter is required"
             )
         
-        # Resolve the path
+        # Resolve the path with retry logic for newly created folders
         self._send_status(f"Resolving folder path: '{path_query}'", "info")
-        result = self._path_resolver.resolve(path_query)
+        
+        max_retries = 3
+        retry_delay = 0.5
+        result = None
+        
+        for attempt in range(max_retries):
+            result = self._path_resolver.resolve(path_query)
+            
+            if result.success:
+                break
+            
+            # If path resolution failed and we have readiness detector, wait for folder to exist
+            if attempt < max_retries - 1:
+                if READINESS_DETECTOR_AVAILABLE and self._filesystem_detector:
+                    # Try to construct expected path for readiness check
+                    # This helps when folder was just created
+                    self._send_status(f"Path not found, waiting for folder creation (attempt {attempt + 1}/{max_retries})...", "info")
+                    time.sleep(retry_delay)
+                else:
+                    time.sleep(retry_delay)
         
         if not result.success:
-            self._send_status(f"✗ Could not resolve path: {result.error_message}", "warning")
+            self._send_status(f"✗ Could not resolve path after {max_retries} attempts: {result.error_message}", "warning")
             return result
         
         # Show resolution steps
@@ -1203,18 +1254,31 @@ class PlanExecutor:
         resolved_path = result.resolved_path
         self._send_status(f"✓ Resolved to: {resolved_path}", "success")
         
-        # Check if folder exists
-        if not os.path.exists(resolved_path):
-            result.success = False
-            result.error_message = f"Folder does not exist: {resolved_path}"
-            self._send_status(f"✗ {result.error_message}", "warning")
-            return result
-        
-        if not os.path.isdir(resolved_path):
-            result.success = False
-            result.error_message = f"Path is not a folder: {resolved_path}"
-            self._send_status(f"✗ {result.error_message}", "warning")
-            return result
+        # Verify folder exists and is accessible with readiness detection
+        if READINESS_DETECTOR_AVAILABLE and self._filesystem_detector:
+            readiness_result = self._filesystem_detector.wait_for_folder_accessible(
+                resolved_path,
+                timeout=3.0
+            )
+            
+            if not readiness_result.is_ready:
+                result.success = False
+                result.error_message = f"Folder not accessible: {readiness_result.message}"
+                self._send_status(f"✗ {result.error_message}", "warning")
+                return result
+        else:
+            # Fallback: simple existence check
+            if not os.path.exists(resolved_path):
+                result.success = False
+                result.error_message = f"Folder does not exist: {resolved_path}"
+                self._send_status(f"✗ {result.error_message}", "warning")
+                return result
+            
+            if not os.path.isdir(resolved_path):
+                result.success = False
+                result.error_message = f"Path is not a folder: {resolved_path}"
+                self._send_status(f"✗ {result.error_message}", "warning")
+                return result
         
         # Open the folder in Explorer
         try:
@@ -1483,6 +1547,119 @@ class PlanExecutor:
         except Exception as e:
             self._send_status(f"delete_folder: error - {str(e)}", "error")
             return False
+    
+    def _wait_for_readiness_before_vision(self, sequence: list, current_step_index: int):
+        """
+        Wait for application/page readiness before taking screenshot for vision.
+        This ensures UI is fully loaded before attempting element detection.
+        
+        Implements deterministic readiness detection based on:
+        - Browser: Page load completion (title stabilization)
+        - Desktop App: Window state + UI Automation tree population
+        - General: Intelligent delay based on recent actions
+        
+        Args:
+            sequence: Full step sequence
+            current_step_index: Index of current visual_click step
+        """
+        if not READINESS_DETECTOR_AVAILABLE:
+            # Fallback: use simple delay
+            self._send_status("Readiness detector not available, using fallback delay", "info")
+            time.sleep(2.0)
+            return
+        
+        # Determine what type of readiness check to perform
+        # based on recently launched app and recent actions
+        
+        # Check if we recently launched a browser
+        if self._last_launched_app and self._last_launch_step_index >= 0:
+            steps_since_launch = current_step_index - self._last_launch_step_index
+            
+            # Only apply readiness if launch was recent (within last 10 steps)
+            if steps_since_launch <= 10:
+                app_lower = self._last_launched_app.lower()
+                
+                # Browser readiness detection
+                if any(browser in app_lower for browser in ['chrome', 'firefox', 'edge', 'browser']):
+                    self._send_status(f"Waiting for {self._last_launched_app} page to load...", "info")
+                    result = self._browser_detector.wait_for_page_load(
+                        browser_name=app_lower,
+                        timeout=15.0,
+                        min_stable_time=1.0
+                    )
+                    
+                    if result.is_ready:
+                        self._send_status(f"✓ Page ready ({result.elapsed_time:.1f}s)", "success")
+                        return
+                    else:
+                        self._send_status(f"⚠ Page readiness check: {result.message}", "warning")
+                        # Continue anyway with fallback delay
+                        time.sleep(1.0)
+                        return
+                
+                # Desktop application readiness detection
+                elif app_lower not in ['notepad', 'calculator', 'cmd', 'powershell']:
+                    # For complex desktop apps, use UI Automation readiness
+                    self._send_status(f"Waiting for {self._last_launched_app} to be ready...", "info")
+                    
+                    # Try to get window title from window manager
+                    window_title = self._last_launched_app
+                    if self.window_manager:
+                        fg_title = self.window_manager.get_foreground_window_title()
+                        if fg_title:
+                            window_title = fg_title
+                    
+                    result = self._desktop_detector.wait_for_app_ready(
+                        window_title_pattern=window_title,
+                        timeout=15.0,
+                        check_cpu_stable=False,  # Skip CPU check for speed
+                        min_control_count=5
+                    )
+                    
+                    if result.is_ready:
+                        self._send_status(f"✓ Application ready ({result.elapsed_time:.1f}s)", "success")
+                        return
+                    else:
+                        self._send_status(f"⚠ App readiness check: {result.message}", "warning")
+                        # Continue anyway with fallback delay
+                        time.sleep(1.0)
+                        return
+        
+        # Check if we recently navigated (pressed Enter after typing URL/search)
+        # Look back a few steps for Enter after typing
+        for i in range(max(0, current_step_index - 5), current_step_index):
+            step = sequence[i]
+            if step.get('type') == 'keyboard':
+                value = step.get('value', '').lower()
+                desc = step.get('desc', '').lower()
+                
+                # Check if this was navigation (Enter after URL/search)
+                if value == 'enter' and any(keyword in desc for keyword in ['navigate', 'search', 'go to', 'open']):
+                    # Recent navigation detected - wait for page load
+                    self._send_status("Recent navigation detected, waiting for page load...", "info")
+                    
+                    # Try browser readiness if we can detect browser
+                    if self.window_manager:
+                        fg_title = self.window_manager.get_foreground_window_title()
+                        if fg_title and any(browser in fg_title.lower() for browser in ['chrome', 'firefox', 'edge']):
+                            browser_name = next((b for b in ['chrome', 'firefox', 'edge'] if b in fg_title.lower()), 'chrome')
+                            result = self._browser_detector.wait_for_page_load(
+                                browser_name=browser_name,
+                                timeout=15.0,
+                                min_stable_time=1.0
+                            )
+                            
+                            if result.is_ready:
+                                self._send_status(f"✓ Page ready ({result.elapsed_time:.1f}s)", "success")
+                                return
+                    
+                    # Fallback: simple delay
+                    time.sleep(2.0)
+                    return
+        
+        # No specific readiness check needed - use minimal delay
+        self._send_status("No specific readiness check needed, proceeding...", "info")
+        time.sleep(0.5)
 
 
 def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float] | None:
@@ -1501,3 +1678,4 @@ def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float]
     cy = (y1 + y2) / 2
     
     return (cx, cy)
+

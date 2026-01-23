@@ -58,8 +58,15 @@ except ImportError:
     print("⚠️ Warning: permission_service.py not found")
     PERMISSION_SERVICE_AVAILABLE = False
 
-# Initialize SocketIO Client
-sio = socketio.Client()
+# Initialize SocketIO Client with reconnection settings
+sio = socketio.Client(
+    reconnection=True,
+    reconnection_attempts=0,  # Infinite reconnection attempts
+    reconnection_delay=1,  # Start with 1 second delay
+    reconnection_delay_max=5,  # Max 5 seconds between attempts
+    logger=False,
+    engineio_logger=False
+)
 
 # Permission service instance (initialized after connection)
 permission_service = None
@@ -91,6 +98,11 @@ def command(data):
 def send_status(message, status_type="info"):
     """Send status update to server."""
     try:
+        # Check if socket is connected before emitting
+        if not sio.connected:
+            print(f"⚠️ Socket disconnected, skipping status: {message if isinstance(message, str) else message.get('message', '')}")
+            return
+        
         if isinstance(message, dict):
             sio.emit('status_update', {
                 'message': message,
