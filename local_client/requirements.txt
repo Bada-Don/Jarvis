@@ -4,6 +4,9 @@ numpy>=1.24.0
 pyautogui>=0.9.54
 Pillow>=10.0.0
 
+# Audio feedback
+pygame>=2.5.0
+
 # SocketIO client
 python-socketio>=5.10.0
 websocket-client>=1.6.0

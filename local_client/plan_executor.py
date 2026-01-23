@@ -7,6 +7,8 @@ Supports direct path automation for file operations.
 
 import time
 import re
+import os
+from pathlib import Path
 from typing import Callable, Optional
 
 import pyautogui
@@ -14,6 +16,25 @@ import pyautogui
 # Safety settings
 pyautogui.FAILSAFE = False  # Disable fail-safe (corner abort) for uninterrupted automation
 pyautogui.PAUSE = 0.05  # Minimal pause, we handle timing ourselves
+
+# Audio feedback
+try:
+    from pygame import mixer
+    mixer.init()
+    AUDIO_AVAILABLE = True
+    
+    # Get paths to audio files
+    ASSETS_DIR = Path(__file__).parent / "assets"
+    START_SOUND = str(ASSETS_DIR / "Start.mp3")
+    COMPLETE_SOUND = str(ASSETS_DIR / "Complete.mp3")
+    
+    # Verify files exist
+    if not os.path.exists(START_SOUND) or not os.path.exists(COMPLETE_SOUND):
+        print("⚠️ Warning: Audio files not found in assets folder")
+        AUDIO_AVAILABLE = False
+except ImportError:
+    AUDIO_AVAILABLE = False
+    print("⚠️ Warning: pygame not available for audio feedback. Install with: pip install pygame")
 
 try:
     from vision_service import VisionService
@@ -233,6 +254,25 @@ class PlanExecutor:
         else:
             self.status_callback(message, status_type)
     
+    def _play_sound(self, sound_type: str):
+        """
+        Play audio feedback for execution events.
+        
+        Args:
+            sound_type: Either 'start' or 'complete'
+        """
+        if not AUDIO_AVAILABLE:
+            return
+        
+        try:
+            sound_file = START_SOUND if sound_type == 'start' else COMPLETE_SOUND
+            mixer.music.load(sound_file)
+            mixer.music.play()
+            # Don't wait for sound to finish - let it play in background
+        except Exception as e:
+            # Silently fail if audio playback has issues
+            pass
+    
     def set_permission_service(self, permission_service: 'PermissionService'):
         """Set the permission service for critical operation checks."""
         self._permission_service = permission_service
@@ -427,6 +467,9 @@ class PlanExecutor:
         total_steps = len(sequence)
         self._send_status(f"Starting execution of {total_steps} steps (mode: {self._mode})", "info", progress=0)
         
+        # Play start sound
+        self._play_sound('start')
+        
         # Reset state for new plan
         self._id_map = None
         self._box_map = None
@@ -595,6 +638,10 @@ class PlanExecutor:
                 continue
         
         self._send_status("Execution complete!", "success", progress=100)
+        
+        # Play completion sound
+        self._play_sound('complete')
+        
         return {"success": True, "aborted": False}
     
     def _execute_direct_step(self, step: dict, sequence: list, current_index: int) -> bool:
