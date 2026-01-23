@@ -56,7 +56,7 @@ class GeminiProvider(LLMProvider):
 class OpenAIProvider(LLMProvider):
     """OpenAI implementation of LLMProvider."""
     
-    def __init__(self, api_key: str, model_name: str = 'gpt-4o'):
+    def __init__(self, api_key: str, model_name: str = 'gpt-5.2'):
         if not OPENAI_AVAILABLE:
              raise ImportError("openai package is not installed.")
         self.client = OpenAI(api_key=api_key)

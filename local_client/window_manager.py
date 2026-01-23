@@ -270,6 +270,38 @@ class WindowManager:
                             if self.verbose:
                                 self.log(f"Foreground window ({fg_hwnd}) belongs to same process as tracked window. Assuming modal/child dialog.")
                             return True
+                        
+                        # Check if foreground window is a system dialog or newly launched app
+                        # that we should NOT override
+                        fg_title = win32gui.GetWindowText(fg_hwnd)
+                        fg_title_lower = fg_title.lower()
+                        
+                        # System dialogs and utilities that should maintain focus
+                        system_windows = [
+                            'run',  # Win+R dialog
+                            'task manager',
+                            'command prompt',
+                            'powershell',
+                            'windows powershell',
+                            'cmd.exe',
+                            'file explorer',
+                            'explorer',
+                            'notepad',
+                            'calculator',
+                            'settings',
+                            'control panel',
+                            'search',  # Windows search
+                        ]
+                        
+                        # Check if current window is a system window that should keep focus
+                        for sys_window in system_windows:
+                            if sys_window in fg_title_lower:
+                                if self.verbose:
+                                    self.log(f"Foreground window is system window '{fg_title}', not re-activating tracked window")
+                                # Update tracked window to the new one
+                                self._last_activated_hwnd = fg_hwnd
+                                return True
+                        
                 except Exception as e:
                     self.log(f"Error checking process affinity: {e}")
 
