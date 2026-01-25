@@ -1,0 +1,43 @@
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "shell_command",
+      "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\"",
+      "desc": "Create LabCode folder on Desktop"
+    },
+    {
+      "order": 2,
+      "type": "write_file",
+      "path": "%USERPROFILE%\\OneDrive\\Desktop\\LabCode\\bubble_sort.py",
+      "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        swapped = False\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                swapped = True\n        if not swapped:\n            break\n    return arr\n\n\nif __name__ == \"__main__\":\n    s = input(\"Enter numbers separated by spaces: \").strip()\n    if not s:\n        print(\"No input provided.\")\n    else:\n        arr = list(map(int, s.split()))\n        bubble_sort(arr)\n        print(\"Sorted array:\", *arr)\n",
+      "desc": "Create bubble_sort.py program in LabCode folder"
+    },
+    {
+      "order": 3,
+      "type": "shell_command",
+      "command": "code \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\"",
+      "desc": "Open LabCode folder in VS Code"
+    },
+    {
+      "order": 4,
+      "type": "keyboard",
+      "value": "ctrl+`",
+      "desc": "Open VS Code integrated terminal"
+    },
+    {
+      "order": 5,
+      "type": "keyboard",
+      "value": "python bubble_sort.py",
+      "desc": "Type command to run the bubble sort program"
+    },
+    {
+      "order": 6,
+      "type": "keyboard",
+      "value": "enter",
+      "desc": "Execute the program in terminal"
+    }
+  ], 
+  "expected_final_state": "VS Code is open with the Desktop\\LabCode folder loaded, bubble_sort.py present in the explorer, and the integrated terminal shows the program running and waiting for input (or printing output after input).",
+  "mode": "general"
+}

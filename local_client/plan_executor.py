@@ -119,6 +119,18 @@ except ImportError:
     READINESS_DETECTOR_AVAILABLE = False
     print("⚠️ Warning: readiness_detector not available")
 
+# File operations import (Plane 2: Code Workspace Control)
+try:
+    import sys
+    backend_path = Path(__file__).parent.parent / "backend"
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    from file_operations import write_file, read_file, append_file, create_directory
+    FILE_OPERATIONS_AVAILABLE = True
+except ImportError:
+    FILE_OPERATIONS_AVAILABLE = False
+    print("⚠️ Warning: file_operations not available")
+
 
 class PlanExecutor:
     """
@@ -626,6 +638,47 @@ class PlanExecutor:
                             f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
                         )
                 
+                elif step_type == 'shell_command':
+                    result = self._execute_shell_command_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "shell_command",
+                            f"command='{step.get('command', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                # Plane 2: Code Workspace Control operations
+                elif step_type == 'write_file':
+                    result = self._execute_write_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "write_file",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'read_file':
+                    result = self._execute_read_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "read_file",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'append_file':
+                    result = self._execute_append_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "append_file",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'create_directory':
+                    result = self._execute_create_directory_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "create_directory",
+                            f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
                 else:
                     self._send_status(f"Unknown step type: {step_type}", "warning")
                 
@@ -840,6 +893,12 @@ class PlanExecutor:
                     # Skip if it looks like a file path
                     if '\\' in value or '/' in value:
                         continue
+                    # Skip terminal commands (python, node, npm, git, etc.)
+                    if any(value_lower.startswith(cmd) for cmd in ['python ', 'node ', 'npm ', 'git ', 'pip ', 'java ', 'javac ', 'gcc ', 'g++ ', 'make ', 'cargo ', 'go ', 'ruby ', 'perl ', 'php ']):
+                        continue
+                    # Skip if it contains file extensions (likely a command with file argument)
+                    if any(ext in value_lower for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.rb', '.go', '.rs', '.sh', '.bat', '.cmd']):
+                        continue
                     return value
         
         # Check last typed text with same filters
@@ -848,6 +907,12 @@ class PlanExecutor:
             if any(cmd in last_lower for cmd in ['cmd /c', 'cmd.exe /c', 'mkdir', 'rmdir', 'del ', 'copy ', 'move ', 'ren ']):
                 return None
             if '\\' in self._last_typed_text or '/' in self._last_typed_text:
+                return None
+            # Skip terminal commands
+            if any(last_lower.startswith(cmd) for cmd in ['python ', 'node ', 'npm ', 'git ', 'pip ', 'java ', 'javac ', 'gcc ', 'g++ ', 'make ', 'cargo ', 'go ', 'ruby ', 'perl ', 'php ']):
+                return None
+            # Skip if it contains file extensions
+            if any(ext in last_lower for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.rb', '.go', '.rs', '.sh', '.bat', '.cmd']):
                 return None
         
         return self._last_typed_text
@@ -1595,6 +1660,127 @@ class PlanExecutor:
             self._send_status(f"delete_folder: error - {str(e)}", "error")
             return False
     
+    def _execute_shell_command_step(self, step: dict) -> bool:
+        """
+        Execute a shell_command step - runs a Windows shell command.
+        
+        This is the core of the "Hybrid CLI" approach for file operations.
+        Supports the "Killer Combo" workflow:
+        1. Create file/folder with shell command
+        2. Open with 'start' command
+        3. Edit via keyboard
+        4. Save with Ctrl+S (silent because file exists)
+        
+        CRITICAL: If command contains "start ", waits 3-5 seconds for the
+        application window to open before continuing.
+        
+        Args:
+            step: Step dict with 'command' (string)
+        
+        Returns:
+            bool: True if command executed successfully
+        """
+        import subprocess
+        import time
+        
+        command = step.get('command', '')
+        
+        if not command:
+            self._send_status("shell_command: missing 'command' parameter", "warning")
+            return False
+        
+        try:
+            # Log the command (sanitized for security)
+            command_preview = command[:100] + '...' if len(command) > 100 else command
+            self._send_status(f"Executing shell command: {command_preview}", "info")
+            
+            # Execute the command using subprocess with shell=True
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30  # 30 second timeout to prevent hanging
+            )
+            
+            # Check if command contains "start " - indicates app launch
+            if "start " in command.lower():
+                # Wait for application window to open
+                wait_time = 4.0  # 4 seconds default wait
+                self._send_status(f"Waiting {wait_time}s for application to open...", "info")
+                time.sleep(wait_time)
+                
+                # Try to activate the window if window manager is available
+                if self.window_manager and not self._suppress_window_manager:
+                    # Extract app name from "start filename" pattern
+                    import re
+                    match = re.search(r'start\s+([^\s&|]+)', command, re.IGNORECASE)
+                    if match:
+                        app_name = match.group(1).strip('"\'')
+                        # Track for readiness detection
+                        self._last_launched_app = app_name
+                        self._send_status(f"Attempting to activate {app_name} window...", "info")
+                        # Give window manager a chance to find and activate
+                        time.sleep(0.5)
+            
+            # Check if command launches VS Code
+            elif command.lower().startswith('code ') or ' code ' in command.lower():
+                # Check if VS Code is already running (faster load time)
+                vscode_already_running = False
+                if self.window_manager:
+                    # Check for existing VS Code window
+                    fg_title = self.window_manager.get_foreground_window_title()
+                    if fg_title and "visual studio code" in fg_title.lower():
+                        vscode_already_running = True
+                
+                if vscode_already_running:
+                    # VS Code already open - just switching/opening folder
+                    wait_time = 3.0
+                    self._send_status(f"VS Code already running, waiting {wait_time}s...", "info")
+                    time.sleep(wait_time)
+                else:
+                    # First launch - needs more time
+                    wait_time = 8.0  # 8 seconds for cold start
+                    self._send_status(f"Launching VS Code, waiting {wait_time}s...", "info")
+                    time.sleep(wait_time)
+                
+                # Try to find and activate VS Code window
+                if self.window_manager and not self._suppress_window_manager:
+                    self._send_status("Looking for VS Code window...", "info")
+                    # VS Code window title usually contains "Visual Studio Code"
+                    success = self.window_manager.wait_and_activate(
+                        "Visual Studio Code",
+                        timeout=10.0
+                    )
+                    if success:
+                        self._send_status("✓ VS Code window activated and ready", "success")
+                        time.sleep(1.5)  # Extra time for UI to settle and extensions to load
+                    else:
+                        self._send_status("⚠ Could not detect VS Code window, continuing...", "warning")
+                        time.sleep(2.0)  # Extra fallback wait
+            
+            # Check return code
+            if result.returncode == 0:
+                self._send_status(f"✓ Command executed successfully", "success")
+                if result.stdout:
+                    # Log stdout if present (truncated)
+                    stdout_preview = result.stdout[:200].strip()
+                    if stdout_preview:
+                        self._send_status(f"Output: {stdout_preview}", "info")
+                return True
+            else:
+                # Command failed
+                error_msg = result.stderr.strip() if result.stderr else f"Exit code: {result.returncode}"
+                self._send_status(f"shell_command failed: {error_msg}", "warning")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self._send_status(f"shell_command: command timed out after 30 seconds", "error")
+            return False
+        except Exception as e:
+            self._send_status(f"shell_command: error - {str(e)}", "error")
+            return False
+    
     def _wait_for_readiness_before_vision(self, sequence: list, current_step_index: int):
         """
         Wait for application/page readiness before taking screenshot for vision.
@@ -1707,6 +1893,171 @@ class PlanExecutor:
         # No specific readiness check needed - use minimal delay
         self._send_status("No specific readiness check needed, proceeding...", "info")
         time.sleep(0.5)
+    
+    # ========================================================================
+    # PLANE 2: CODE WORKSPACE CONTROL METHODS
+    # ========================================================================
+    
+    def _execute_write_file_step(self, step: dict) -> bool:
+        """
+        Execute a write_file step - create or overwrite a file with content.
+        
+        This is the core of Plane 2 workspace control - reliable file creation/editing
+        without UI interaction. Much faster and more reliable than UI-based file creation.
+        
+        Args:
+            step: Step dict with 'path' (str) and 'content' (str)
+        
+        Returns:
+            bool: True if file written successfully
+        """
+        if not FILE_OPERATIONS_AVAILABLE:
+            self._send_status("write_file: file_operations module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        content = step.get('content', '')
+        
+        if not path:
+            self._send_status("write_file: missing 'path' parameter", "warning")
+            return False
+        
+        # Content can be empty string (create empty file)
+        
+        try:
+            success, message = write_file(path, content)
+            
+            if success:
+                # Show truncated content preview
+                content_preview = content[:100].replace('\n', '\\n')
+                if len(content) > 100:
+                    content_preview += '...'
+                self._send_status(f"✓ {message}", "success")
+                self._send_status(f"Content preview: {content_preview}", "info")
+            else:
+                self._send_status(f"write_file failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"write_file: error - {str(e)}", "error")
+            return False
+    
+    def _execute_read_file_step(self, step: dict) -> bool:
+        """
+        Execute a read_file step - read content from a file.
+        
+        Args:
+            step: Step dict with 'path' (str)
+        
+        Returns:
+            bool: True if file read successfully
+        """
+        if not FILE_OPERATIONS_AVAILABLE:
+            self._send_status("read_file: file_operations module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        
+        if not path:
+            self._send_status("read_file: missing 'path' parameter", "warning")
+            return False
+        
+        try:
+            success, message, content = read_file(path)
+            
+            if success:
+                # Show truncated content preview
+                content_preview = content[:200].replace('\n', '\\n') if content else ''
+                if content and len(content) > 200:
+                    content_preview += '...'
+                self._send_status(f"✓ {message}", "success")
+                self._send_status(f"Content preview: {content_preview}", "info")
+            else:
+                self._send_status(f"read_file failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"read_file: error - {str(e)}", "error")
+            return False
+    
+    def _execute_append_file_step(self, step: dict) -> bool:
+        """
+        Execute an append_file step - append content to an existing file.
+        
+        Args:
+            step: Step dict with 'path' (str) and 'content' (str)
+        
+        Returns:
+            bool: True if content appended successfully
+        """
+        if not FILE_OPERATIONS_AVAILABLE:
+            self._send_status("append_file: file_operations module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        content = step.get('content', '')
+        
+        if not path:
+            self._send_status("append_file: missing 'path' parameter", "warning")
+            return False
+        
+        if not content:
+            self._send_status("append_file: missing 'content' parameter", "warning")
+            return False
+        
+        try:
+            success, message = append_file(path, content)
+            
+            if success:
+                content_preview = content[:100].replace('\n', '\\n')
+                if len(content) > 100:
+                    content_preview += '...'
+                self._send_status(f"✓ {message}", "success")
+                self._send_status(f"Appended: {content_preview}", "info")
+            else:
+                self._send_status(f"append_file failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"append_file: error - {str(e)}", "error")
+            return False
+    
+    def _execute_create_directory_step(self, step: dict) -> bool:
+        """
+        Execute a create_directory step - create a directory.
+        
+        Args:
+            step: Step dict with 'path' (str)
+        
+        Returns:
+            bool: True if directory created successfully
+        """
+        if not FILE_OPERATIONS_AVAILABLE:
+            self._send_status("create_directory: file_operations module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        
+        if not path:
+            self._send_status("create_directory: missing 'path' parameter", "warning")
+            return False
+        
+        try:
+            success, message = create_directory(path)
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+            else:
+                self._send_status(f"create_directory failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"create_directory: error - {str(e)}", "error")
+            return False
 
 
 def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float] | None:
@@ -1725,4 +2076,3 @@ def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float]
     cy = (y1 + y2) / 2
     
     return (cx, cy)
-

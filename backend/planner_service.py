@@ -157,6 +157,148 @@ For visual_click steps, include:
   "expected_final_state": "Form submitted with dropdown menu expanded showing options"
 }}
 
+## Shell Command Operations (HYBRID CLI APPROACH - PREFERRED):
+For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This is the "Killer Combo" workflow:
+
+**CRITICAL: The Killer Combo Workflow for File Operations:**
+1. **Create** the file/folder using `shell_command` FIRST (e.g., `mkdir FolderName`, `type nul > file.txt`)
+2. **Open** the file using `open_file` or `start filename` command
+3. **Edit** via keyboard actions
+4. **Save** via `Ctrl+S` (silent save because file already exists)
+
+**Shell Command Tool:**
+{{
+  "type": "shell_command",
+  "command": "mkdir MyFolder",
+  "desc": "Create MyFolder directory"
+}}
+
+**Available Commands:**
+- Create folder: `mkdir "Folder Name"` (use quotes for spaces)
+- Create empty file: `type nul > "filename.txt"` (use quotes for spaces)
+- Create multiple files: `type nul > file1.txt & type nul > file2.txt`
+- Open file: `start "" "full\path\to\file.txt"` (ALWAYS use full path with start, quotes for spaces)
+- Open folder: `explorer "FolderName"` or `explorer .`
+- Chain commands: Use `&` to run multiple commands (e.g., `mkdir test & cd test`)
+- Delete file: `del "filename.txt"`
+- Delete folder: `rmdir /s /q "FolderName"`
+- Copy file: `copy "source.txt" "dest.txt"`
+- Move file: `move "source.txt" "dest.txt"`
+
+**CRITICAL RULES FOR SHELL COMMANDS:**
+1. **ALWAYS use quotes** around paths/filenames with spaces: `mkdir "AI Lab"` not `mkdir AI Lab`
+2. **For start command**: Use format `start "" "full\path\to\file.txt"` - the empty quotes are required
+3. **Use full absolute paths** with start command, not relative paths or cd
+4. **Combine folder creation and file creation** in ONE command when possible
+5. **Don't chain cd commands** - use full paths instead
+
+**IMPORTANT:** When using `start` command to open applications, the system automatically waits 3-5 seconds for the window to appear.
+
+**Example - Create and edit a file (Killer Combo):**
+{{
+  "sequence": [
+    {{"order": 1, "type": "shell_command", "command": "type nul > \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Create notes.txt on Desktop"}},
+    {{"order": 2, "type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Open notes.txt"}},
+    {{"order": 3, "type": "keyboard", "value": "Hello World!", "desc": "Type content"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+s", "desc": "Save file (silent)"}}
+  ],
+  "expected_final_state": "Notepad showing notes.txt with 'Hello World!' saved"
+}}
+
+**Example - Create folder with file (spaces in names):**
+{{
+  "sequence": [
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\" & type nul > \"%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt\"", "desc": "Create AI Lab folder with Practical 1 file"}},
+    {{"order": 2, "type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt\"", "desc": "Open Practical 1 file"}},
+    {{"order": 3, "type": "keyboard", "value": "AIM: To implement BFS algorithm", "desc": "Type content"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+s", "desc": "Save file (silent)"}}
+  ],
+  "expected_final_state": "Notepad showing Practical 1.txt with content saved in AI Lab folder"
+}}
+
+**Example - Create folder structure:**
+{{
+  "sequence": [
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\Projects\" & mkdir \"%USERPROFILE%\\Desktop\\Projects\\Python\"", "desc": "Create nested folders"}},
+    {{"order": 2, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\Projects\"", "desc": "Open Projects folder"}}
+  ],
+  "expected_final_state": "Explorer showing Projects folder with Python subfolder"
+}}
+
+**IMPORTANT:** This approach does NOT work with FlexiSIGN file operations. For FlexiSIGN, use the standard FlexiSIGN workflow.
+
+## PLANE 2: CODE WORKSPACE CONTROL (RECOMMENDED FOR CODE FILES):
+For creating/editing code files and structured content, use these direct file operations. They are MUCH faster and more reliable than UI-based editing.
+
+**CRITICAL: The Modern Workflow for Code Files:**
+1. **Create folder** using `shell_command` (e.g., `mkdir "%USERPROFILE%\\Desktop\\LabCode"`)
+2. **Write file content** using `write_file` with full code (NO UI interaction needed!)
+3. **Open in editor** using `shell_command` (e.g., `code "path\\to\\file.py"` for VS Code)
+4. **Run program** using keyboard shortcuts (Ctrl+` for terminal, then type command)
+
+### Write File (RECOMMENDED FOR CODE):
+Use "write_file" to create or overwrite a file with content directly. NO UI needed!
+{{
+  "type": "write_file",
+  "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py",
+  "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        for j in range(0, n-i-1):\\n            if arr[j] > arr[j+1]:\\n                arr[j], arr[j+1] = arr[j+1], arr[j]\\n\\ndata = [64, 34, 25, 12, 22, 11, 90]\\nbubble_sort(data)\\nprint(data)",
+  "desc": "Write bubble sort program"
+}}
+- "path": Full absolute path to file (use %USERPROFILE% for user directory)
+- "content": Complete file content (use \\n for newlines, escape quotes)
+- Creates parent directories automatically if they don't exist
+- Overwrites file if it already exists
+
+### Read File:
+Use "read_file" to read file contents.
+{{
+  "type": "read_file",
+  "path": "%USERPROFILE%\\Desktop\\script.py",
+  "desc": "Read script contents"
+}}
+
+### Append File:
+Use "append_file" to add content to existing file.
+{{
+  "type": "append_file",
+  "path": "%USERPROFILE%\\Desktop\\log.txt",
+  "content": "New log entry\\n",
+  "desc": "Append to log file"
+}}
+
+### Create Directory:
+Use "create_directory" to create folders.
+{{
+  "type": "create_directory",
+  "path": "%USERPROFILE%\\Desktop\\Projects\\Python",
+  "desc": "Create Python projects folder"
+}}
+
+**Example - Create Python program and run in VS Code (MODERN APPROACH):**
+{{
+  "sequence": [
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Create LabCode folder"}},
+    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data = input(\\"Enter numbers separated by spaces: \\").strip()\\n    if not data:\\n        print(\\"No input provided.\\")\\n    else:\\n        arr = list(map(int, data.split()))\\n        bubble_sort(arr)\\n        print(\\"Sorted array:\\", *arr)", "desc": "Write bubble sort program"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Open folder in VS Code"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
+    {{"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"}},
+    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
+  ],
+  "expected_final_state": "VS Code showing bubble_sort.py with terminal ready to run the program"
+}}
+
+**ADVANTAGES OF write_file:**
+- ✓ No UI interaction needed (no Ctrl+A, no typing, no Save dialog)
+- ✓ Handles long code perfectly (no character limits, no timing issues)
+- ✓ Preserves exact formatting (indentation, newlines, special characters)
+- ✓ Much faster (instant file creation vs slow typing simulation)
+- ✓ More reliable (no permission dialogs, no UI detection failures)
+- ✓ Works even if editor is not open
+
+**WHEN TO USE write_file vs shell_command + keyboard:**
+- Use `write_file` for: Code files, structured content, long text, precise formatting
+- Use `shell_command + keyboard` for: Simple text files, user-visible editing process
+
 ## File and Folder Operations (FAST & RELIABLE):
 Use filesystem-based operations that bypass UI completely. These use fuzzy path matching and are MUCH faster than UI navigation.
 
@@ -555,10 +697,13 @@ class PlannerService:
         # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object, ensure_designcentral
         # Vision mode types: keyboard, visual_click
         # File/folder operations: open_file, open_folder, save_file
+        # Shell operations: shell_command
+        # Plane 2 workspace control: write_file, read_file, append_file, create_directory
         valid_types = {
             'keyboard', 'visual_click',
             'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
-            'open_file', 'open_folder', 'save_file'
+            'open_file', 'open_folder', 'save_file', 'shell_command',
+            'write_file', 'read_file', 'append_file', 'create_directory'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -611,3 +756,23 @@ class PlannerService:
             # Validate file/folder operation step types
             if step_type in ('save_file', 'open_file', 'open_folder') and 'path' not in step:
                 raise ValueError(f"{step_type} step {i+1} missing 'path' field")
+            
+            # Validate shell_command step type
+            if step_type == 'shell_command' and 'command' not in step:
+                raise ValueError(f"shell_command step {i+1} missing 'command' field")
+            
+            # Validate Plane 2 workspace control step types
+            if step_type == 'write_file':
+                if 'path' not in step:
+                    raise ValueError(f"write_file step {i+1} missing 'path' field")
+                if 'content' not in step:
+                    raise ValueError(f"write_file step {i+1} missing 'content' field")
+            
+            if step_type in ('read_file', 'create_directory') and 'path' not in step:
+                raise ValueError(f"{step_type} step {i+1} missing 'path' field")
+            
+            if step_type == 'append_file':
+                if 'path' not in step:
+                    raise ValueError(f"append_file step {i+1} missing 'path' field")
+                if 'content' not in step:
+                    raise ValueError(f"append_file step {i+1} missing 'content' field")

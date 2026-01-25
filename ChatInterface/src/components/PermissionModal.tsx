@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     Animated,
     Easing,
+    ScrollView,
 } from 'react-native';
 import { AlertTriangle, Check, X } from 'lucide-react-native';
 
@@ -74,11 +75,18 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
                         <Text style={styles.operationText}>{operation}</Text>
                     </View>
 
-                    <Text style={styles.details}>{details}</Text>
+                    <ScrollView 
+                        style={styles.scrollContainer}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={true}
+                        persistentScrollbar={true}
+                    >
+                        <Text style={styles.details}>{details}</Text>
 
-                    <Text style={styles.warning}>
-                        This action requires your approval to proceed.
-                    </Text>
+                        <Text style={styles.warning}>
+                            This action requires your approval to proceed.
+                        </Text>
+                    </ScrollView>
 
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
@@ -119,9 +127,18 @@ const styles = StyleSheet.create({
         padding: 24,
         width: '100%',
         maxWidth: 340,
+        maxHeight: '80%',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#27272a',
+    },
+    scrollContainer: {
+        width: '100%',
+        maxHeight: 300,
+        marginBottom: 16,
+    },
+    scrollContent: {
+        paddingVertical: 4,
     },
     iconContainer: {
         width: 64,
@@ -143,7 +160,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 8,
-        marginBottom: 16,
+        marginBottom: 12,
     },
     operationText: {
         fontSize: 14,
@@ -162,7 +179,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#f59e0b',
         textAlign: 'center',
-        marginBottom: 24,
+        marginTop: 12,
     },
     buttonContainer: {
         flexDirection: 'row',
