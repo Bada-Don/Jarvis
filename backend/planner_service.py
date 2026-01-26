@@ -61,14 +61,15 @@ CRITICAL PATH RULES:
 ## Your Capabilities:
 You can control the computer through:
 1. **Keyboard actions**: typing text, pressing keys, keyboard shortcuts
-2. **Visual clicks**: clicking on UI elements identified by their description
+2. **Text-based clicks (FAST)**: clicking on UI elements by their visible text using OCR
+3. **Visual clicks (SLOW)**: clicking on UI elements identified by their description using vision AI
 
 ## Output Format:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": either "keyboard" or "visual_click"
+- "type": "keyboard", "click_text_fast", or "visual_click"
 - "desc": brief description of the action
 
 For keyboard steps, include:
@@ -78,11 +79,19 @@ For keyboard steps, include:
   - For text: just the text string like "Hello World" or "notepad"
 - "repeats": (optional) number of times to repeat
 
-For visual_click steps, include:
+For click_text_fast steps (PREFERRED - 10x faster than visual_click), include:
+- "window_title": partial or full title of the window containing the text
+- "text": the exact text to find and click on (use full name for contacts to avoid ambiguity)
+- Use this for: buttons with text, menu items, contact names, file names, any readable text
+- Fuzzy matching enabled: will match partial words (e.g., "Harshit Singla" matches "Harshit" or "Singla")
+- Examples: clicking "Harshit Singla" in WhatsApp, "Send" button, "File" menu
+
+For visual_click steps (SLOW - use only when text is not available), include:
 - "target_name": descriptive name of the UI element to click
   - Be specific: "chrome_address_bar", "start_menu_button", "file_menu", "save_button", "close_button_x"
   - For text/buttons: "button_OK", "button_Cancel", "menu_File", "tab_Settings"
   - For icons: "icon_chrome", "icon_folder", "taskbar_chrome"
+- Use this ONLY for: icons without text, images, complex UI elements without clear text labels
 
 ## Common Patterns:
 
@@ -90,10 +99,25 @@ For visual_click steps, include:
 - Press Win key, type app name, press Enter
 - Or use Win+R for Run dialog
 
+### Clicking on Text Elements (FAST METHOD - ALWAYS PREFER THIS):
+- Use click_text_fast to click on any visible text: buttons, menu items, contact names, file names
+- Example: Click on "Harshit" contact in WhatsApp
+{{
+  "sequence": [
+    {{"order": 1, "type": "click_text_fast", "window_title": "WhatsApp", "text": "Harshit", "desc": "Click on Harshit contact"}}
+  ]
+}}
+- Example: Click "Send" button
+{{
+  "sequence": [
+    {{"order": 1, "type": "click_text_fast", "window_title": "Inbox", "text": "Compose", "desc": "Click Compose button"}}
+  ]
+}}
+
 ### Web Browsing:
 - To navigate to a URL: Ctrl+L (focus address bar), type URL with a SPACE at the end, press Enter
 - IMPORTANT: Always add a trailing space after URLs (e.g., "youtube.com ") to prevent browser autocomplete
-- To search on a website: Use the website's search shortcut (e.g., "/" on YouTube) or visual_click on search box
+- To search on a website: Use the website's search shortcut (e.g., "/" on YouTube) or click_text_fast on search box
 - YouTube shortcuts: "/" focuses the search bar, then type query and press Enter
 - Google shortcuts: Just type in the search box (auto-focused on google.com)
 - DO NOT use the browser address bar to search within a website - use the website's own search feature
@@ -148,7 +172,20 @@ For visual_click steps, include:
   "expected_final_state": "Chrome browser open showing Google homepage with search box visible"
 }}
 
-## Example - Click on a specific button:
+## Example - Send message to contact in WhatsApp (FAST METHOD):
+{{
+  "sequence": [
+    {{"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"}},
+    {{"order": 2, "type": "keyboard", "value": "whatsapp", "desc": "Search for WhatsApp"}},
+    {{"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch WhatsApp"}},
+    {{"order": 4, "type": "click_text_fast", "window_title": "WhatsApp", "text": "Harshit", "desc": "Click on Harshit contact"}},
+    {{"order": 5, "type": "keyboard", "value": "Hello!", "desc": "Type message"}},
+    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Send message"}}
+  ],
+  "expected_final_state": "WhatsApp showing chat with Harshit with 'Hello!' message sent"
+}}
+
+## Example - Click on icon without text (SLOW - only when necessary):
 {{
   "sequence": [
     {{"order": 1, "type": "visual_click", "target_name": "button_submit", "desc": "Click Submit button"}},
@@ -399,9 +436,10 @@ You MUST include an "expected_final_state" field in your response. This is a bri
 - Any UI elements that should be in a specific state
 
 IMPORTANT:
-- Prefer keyboard shortcuts when possible (faster and more reliable)
+- Prefer keyboard shortcuts when possible (fastest and most reliable)
+- Use click_text_fast for any UI element with visible text (10x faster than visual_click)
 - Use website-specific search features, NOT the browser address bar for searching within sites
-- Use visual_click only when keyboard shortcuts aren't available
+- Use visual_click ONLY when the element has no readable text (icons, images, complex UI)
 - Return ONLY valid JSON, no markdown formatting or extra text
 - Each step must be atomic and executable
 - Add small waits implicitly between steps (the executor handles this)
@@ -695,12 +733,12 @@ class PlannerService:
         
         # Valid step types for each mode
         # Direct mode types: keyboard, create_text, set_dimensions, set_font, apply_style, move_object, ensure_designcentral
-        # Vision mode types: keyboard, visual_click
+        # Vision mode types: keyboard, visual_click, click_text_fast
         # File/folder operations: open_file, open_folder, save_file
         # Shell operations: shell_command
         # Plane 2 workspace control: write_file, read_file, append_file, create_directory
         valid_types = {
-            'keyboard', 'visual_click',
+            'keyboard', 'visual_click', 'click_text_fast',
             'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'append_file', 'create_directory'
@@ -726,6 +764,12 @@ class PlannerService:
             # Validate required fields for each step type
             if step_type == 'keyboard' and 'value' not in step:
                 raise ValueError(f"Keyboard step {i+1} missing 'value' field")
+            
+            if step_type == 'click_text_fast':
+                if 'window_title' not in step:
+                    raise ValueError(f"click_text_fast step {i+1} missing 'window_title' field")
+                if 'text' not in step:
+                    raise ValueError(f"click_text_fast step {i+1} missing 'text' field")
             
             if step_type == 'visual_click' and 'target_name' not in step:
                 raise ValueError(f"Visual click step {i+1} missing 'target_name' field")

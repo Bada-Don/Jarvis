@@ -11,6 +11,10 @@ torch
 torchvision
 pyautogui
 
+# Text-based clicking dependencies
+pytesseract
+pygetwindow
+
 # Gemini AI for Planner Model
 google-genai
 

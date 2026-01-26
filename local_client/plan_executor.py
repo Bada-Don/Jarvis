@@ -621,6 +621,14 @@ class PlanExecutor:
                             f"text='{step.get('text', '')}' success={result.success} desc='{step_desc}'"
                         )
                 
+                elif step_type == 'click_text_fast':
+                    result = self._execute_click_text_fast_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "click_text_fast",
+                            f"window='{step.get('window_title', '')}' text='{step.get('text', '')}' success={result.get('success', False)} desc='{step_desc}'"
+                        )
+                
                 # Critical operations that require permission
                 elif step_type == 'delete_file':
                     result = self._execute_delete_file_step(step)
@@ -1565,6 +1573,80 @@ class PlanExecutor:
             if result.all_matches:
                 detected_texts = [m.text for m in result.all_matches[:10]]
                 self._send_status(f"Detected text on screen: {detected_texts}", "info")
+        
+        return result
+    
+    def _execute_click_text_fast_step(self, step: dict) -> dict:
+        """
+        Execute a click_text_fast step using fast window-specific OCR.
+        
+        This is much faster than visual_click because:
+        1. Only scans the target window (not entire screen)
+        2. Uses lightweight pytesseract directly
+        3. No FastSAM model loading or inference
+        4. No multimodal LLM calls
+        
+        Args:
+            step: Step dict with 'window_title' and 'text'
+        
+        Returns:
+            dict with success, clicked_location, error_message
+        """
+        window_title = step.get('window_title', '')
+        text = step.get('text', '')
+        
+        if not window_title:
+            self._send_status("click_text_fast: missing 'window_title' parameter", "error")
+            return {
+                'success': False,
+                'clicked_location': None,
+                'error_message': "window_title parameter is required"
+            }
+        
+        if not text:
+            self._send_status("click_text_fast: missing 'text' parameter", "error")
+            return {
+                'success': False,
+                'clicked_location': None,
+                'error_message': "text parameter is required"
+            }
+        
+        # Import the fast text clicker
+        try:
+            import sys
+            from pathlib import Path
+            backend_path = Path(__file__).parent.parent / "backend"
+            if str(backend_path) not in sys.path:
+                sys.path.insert(0, str(backend_path))
+            from text_click_fast import FastTextClicker
+        except ImportError as e:
+            self._send_status(f"FastTextClicker not available: {e}", "error")
+            return {
+                'success': False,
+                'clicked_location': None,
+                'error_message': f"FastTextClicker module not available: {e}"
+            }
+        
+        # Execute the fast click
+        self._send_status(f"Executing click_text_fast: '{text}' in window '{window_title}'", "info")
+        
+        clicker = FastTextClicker()
+        result = clicker.click_text_in_window(window_title, text)
+        
+        if result['success']:
+            match_type = result.get('match_type', 'exact')
+            self._send_status(
+                f"click_text_fast completed ({match_type} match): '{result.get('matched_text', text)}' at {result['clicked_location']}", 
+                "success"
+            )
+        else:
+            error_msg = result['error_message']
+            self._send_status(f"click_text_fast failed: {error_msg}", "warning")
+            
+            # Show detected texts for debugging
+            if result.get('detected_texts'):
+                detected = result['detected_texts'][:10]
+                self._send_status(f"Detected texts in window: {detected}", "info")
         
         return result
 
