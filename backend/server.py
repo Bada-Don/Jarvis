@@ -1,3 +1,7 @@
+# Eventlet monkey patch MUST be first, before any other imports
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import base64
 import json
@@ -293,4 +297,12 @@ if __name__ == '__main__':
     print("=" * 50)
     print("🤖 JARVIS Backend Server Starting...")
     print("=" * 50)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=True)
+    
+    socketio.run(
+        app, 
+        host='0.0.0.0', 
+        port=5000, 
+        debug=False,
+        use_reloader=False,
+        log_output=True
+    )

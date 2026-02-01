@@ -15,6 +15,12 @@ pyautogui
 pytesseract
 pygetwindow
 
+# Optional: Audio feedback
+pygame
+
+# Optional: Alternative OCR engine
+easyocr
+
 # Gemini AI for Planner Model
 google-genai
 

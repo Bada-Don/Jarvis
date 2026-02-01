@@ -141,6 +141,9 @@ For visual_click steps (SLOW - use only when text is not available), include:
 - Open folder in Explorer: `explorer FolderName` or `explorer .` (current folder)
 - Chain commands: Use `&&` to run multiple commands (e.g., `mkdir test && cd test`)
 
+**IMPORTANT: When creating folders/files, ALWAYS end with opening the folder in Explorer** so the user can see the result.
+Example: After creating "AI Lab" folder with files, add: `explorer "%USERPROFILE%\\Desktop\\AI Lab"`
+
 
 
 ### Text Editing:
@@ -215,7 +218,8 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 - Create empty file: `type nul > "filename.txt"` (use quotes for spaces)
 - Create multiple files: `type nul > file1.txt & type nul > file2.txt`
 - Open file: `start "" "full\path\to\file.txt"` (ALWAYS use full path with start, quotes for spaces)
-- Open folder: `explorer "FolderName"` or `explorer .`
+- Open folder in Explorer: `explorer "%USERPROFILE%\Desktop\FolderName"` (environment variables work correctly)
+- Open current folder: `explorer .`
 - Chain commands: Use `&` to run multiple commands (e.g., `mkdir test & cd test`)
 - Delete file: `del "filename.txt"`
 - Delete folder: `rmdir /s /q "FolderName"`
@@ -225,9 +229,11 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 **CRITICAL RULES FOR SHELL COMMANDS:**
 1. **ALWAYS use quotes** around paths/filenames with spaces: `mkdir "AI Lab"` not `mkdir AI Lab`
 2. **For start command**: Use format `start "" "full\path\to\file.txt"` - the empty quotes are required
-3. **Use full absolute paths** with start command, not relative paths or cd
-4. **Combine folder creation and file creation** in ONE command when possible
-5. **Don't chain cd commands** - use full paths instead
+3. **For explorer command**: Use `explorer "%USERPROFILE%\Desktop\Folder Name"` - environment variables are automatically expanded
+4. **Environment variables**: Use %USERPROFILE%, %DESKTOP%, etc. - they will be expanded automatically
+5. **Use full absolute paths** with start command, not relative paths or cd
+6. **Combine folder creation and file creation** in ONE command when possible
+7. **Don't chain cd commands** - use full paths instead
 
 **IMPORTANT:** When using `start` command to open applications, the system automatically waits 3-5 seconds for the window to appear.
 
@@ -257,9 +263,19 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 {{
   "sequence": [
     {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\Projects\" & mkdir \"%USERPROFILE%\\Desktop\\Projects\\Python\"", "desc": "Create nested folders"}},
-    {{"order": 2, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\Projects\"", "desc": "Open Projects folder"}}
+    {{"order": 2, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\Projects\"", "desc": "Open Projects folder in Explorer"}}
   ],
   "expected_final_state": "Explorer showing Projects folder with Python subfolder"
+}}
+
+**Example - Create folder with spaces and open it:**
+{{
+  "sequence": [
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Create AI Lab folder"}},
+    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\AI Lab\\notes.txt", "content": "Lab notes here", "desc": "Create notes file"}},
+    {{"order": 3, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Open AI Lab folder in Explorer"}}
+  ],
+  "expected_final_state": "Explorer showing AI Lab folder with notes.txt file"
 }}
 
 **IMPORTANT:** This approach does NOT work with FlexiSIGN file operations. For FlexiSIGN, use the standard FlexiSIGN workflow.
@@ -272,6 +288,19 @@ For creating/editing code files and structured content, use these direct file op
 2. **Write file content** using `write_file` with full code (NO UI interaction needed!)
 3. **Open in editor** using `shell_command` (e.g., `code "path\\to\\file.py"` for VS Code)
 4. **Run program** using keyboard shortcuts (Ctrl+` for terminal, then type command)
+
+**INTELLIGENT FILE OPERATIONS (READ → PROCESS → WRITE):**
+For tasks involving existing files (debugging, modifying, copying code):
+1. **Read existing file** using `read_file` to get current content
+2. **Process/analyze** the content (you have the full file content in context)
+3. **Write modified content** using `write_file` with corrections/changes
+4. **Open and run** using editor commands
+
+**IMPORTANT:** When user asks to "debug", "fix", "modify", or "copy code from" a file:
+- ALWAYS use `read_file` FIRST to get the actual file content
+- Analyze what needs to be changed
+- Use `write_file` to apply the fixes/modifications
+- Then open in editor and run
 
 ### Write File (RECOMMENDED FOR CODE):
 Use "write_file" to create or overwrite a file with content directly. NO UI needed!
@@ -322,6 +351,32 @@ Use "create_directory" to create folders.
     {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
   ],
   "expected_final_state": "VS Code showing bubble_sort.py with terminal ready to run the program"
+}}
+
+**Example - Debug existing code (READ → ANALYZE → FIX → WRITE):**
+{{
+  "sequence": [
+    {{"order": 1, "type": "read_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "desc": "Read existing code to analyze"}},
+    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data = [64, 34, 25, 12, 22, 11, 90]\\n    result = bubble_sort(data)\\n    print(\\"Sorted array:\\", result)", "desc": "Write corrected code with bug fixes"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py\"", "desc": "Open fixed file in VS Code"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
+    {{"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"}},
+    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
+  ],
+  "expected_final_state": "VS Code showing debugged bubble_sort.py with terminal displaying sorted output"
+}}
+
+**Example - Copy code from document to new file:**
+{{
+  "sequence": [
+    {{"order": 1, "type": "read_file", "path": "%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt", "desc": "Read code from document"}},
+    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\dfs.py", "content": "# DFS Algorithm Implementation\\ndef dfs(graph, start, visited=None):\\n    if visited is None:\\n        visited = set()\\n    visited.add(start)\\n    print(start, end=' ')\\n    for neighbor in graph[start]:\\n        if neighbor not in visited:\\n            dfs(graph, neighbor, visited)\\n    return visited\\n\\nif __name__ == \\"__main__\\":\\n    graph = {{\\n        'A': ['B', 'C'],\\n        'B': ['D', 'E'],\\n        'C': ['F'],\\n        'D': [],\\n        'E': ['F'],\\n        'F': []\\n    }}\\n    print(\\"DFS Traversal:\\")\\n    dfs(graph, 'A')", "desc": "Write extracted code to new Python file"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\\dfs.py\"", "desc": "Open new file in VS Code"}},
+    {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
+    {{"order": 5, "type": "keyboard", "value": "python dfs.py", "desc": "Type run command"}},
+    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
+  ],
+  "expected_final_state": "VS Code showing dfs.py with terminal displaying DFS traversal output"
 }}
 
 **ADVANTAGES OF write_file:**
@@ -701,6 +756,23 @@ class PlannerService:
             
             # Validate the plan structure
             self._validate_plan(plan)
+            
+            # Post-process content fields to handle escaped newlines and code fences
+            if 'sequence' in plan:
+                for step in plan['sequence']:
+                    if step.get('type') == 'write_file' and 'content' in step:
+                        content = step['content']
+                        # Remove markdown code fences if present
+                        if content.startswith('```'):
+                            lines = content.split('\n')
+                            # Remove first line (```python or ```)
+                            lines = lines[1:]
+                            # Remove last line if it's ```
+                            if lines and lines[-1].strip() == '```':
+                                lines = lines[:-1]
+                            content = '\n'.join(lines)
+                        # Update the step with cleaned content
+                        step['content'] = content
             
             # Add mode to the plan for downstream processing
             plan['mode'] = mode

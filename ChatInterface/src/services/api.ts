@@ -27,6 +27,10 @@ console.log('Using API URL:', BASE_URL);
 
 const api = axios.create({
     baseURL: `${BASE_URL}/api`,
+    timeout: 30000, // 30 second timeout
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
 // Socket.IO connection for real-time updates
@@ -102,10 +106,22 @@ export const abortTask = () => {
 
 export const sendMessage = async (message) => {
     try {
+        console.log(`📤 Sending message to ${BASE_URL}/api/process`);
         const response = await api.post('/process', { text: message });
+        console.log('✅ Message sent successfully:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Error sending message:', error);
+        if (error.code === 'ECONNABORTED') {
+            console.error('❌ Request timeout - server took too long to respond');
+        } else if (error.message === 'Network Error') {
+            console.error('❌ Network Error - Cannot reach server at:', BASE_URL);
+            console.error('   Check if:');
+            console.error('   1. Backend server is running');
+            console.error('   2. Phone and PC are on same WiFi network');
+            console.error('   3. Windows Firewall allows port 5000');
+        } else {
+            console.error('❌ Error sending message:', error.message);
+        }
         throw error;
     }
 };

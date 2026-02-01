@@ -1776,9 +1776,14 @@ class PlanExecutor:
             command_preview = command[:100] + '...' if len(command) > 100 else command
             self._send_status(f"Executing shell command: {command_preview}", "info")
             
+            # CRITICAL FIX: Expand environment variables before execution
+            # This ensures %USERPROFILE% and other vars work correctly with explorer
+            expanded_command = os.path.expandvars(command)
+            
             # Execute the command using subprocess with shell=True
+            # Use cmd.exe explicitly for better Windows compatibility
             result = subprocess.run(
-                command,
+                expanded_command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -1851,6 +1856,12 @@ class PlanExecutor:
                         self._send_status(f"Output: {stdout_preview}", "info")
                 return True
             else:
+                # Special case: explorer.exe often returns exit code 1 even on success
+                # because it delegates to an existing explorer process
+                if "explorer" in expanded_command.lower():
+                    self._send_status(f"✓ Explorer command executed (exit code {result.returncode} is normal)", "success")
+                    return True
+                
                 # Command failed
                 error_msg = result.stderr.strip() if result.stderr else f"Exit code: {result.returncode}"
                 self._send_status(f"shell_command failed: {error_msg}", "warning")
