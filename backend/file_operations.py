@@ -48,11 +48,11 @@ def write_file(path: str, content: str, encoding: str = 'utf-8') -> Tuple[bool, 
         (True, "File written successfully: C:\\temp\\script.py")
     """
     try:
-        # Expand environment variables (Windows %VAR% style)
-        expanded_path = os.path.expandvars(path)
+        # Expand user home directory if present (~ style) FIRST
+        file_path = Path(path).expanduser()
         
-        # Expand user home directory if present (~ style)
-        file_path = Path(expanded_path).expanduser()
+        # Then expand environment variables (Windows %VAR% style)
+        file_path = Path(os.path.expandvars(str(file_path)))
         
         # Create parent directories if they don't exist
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,7 +83,9 @@ def read_file(path: str, encoding: str = 'utf-8') -> Tuple[bool, str, Optional[s
         If success is False, content will be None
     """
     try:
-        file_path = Path(path).expanduser()
+        # Expand environment variables first, then user home
+        expanded_path = os.path.expandvars(path)
+        file_path = Path(expanded_path).expanduser()
         
         if not file_path.exists():
             return False, f"File not found: {path}", None
@@ -115,7 +117,8 @@ def append_file(path: str, content: str, encoding: str = 'utf-8') -> Tuple[bool,
         Tuple[bool, str]: (success, message)
     """
     try:
-        file_path = Path(path).expanduser()
+        expanded_path = os.path.expandvars(path)
+        file_path = Path(expanded_path).expanduser()
         
         if not file_path.exists():
             return False, f"File not found: {path}"
@@ -143,7 +146,8 @@ def create_directory(path: str) -> Tuple[bool, str]:
         Tuple[bool, str]: (success, message)
     """
     try:
-        dir_path = Path(path).expanduser()
+        expanded_path = os.path.expandvars(path)
+        dir_path = Path(expanded_path).expanduser()
         dir_path.mkdir(parents=True, exist_ok=True)
         return True, f"Directory created: {dir_path}"
         

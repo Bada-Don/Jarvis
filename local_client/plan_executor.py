@@ -131,6 +131,18 @@ except ImportError:
     FILE_OPERATIONS_AVAILABLE = False
     print("⚠️ Warning: file_operations not available")
 
+# Intelligent file editor import
+try:
+    import sys
+    backend_path = Path(__file__).parent.parent / "backend"
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    from file_editor import FileEditor
+    FILE_EDITOR_AVAILABLE = True
+except ImportError:
+    FILE_EDITOR_AVAILABLE = False
+    print("⚠️ Warning: file_editor not available")
+
 
 class PlanExecutor:
     """
@@ -217,6 +229,18 @@ class PlanExecutor:
                 self._filename_resolver = FilenameResolver()
             except Exception as e:
                 print(f"⚠️ Warning: Could not initialize FilenameResolver: {e}")
+        
+        # File content cache for read-modify-write operations
+        self.last_read_content = None
+        self.last_read_path = None
+        
+        # Initialize file editor for intelligent editing
+        self._file_editor: Optional['FileEditor'] = None
+        if FILE_EDITOR_AVAILABLE:
+            try:
+                self._file_editor = FileEditor()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize FileEditor: {e}")
         
         # Initialize path resolver if available
         self._path_resolver: Optional['PathResolver'] = None
@@ -685,6 +709,39 @@ class PlanExecutor:
                         get_debug_logger().log_step_execution(
                             step_order, "create_directory",
                             f"path='{step.get('path', '')}' success={result} desc='{step_desc}'"
+                        )
+                
+                # Intelligent file editing operations
+                elif step_type == 'replace_in_file':
+                    result = self._execute_replace_in_file_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "replace_in_file",
+                            f"path='{step.get('path', '')}' old='{step.get('old_text', '')[:50]}' new='{step.get('new_text', '')[:50]}' success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'modify_lines':
+                    result = self._execute_modify_lines_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "modify_lines",
+                            f"path='{step.get('path', '')}' line={step.get('line_number')} success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'insert_at_line':
+                    result = self._execute_insert_at_line_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "insert_at_line",
+                            f"path='{step.get('path', '')}' line={step.get('line_number')} success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'delete_lines':
+                    result = self._execute_delete_lines_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "delete_lines",
+                            f"path='{step.get('path', '')}' start={step.get('start_line')} end={step.get('end_line')} success={result} desc='{step_desc}'"
                         )
                 
                 else:
@@ -2010,10 +2067,72 @@ class PlanExecutor:
         
         path = step.get('path', '')
         content = step.get('content', '')
+        desc = step.get('desc', '')
         
         if not path:
             self._send_status("write_file: missing 'path' parameter", "warning")
             return False
+        
+        # Check if content is a placeholder that needs dynamic generation
+        if content == "__JARVIS_NEEDS_CONTENT_UPDATE__":
+            self._send_status("Detected content placeholder - generating modified content...", "info")
+            
+            # Check if we have previously read content
+            if not hasattr(self, 'last_read_content') or not self.last_read_content:
+                self._send_status("Error: No file content available for modification", "error")
+                return False
+            
+            # Use LLM to generate modified content based on description
+            try:
+                from llm_provider import OpenAIProvider, GeminiProvider
+                import os
+                from dotenv import load_dotenv
+                load_dotenv()
+                
+                # Determine which provider to use
+                llm_provider = os.getenv('LLM_PROVIDER', 'openai').lower()
+                
+                if llm_provider == 'openai':
+                    api_key = os.getenv('OPENAI_API_KEY')
+                    if not api_key:
+                        self._send_status("Error: OPENAI_API_KEY not configured", "error")
+                        return False
+                    provider = OpenAIProvider(api_key=api_key)
+                else:
+                    api_key = os.getenv('GEMINI_API_KEY')
+                    if not api_key:
+                        self._send_status("Error: GEMINI_API_KEY not configured", "error")
+                        return False
+                    provider = GeminiProvider(api_key=api_key)
+                
+                # Generate modified content
+                system_prompt = "You are a file content modifier. Given the original file content and a modification instruction, output ONLY the modified file content. Do not add explanations, markdown formatting, or code fences. Output the exact file content that should be written."
+                
+                user_prompt = f"""Original file content:
+```
+{self.last_read_content}
+```
+
+Modification instruction: {desc}
+
+Output the complete modified file content (no explanations, no markdown, just the raw content):"""
+                
+                self._send_status("Calling LLM to generate modified content...", "info")
+                content = provider.generate_content(system_prompt=system_prompt, user_prompt=user_prompt)
+                
+                # Clean up any markdown code fences if present
+                if content.startswith('```'):
+                    lines = content.split('\n')
+                    lines = lines[1:]  # Remove first line (```)
+                    if lines and lines[-1].strip() == '```':
+                        lines = lines[:-1]  # Remove last line (```)
+                    content = '\n'.join(lines)
+                
+                self._send_status("✓ Modified content generated successfully", "success")
+                
+            except Exception as e:
+                self._send_status(f"Error generating modified content: {e}", "error")
+                return False
         
         # Content can be empty string (create empty file)
         
@@ -2060,6 +2179,10 @@ class PlanExecutor:
             success, message, content = read_file(path)
             
             if success:
+                # Store content for potential use in subsequent write_file steps
+                self.last_read_content = content
+                self.last_read_path = path
+                
                 # Show truncated content preview
                 content_preview = content[:200].replace('\n', '\\n') if content else ''
                 if content and len(content) > 200:
@@ -2150,6 +2273,202 @@ class PlanExecutor:
             
         except Exception as e:
             self._send_status(f"create_directory: error - {str(e)}", "error")
+            return False
+    
+    # ========================================================================
+    # Intelligent File Editing Operations (Modern IDE-like editing)
+    # ========================================================================
+    
+    def _execute_replace_in_file_step(self, step: dict) -> bool:
+        """
+        Execute a replace_in_file step - search and replace text in a file.
+        Similar to IDE "Find and Replace" functionality.
+        
+        Args:
+            step: Step dict with 'path' (str), 'old_text' (str), 'new_text' (str), 
+                  optional 'count' (int, -1 for all)
+        
+        Returns:
+            bool: True if replacement successful
+        """
+        if not FILE_EDITOR_AVAILABLE:
+            self._send_status("replace_in_file: file_editor module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        old_text = step.get('old_text', '')
+        new_text = step.get('new_text', '')
+        count = step.get('count', -1)
+        
+        if not path:
+            self._send_status("replace_in_file: missing 'path' parameter", "warning")
+            return False
+        
+        if not old_text:
+            self._send_status("replace_in_file: missing 'old_text' parameter", "warning")
+            return False
+        
+        try:
+            success, message, diff = self._file_editor.replace_in_file(
+                path, old_text, new_text, count=count
+            )
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+                if diff:
+                    # Show diff preview (first 10 lines)
+                    diff_lines = diff.split('\n')[:10]
+                    diff_preview = '\n'.join(diff_lines)
+                    self._send_status(f"Changes:\n{diff_preview}", "info")
+            else:
+                self._send_status(f"replace_in_file failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"replace_in_file: error - {str(e)}", "error")
+            return False
+    
+    def _execute_modify_lines_step(self, step: dict) -> bool:
+        """
+        Execute a modify_lines step - modify specific lines in a file.
+        
+        Args:
+            step: Step dict with 'path' (str), 'line_number' (int), 
+                  'new_content' (str), optional 'num_lines' (int, default 1)
+        
+        Returns:
+            bool: True if modification successful
+        """
+        if not FILE_EDITOR_AVAILABLE:
+            self._send_status("modify_lines: file_editor module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        line_number = step.get('line_number')
+        new_content = step.get('new_content', '')
+        num_lines = step.get('num_lines', 1)
+        
+        if not path:
+            self._send_status("modify_lines: missing 'path' parameter", "warning")
+            return False
+        
+        if line_number is None:
+            self._send_status("modify_lines: missing 'line_number' parameter", "warning")
+            return False
+        
+        try:
+            success, message, diff = self._file_editor.modify_lines(
+                path, line_number, new_content, num_lines=num_lines
+            )
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+                if diff:
+                    # Show diff preview
+                    diff_lines = diff.split('\n')[:10]
+                    diff_preview = '\n'.join(diff_lines)
+                    self._send_status(f"Changes:\n{diff_preview}", "info")
+            else:
+                self._send_status(f"modify_lines failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"modify_lines: error - {str(e)}", "error")
+            return False
+    
+    def _execute_insert_at_line_step(self, step: dict) -> bool:
+        """
+        Execute an insert_at_line step - insert content at a specific line.
+        
+        Args:
+            step: Step dict with 'path' (str), 'line_number' (int), 'content' (str)
+        
+        Returns:
+            bool: True if insertion successful
+        """
+        if not FILE_EDITOR_AVAILABLE:
+            self._send_status("insert_at_line: file_editor module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        line_number = step.get('line_number')
+        content = step.get('content', '')
+        
+        if not path:
+            self._send_status("insert_at_line: missing 'path' parameter", "warning")
+            return False
+        
+        if line_number is None:
+            self._send_status("insert_at_line: missing 'line_number' parameter", "warning")
+            return False
+        
+        try:
+            success, message, diff = self._file_editor.insert_at_line(
+                path, line_number, content
+            )
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+                if diff:
+                    diff_lines = diff.split('\n')[:10]
+                    diff_preview = '\n'.join(diff_lines)
+                    self._send_status(f"Changes:\n{diff_preview}", "info")
+            else:
+                self._send_status(f"insert_at_line failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"insert_at_line: error - {str(e)}", "error")
+            return False
+    
+    def _execute_delete_lines_step(self, step: dict) -> bool:
+        """
+        Execute a delete_lines step - delete specific lines from a file.
+        
+        Args:
+            step: Step dict with 'path' (str), 'start_line' (int), 
+                  optional 'end_line' (int)
+        
+        Returns:
+            bool: True if deletion successful
+        """
+        if not FILE_EDITOR_AVAILABLE:
+            self._send_status("delete_lines: file_editor module not available", "error")
+            return False
+        
+        path = step.get('path', '')
+        start_line = step.get('start_line')
+        end_line = step.get('end_line')
+        
+        if not path:
+            self._send_status("delete_lines: missing 'path' parameter", "warning")
+            return False
+        
+        if start_line is None:
+            self._send_status("delete_lines: missing 'start_line' parameter", "warning")
+            return False
+        
+        try:
+            success, message, diff = self._file_editor.delete_lines(
+                path, start_line, end_line
+            )
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+                if diff:
+                    diff_lines = diff.split('\n')[:10]
+                    diff_preview = '\n'.join(diff_lines)
+                    self._send_status(f"Changes:\n{diff_preview}", "info")
+            else:
+                self._send_status(f"delete_lines failed: {message}", "warning")
+            
+            return success
+            
+        except Exception as e:
+            self._send_status(f"delete_lines: error - {str(e)}", "error")
             return False
 
 
