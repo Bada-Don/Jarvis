@@ -638,6 +638,11 @@ class PlanExecutor:
                     time.sleep(0.5)
                 
                 elif step_type == 'click_text':
+                    # Wait for readiness if UI has changed (e.g., after navigation)
+                    if self._ui_changed_since_scan:
+                        self._wait_for_readiness_before_vision(sequence, i)
+                        self._ui_changed_since_scan = False
+                    
                     result = self._execute_click_text_step(step)
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
@@ -646,6 +651,11 @@ class PlanExecutor:
                         )
                 
                 elif step_type == 'click_text_fast':
+                    # Wait for readiness if UI has changed (e.g., after navigation)
+                    if self._ui_changed_since_scan:
+                        self._wait_for_readiness_before_vision(sequence, i)
+                        self._ui_changed_since_scan = False
+                    
                     result = self._execute_click_text_fast_step(step)
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
