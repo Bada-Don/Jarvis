@@ -81,7 +81,7 @@ For keyboard steps, include:
   - For text: just the text string like "Hello World" or "notepad"
 - "repeats": (optional) number of times to repeat
 
-For click_text_fast steps (PREFERRED - 10x faster than visual_click), include:
+For click_text_fast steps, include:
 - "window_title": partial or full title of the window containing the text
 - "text": the exact text to find and click on (use full name for contacts to avoid ambiguity)
 - Use this for: buttons with text, menu items, contact names, file names, any readable text
@@ -91,9 +91,10 @@ For click_text_fast steps (PREFERRED - 10x faster than visual_click), include:
 For visual_click steps (SLOW - use only when text is not available), include:
 - "target_name": descriptive name of the UI element to click
   - Be specific: "chrome_address_bar", "start_menu_button", "file_menu", "save_button", "close_button_x"
-  - For text/buttons: "button_OK", "button_Cancel", "menu_File", "tab_Settings"
+  - For text/buttons: "button_OK", "button_Cancel", "menu_File", "tab_Settings", "button_Compose"
   - For icons: "icon_chrome", "icon_folder", "taskbar_chrome"
-- Use this ONLY for: icons without text, images, complex UI elements without clear text labels
+  - Gmail's “Compose” button MUST always be clicked using visual_click.
+    Use the exact identifier: button_Compose.
 
 ## Common Patterns:
 

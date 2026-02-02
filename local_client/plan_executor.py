@@ -583,6 +583,9 @@ class PlanExecutor:
                     self._execute_visual_click(target_name)
                     self._last_visual_click_index = i
                     
+                    # Mark UI as changed since clicking can trigger navigation or UI updates
+                    self._ui_changed_since_scan = True
+                    
                     if DEBUG_LOGGER_AVAILABLE:
                         element_id = self._id_map.get(target_name) if self._id_map else None
                         get_debug_logger().log_step_execution(
@@ -644,6 +647,13 @@ class PlanExecutor:
                         self._ui_changed_since_scan = False
                     
                     result = self._execute_click_text_step(step)
+                    
+                    # Add delay after click to allow UI to respond
+                    time.sleep(self.DELAY_AFTER_STEP)
+                    
+                    # Mark UI as changed since clicking can trigger navigation or UI updates
+                    self._ui_changed_since_scan = True
+                    
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
                             step_order, "click_text",
@@ -657,6 +667,13 @@ class PlanExecutor:
                         self._ui_changed_since_scan = False
                     
                     result = self._execute_click_text_fast_step(step)
+                    
+                    # Add delay after click to allow UI to respond
+                    time.sleep(self.DELAY_AFTER_STEP)
+                    
+                    # Mark UI as changed since clicking can trigger navigation or UI updates
+                    self._ui_changed_since_scan = True
+                    
                     if DEBUG_LOGGER_AVAILABLE:
                         get_debug_logger().log_step_execution(
                             step_order, "click_text_fast",
