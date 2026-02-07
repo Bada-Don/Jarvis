@@ -374,3 +374,580 @@ This enables rapid diagnosis of:
 - **File Operation Errors**: Permission issues, path resolution
 - **Vision Pipeline Failures**: FastSAM detection, Vision Mapper misidentification
 - **Verification Failures**: Expected vs actual state mismatch
+
+
+---
+
+## Installation & Setup Guide
+
+This guide will walk you through setting up JARVIS from scratch on Windows.
+
+### Prerequisites
+
+Before you begin, ensure you have:
+- **Windows 10/11** (64-bit)
+- **Python 3.10 or higher** ([Download](https://www.python.org/downloads/))
+- **Node.js 18+ and npm** ([Download](https://nodejs.org/))
+- **Git** (optional, for cloning) ([Download](https://git-scm.com/))
+- **Gemini API Key** ([Get one free](https://aistudio.google.com/app/apikey))
+- **Tesseract OCR** (for text-based clicking) ([Download](https://github.com/UB-Mannheim/tesseract/wiki))
+
+### Step 1: Download JARVIS
+
+**Option A: Clone with Git**
+```cmd
+git clone https://github.com/Bada-Don/Jarvis.git
+cd jarvis
+```
+
+**Option B: Download ZIP**
+1. Download the ZIP file from GitHub
+2. Extract to a folder (e.g., `C:\JARVIS`)
+3. Open Command Prompt in that folder
+
+### Step 2: Install Tesseract OCR
+
+1. Download Tesseract installer from: https://github.com/UB-Mannheim/tesseract/wiki
+2. Run the installer (use default installation path: `C:\Program Files\Tesseract-OCR`)
+3. Add Tesseract to your system PATH:
+   - Open System Properties → Environment Variables
+   - Edit "Path" variable
+   - Add: `C:\Program Files\Tesseract-OCR`
+4. Verify installation:
+   ```cmd
+   tesseract --version
+   ```
+
+### Step 3: Download FastSAM Weights
+
+FastSAM is used for UI element detection. Download the model weights:
+
+1. Create a `weights` folder in the `backend` directory:
+   ```cmd
+   mkdir backend\weights
+   ```
+
+2. Download FastSAM-s.pt from one of these sources:
+   - **Official**: https://github.com/CASIA-IVA-Lab/FastSAM/releases
+   - **Direct link**: https://huggingface.co/spaces/An-619/FastSAM/resolve/main/weights/FastSAM-s.pt
+
+3. Place `FastSAM-s.pt` in `backend\weights\`
+
+### Step 4: Set Up Backend Server
+
+#### 4.1 Create Virtual Environment
+
+```cmd
+cd backend
+python -m venv venv
+```
+
+#### 4.2 Activate Virtual Environment
+
+```cmd
+venv\Scripts\activate
+```
+
+You should see `(venv)` in your command prompt.
+
+#### 4.3 Install Dependencies
+
+```cmd
+pip install -r requirements.txt
+```
+
+This will install:
+- Flask (web server)
+- Flask-SocketIO (WebSocket communication)
+- Ultralytics (FastSAM)
+- OpenCV, Pillow (image processing)
+- PyTorch (deep learning)
+- PyAutoGUI (automation)
+- Pytesseract (OCR)
+- Google GenAI (Gemini API)
+- OpenAI (alternative LLM)
+- And more...
+
+**Note:** PyTorch installation may take 5-10 minutes depending on your internet speed.
+
+#### 4.4 Configure Environment Variables
+
+Create a `.env` file in the `backend` directory:
+
+```cmd
+notepad .env
+```
+
+Add your API keys:
+
+```env
+# Gemini API Key (required)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# OpenAI API Key (optional, if using OpenAI instead of Gemini)
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+Save and close the file.
+
+**Get API Keys:**
+- **Gemini**: https://aistudio.google.com/app/apikey (Free tier available)
+- **OpenAI**: https://platform.openai.com/api-keys (Paid, requires credit card)
+
+### Step 5: Set Up Local Client
+
+#### 5.1 Create Virtual Environment
+
+Open a **new** Command Prompt window:
+
+```cmd
+cd local_client
+python -m venv venv
+```
+
+#### 5.2 Activate Virtual Environment
+
+```cmd
+venv\Scripts\activate
+```
+
+#### 5.3 Install Dependencies
+
+The local client uses the same dependencies as the backend:
+
+```cmd
+pip install -r ..\backend\requirements.txt
+```
+
+**Additional dependencies for local client:**
+```cmd
+pip install pywin32 comtypes
+```
+
+#### 5.4 Configure Local Client
+
+**Option A: Use Settings UI (Recommended)**
+
+The Settings UI provides a graphical interface to configure JARVIS without editing code.
+
+1. **Build the Settings UI** (first time only):
+   ```cmd
+   cd ..\settings_ui
+   npm install
+   npm run build
+   ```
+
+2. **Install PyWebView** (if not already installed):
+   ```cmd
+   cd ..\local_client
+   pip install pywebview
+   ```
+
+3. **Launch the Settings UI**:
+   ```cmd
+   python run_settings.py
+   ```
+
+   This will open a desktop application window with the settings interface.
+
+4. **Configure the following settings:**
+   - **Server URL**: `http://localhost:5000` (default)
+   - **LLM Provider**: Choose `gemini` or `openai`
+   - **Windows Username**: Your Windows username (e.g., `harsh`)
+   - **Desktop Path**: Your Desktop path (e.g., `C:\Users\harsh\OneDrive\Desktop`)
+   - **Documents Path**: Your Documents path (e.g., `C:\Users\harsh\Documents`)
+   - **Downloads Path**: Your Downloads path (e.g., `C:\Users\harsh\Downloads`)
+   - **Stickers Path**: Custom folder path (if applicable)
+   - **Timing Settings**: Leave defaults unless you experience issues
+   - **Verification Settings**: Enable for production, disable for testing
+
+5. **Click "Save Configuration"**
+
+   The settings will be saved to `local_client/config.py`.
+
+**Note:** The web version at `http://localhost:5173` (via `npm run dev`) uses mock data and won't save your configuration. Always use `python run_settings.py` to save settings permanently.
+
+**Development Mode (Optional):**
+If you're developing the settings UI and want hot reload:
+1. Start the Vite dev server: `cd settings_ui && npm run dev`
+2. Launch settings UI in dev mode: `cd ..\local_client && python run_settings.py --dev`
+3. Changes to the UI will reload automatically
+
+**Check Dependencies:**
+To verify all dependencies are installed:
+```cmd
+python run_settings.py --check
+```
+
+**Option B: Manual Configuration**
+
+Edit `local_client/config.py` directly:
+
+```cmd
+cd ..\local_client
+notepad config.py
+```
+
+Update these critical settings:
+
+```python
+# Server connection
+SERVER_URL = r"http://localhost:5000"
+
+# LLM provider ('gemini' or 'openai')
+LLM_PROVIDER = 'gemini'
+
+# Your Windows username
+WINDOWS_USERNAME = 'YourUsername'
+
+# Your paths (use your actual paths)
+DESKTOP_PATH = r"C:\Users\YourUsername\Desktop"
+DOCUMENTS_PATH = r"C:\Users\YourUsername\Documents"
+DOWNLOADS_PATH = r"C:\Users\YourUsername\Downloads"
+```
+
+**Finding Your Paths:**
+- Open File Explorer
+- Navigate to Desktop, Documents, Downloads
+- Copy the path from the address bar
+- Paste into config.py (use raw strings with `r"..."`)
+
+### Step 6: Set Up Mobile App (React Native)
+
+#### 6.1 Install Dependencies
+
+Open a **new** Command Prompt window:
+
+```cmd
+cd ChatInterface
+npm install
+```
+
+This will install:
+- Expo (React Native framework)
+- Socket.IO client (WebSocket communication)
+- React Native components
+- And more...
+
+#### 6.2 Configure Backend URL
+
+Edit `ChatInterface/src/config.js` (or wherever the backend URL is configured):
+
+```javascript
+export const BACKEND_URL = 'http://YOUR_PC_IP:5000';
+```
+
+**Finding Your PC IP:**
+```cmd
+ipconfig
+```
+
+Look for "IPv4 Address" under your active network adapter (e.g., `192.168.1.100`).
+
+**Important:** Use your PC's local IP address, not `localhost`, so the mobile app can connect.
+
+### Step 7: Start JARVIS
+
+Now that everything is configured, start all three components in order:
+
+#### 7.1 Start Backend Server
+
+Open Command Prompt #1:
+
+```cmd
+cd backend
+venv\Scripts\activate
+python server.py
+```
+
+You should see:
+```
+==================================================
+🤖 JARVIS Backend Server Starting...
+==================================================
+✓ Gemini Planner Service initialized successfully
+ * Running on http://0.0.0.0:5000
+```
+
+**Keep this window open.**
+
+#### 7.2 Start Local Client
+
+Open Command Prompt #2:
+
+```cmd
+cd local_client
+venv\Scripts\activate
+python client.py
+```
+
+You should see:
+```
+==================================================
+🤖 JARVIS Local Client Starting...
+==================================================
+Server URL: http://localhost:5000
+FlexiSign Manager: ✅
+Two-Model Pipeline: ✅
+Debug Logger: ✅
+Permission Service: ✅
+==================================================
+✅ Connected to JARVIS Server
+```
+
+**Keep this window open.**
+
+#### 7.3 Start Mobile App
+
+Open Command Prompt #3:
+
+```cmd
+cd ChatInterface
+npx expo start
+```
+
+This will start the Expo development server. You'll see a QR code.
+
+**Option A: Run on Physical Device**
+1. Install "Expo Go" app on your Android/iOS device
+2. Scan the QR code with Expo Go
+3. The app will load on your device
+
+**Option B: Run on Emulator**
+1. Press `a` for Android emulator (requires Android Studio)
+2. Press `i` for iOS simulator (requires Xcode, macOS only)
+
+**Option C: Run in Web Browser**
+1. Press `w` to open in web browser
+2. Note: Some features may not work in web mode
+
+### Step 8: Test JARVIS
+
+Once all three components are running:
+
+1. Open the mobile app
+2. Type a simple command: **"Open Notepad"**
+3. Press Send
+
+You should see:
+- Backend Server: Receives command, generates plan
+- Local Client: Executes plan, opens Notepad
+- Mobile App: Shows progress updates
+
+**More Test Commands:**
+- "Create a folder called Test on Desktop"
+- "Open Chrome and go to google.com"
+- "Create a Python file with hello world"
+
+### Troubleshooting
+
+#### Backend Server Issues
+
+**Error: "Gemini API key not configured"**
+- Solution: Add `GEMINI_API_KEY` to `backend/.env`
+
+**Error: "FastSAM weights not found"**
+- Solution: Download `FastSAM-s.pt` and place in `backend/weights/`
+
+**Error: "Port 5000 already in use"**
+- Solution: Change port in `backend/server.py` and `local_client/config.py`
+
+#### Local Client Issues
+
+**Error: "Connection refused"**
+- Solution: Ensure backend server is running first
+- Check `SERVER_URL` in `local_client/config.py`
+
+**Error: "Tesseract not found"**
+- Solution: Install Tesseract OCR and add to PATH
+- Verify with: `tesseract --version`
+
+**Error: "pywin32 not installed"**
+- Solution: `pip install pywin32 comtypes`
+
+**Error: "Settings UI won't open"**
+- Solution: Ensure frontend is built: `cd settings_ui && npm run build`
+- Check dependencies: `python run_settings.py --check`
+- Install PyWebView: `pip install pywebview`
+
+**Error: "Settings not saving"**
+- Solution: Don't use the web version (`npm run dev`)
+- Use the desktop app: `python run_settings.py`
+- Check file permissions on `config.py`
+
+#### Mobile App Issues
+
+**Error: "Cannot connect to backend"**
+- Solution: Use your PC's IP address, not `localhost`
+- Ensure firewall allows connections on port 5000
+- Ensure PC and phone are on the same network
+
+**Error: "Expo Go not loading"**
+- Solution: Clear Expo cache: `npm start -- --clear`
+
+#### Vision Pipeline Issues
+
+**Error: "FastSAM detection failed"**
+- Solution: Ensure `FastSAM-s.pt` is in `backend/weights/`
+- Check GPU/CUDA availability (CPU fallback is slower)
+
+**Error: "Vision Mapper timeout"**
+- Solution: Check internet connection (Gemini API requires internet)
+- Increase timeout in `vision_service.py`
+
+### Advanced Configuration
+
+#### Enable Verification System
+
+Edit `local_client/config.py`:
+
+```python
+VERIFICATION_ENABLED = True
+MAX_RETRIES = 2
+CONFIDENCE_THRESHOLD = 0.7
+```
+
+This enables automatic verification of task completion with retry on failure.
+
+#### Adjust Timing Settings
+
+If automation is too fast or too slow:
+
+```python
+ACTION_DELAY = 0.5          # Increase for slower systems
+APP_LAUNCH_WAIT = 5         # Increase for slow app launches
+WINDOW_ACTIVATION_TIMEOUT = 15  # Increase if windows take long to appear
+```
+
+#### Use OpenAI Instead of Gemini
+
+1. Add OpenAI API key to `backend/.env`:
+   ```env
+   OPENAI_API_KEY=your_openai_key_here
+   ```
+
+2. Edit `local_client/config.py`:
+   ```python
+   LLM_PROVIDER = 'openai'
+   ```
+
+3. Restart backend and local client
+
+#### Enable Debug Logging
+
+Debug logs are enabled by default. Find them in:
+```
+debug_logs/YYYY-MM-DD_HH-MM-SS/
+```
+
+Each session contains:
+- `session_info.json` - Command and metadata
+- `planner_output.json` - Generated execution plan
+- `screenshot.png` - Original screenshot (if vision used)
+- `annotated.png` - Annotated screenshot (if vision used)
+- `box_map.json` - UI element coordinates
+- `vision_mapper_output.json` - Target mappings
+- `verification_result.json` - Verification results
+- `execution_log.txt` - Step-by-step execution log
+
+### Running JARVIS on Startup (Optional)
+
+To start JARVIS automatically when Windows boots:
+
+#### Create Startup Scripts
+
+**1. Create `start_backend.bat`:**
+```batch
+@echo off
+cd /d C:\JARVIS\backend
+call venv\Scripts\activate
+python server.py
+pause
+```
+
+**2. Create `start_client.bat`:**
+```batch
+@echo off
+cd /d C:\JARVIS\local_client
+call venv\Scripts\activate
+python client.py
+pause
+```
+
+#### Add to Windows Startup
+
+1. Press `Win + R`
+2. Type `shell:startup` and press Enter
+3. Create shortcuts to `start_backend.bat` and `start_client.bat`
+4. Place shortcuts in the Startup folder
+
+Now JARVIS will start automatically when you log in to Windows.
+
+### Updating JARVIS
+
+To update to the latest version:
+
+```cmd
+git pull origin main
+cd backend
+venv\Scripts\activate
+pip install -r requirements.txt --upgrade
+cd ..\local_client
+venv\Scripts\activate
+pip install -r ..\backend\requirements.txt --upgrade
+cd ..\ChatInterface
+npm install
+```
+
+### Uninstalling JARVIS
+
+To completely remove JARVIS:
+
+1. Delete the JARVIS folder
+2. Remove startup scripts from `shell:startup`
+3. (Optional) Uninstall Python packages:
+   ```cmd
+   pip uninstall -r backend\requirements.txt -y
+   ```
+
+### Getting Help
+
+If you encounter issues:
+
+1. **Check Debug Logs**: `debug_logs/` folder contains detailed execution logs
+2. **GitHub Issues**: https://github.com/yourusername/jarvis/issues
+3. **Discord Community**: [Join our Discord](#) (coming soon)
+4. **Documentation**: https://jarvis-docs.com (coming soon)
+
+### Next Steps
+
+Now that JARVIS is running:
+
+1. **Explore Commands**: Try different automation tasks
+2. **Read Documentation**: Learn about advanced features
+3. **Customize Prompts**: Modify `planner_service.py` for your use cases
+4. **Contribute**: Submit bug reports, feature requests, or pull requests
+5. **Share**: Tell others about JARVIS!
+
+---
+
+## License
+
+[Add your license here - MIT, Apache 2.0, GPL, etc.]
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Acknowledgments
+
+- **FastSAM**: UI element detection
+- **Google Gemini**: Natural language understanding and vision mapping
+- **Ultralytics**: YOLO and FastSAM implementation
+- **PyAutoGUI**: Cross-platform GUI automation
+- **Flask-SocketIO**: Real-time communication
+- **React Native**: Mobile app framework
+
+---
+
+**Built with ❤️ by [Your Name]**
