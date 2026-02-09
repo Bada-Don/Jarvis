@@ -1,0 +1,55 @@
+{
+  "$schema": "./config_schema.json",
+  "version": "1.0.0",
+  "first_run_complete": false,
+  "system": {
+    "server_url": "http://localhost:5000",
+    "windows_username": "your_username"
+  },
+  "llm": {
+    "provider": "openai",
+    "gemini_api_key": "",
+    "openai_api_key": ""
+  },
+  "paths": {
+    "desktop": "C:\\Users\\your_username\\Desktop",
+    "documents": "C:\\Users\\your_username\\Documents",
+    "downloads": "C:\\Users\\your_username\\Downloads",
+    "stickers": "C:\\Path\\To\\Your\\Stickers"
+  },
+  "firebase": {
+    "device_id": "",
+    "paired": false,
+    "paired_device_id": null,
+    "credentials_path": "data/firebase-admin-credentials.json"
+  },
+  "timing": {
+    "action_delay": 0.3,
+    "app_launch_wait": 3,
+    "hotkey_delay": 0.5,
+    "pre_type_delay": 0.2,
+    "screenshot_delay": 0.5,
+    "window_activation_timeout": 10,
+    "window_poll_interval": 0.5,
+    "retry_delay": 2,
+    "verification_delay": 1
+  },
+  "verification": {
+    "enabled": false,
+    "max_retries": 0,
+    "confidence_threshold": 0.7
+  },
+  "window_manager": {
+    "activation_attempts": 3,
+    "verbose": true
+  },
+  "flexisign": {
+    "process_name": "Your FlexiSign Process Name",
+    "exe_path": "C:\\Path\\To\\FlexiSign.exe",
+    "window_title": "FlexiSIGN-PRO",
+    "startup_modal_enabled": true,
+    "startup_modal_title": "FlexiSIGN",
+    "startup_modal_button": "OK",
+    "startup_modal_timeout": 30
+  }
+}

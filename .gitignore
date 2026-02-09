@@ -55,3 +55,9 @@ data/device_config.json
 local_client/test_qr_code.png
 local_client/pairing_qr_*.png
 *.png
+
+# Config files (can contain API keys and sensitive data)
+local_client/config.json
+local_client/config.py
+local_client/flexisign_config.json
+data/firebase_config.json

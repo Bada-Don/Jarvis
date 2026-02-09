@@ -1,10 +1,10 @@
 {
   "loader_patcher": {
-    "process_name": "Production Suite Scanner 10.5.1 Build 1806 Protected.exe",
-    "exe_path": "D:\\Program Files\\FLEXI 10 full version _by AARY-meii\\FlexiSign_Pro_10.5\\STEP 2\\Production Suite Scanner 10.5.1 Build 1806 Protected.exe",
+    "process_name": "Your FlexiSign Process Name.exe",
+    "exe_path": "C:\\Path\\To\\FlexiSign.exe",
     "startup_modal": {
       "enabled": true,
-      "title": "Production Suite Scanner 10.5.1 Build 1806",
+      "title": "FlexiSign Startup Modal Title",
       "button": "OK",
       "timeout": 15
     },

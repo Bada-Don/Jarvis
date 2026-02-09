@@ -18,14 +18,14 @@ OPENAI_API_KEY = ''
 # =============================================================================
 # Windows username for path generation
 # This is used by the planner model to generate correct file paths
-WINDOWS_USERNAME = 'harsh'
+WINDOWS_USERNAME = 'your_username'
 
 # User-specific paths (used in AI prompts)
 # These paths are injected into the system prompts dynamically
-DESKTOP_PATH = r"C:\Users\harsh\OneDrive\Desktop"
-DOCUMENTS_PATH = r"C:\Users\harsh\Documents"
-DOWNLOADS_PATH = r"C:\Users\harsh\Downloads"
-STICKERS_PATH = r"D:\Stickers\New Briefcase"
+DESKTOP_PATH = r"C:\Users\your_username\Desktop"
+DOCUMENTS_PATH = r"C:\Users\your_username\Documents"
+DOWNLOADS_PATH = r"C:\Users\your_username\Downloads"
+STICKERS_PATH = r"C:\Path\To\Your\Stickers"
 
 # =============================================================================
 # TIMING SETTINGS (seconds)
@@ -63,8 +63,8 @@ WINDOW_MANAGER_VERBOSE = True
 # =============================================================================
 # FLEXISIGN-SPECIFIC SETTINGS (only used in FlexiSIGN mode)
 # =============================================================================
-FLEXISIGN_PROCESS_NAME = 'Production Suite Scanner 10.5.1 Build 1806 Protected'
-FLEXISIGN_EXE_PATH = r"D:\Program Files\FLEXI 10 full version _by AARY-meii\FlexiSign_Pro_10.5\STEP 2\Production Suite Scanner 10.5.1 Build 1806 Protected.exe"
+FLEXISIGN_PROCESS_NAME = 'Your FlexiSign Process Name'
+FLEXISIGN_EXE_PATH = r"C:\Path\To\FlexiSign.exe"
 FLEXISIGN_WINDOW_TITLE = 'FlexiSIGN-PRO'
 
 # Startup Modal Settings
