@@ -33,3 +33,14 @@ backend/inputs/
 
 Actual Files/
 jarvis-old/
+
+# Firebase credentials (NEVER commit these!)
+firebase-admin-credentials.json
+data/firebase-admin-credentials.json
+**/firebase-admin-credentials.json
+
+# Firebase mobile config files (for standalone builds)
+google-services.json
+GoogleService-Info.plist
+ChatInterface/google-services.json
+ChatInterface/GoogleService-Info.plist

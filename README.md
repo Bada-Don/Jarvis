@@ -739,6 +739,59 @@ You should see:
 - "Open Chrome and go to google.com"
 - "Create a Python file with hello world"
 
+### Step 9: Firebase Setup (Optional - For Remote Mobile Access)
+
+Firebase enables your mobile app to communicate with JARVIS over the internet, not just on the same local network. This is optional but recommended for remote access.
+
+**Quick Setup:**
+
+1. **Follow the Firebase Quick Start Guide:**
+   ```cmd
+   notepad docs\FIREBASE_QUICK_START.md
+   ```
+
+2. **Key Steps:**
+   - Create Firebase project at https://console.firebase.google.com/
+   - Enable Realtime Database
+   - Enable Anonymous Authentication
+   - Download service account credentials
+   - Place credentials in `data/firebase-admin-credentials.json`
+   - Configure security rules from `firebase-security-rules.json`
+
+3. **Update Environment Variables:**
+   
+   Add to `backend/.env`:
+   ```env
+   FIREBASE_CREDENTIALS_PATH=../data/firebase-admin-credentials.json
+   FIREBASE_DATABASE_URL=https://YOUR-PROJECT-ID-default-rtdb.firebaseio.com/
+   ```
+   
+   Add to `local_client/.env`:
+   ```env
+   FIREBASE_CREDENTIALS_PATH=../data/firebase-admin-credentials.json
+   FIREBASE_DATABASE_URL=https://YOUR-PROJECT-ID-default-rtdb.firebaseio.com/
+   ```
+   
+   Add to `ChatInterface/.env`:
+   ```env
+   FIREBASE_DATABASE_URL=https://YOUR-PROJECT-ID-default-rtdb.firebaseio.com/
+   FIREBASE_PROJECT_ID=your-project-id
+   ```
+
+4. **Verify Setup:**
+   ```cmd
+   python scripts\verify_firebase_setup.py
+   ```
+
+**Mobile App Note:** The mobile app uses Expo, so you only need environment variables for development. Native config files (`google-services.json`, `GoogleService-Info.plist`) are only needed for standalone builds. See `ChatInterface/FIREBASE_EXPO_SETUP.md` for details.
+
+**Detailed Instructions:**
+- Full guide: `docs/FIREBASE_SETUP_GUIDE.md`
+- Expo-specific: `ChatInterface/FIREBASE_EXPO_SETUP.md`
+- Security rules: `firebase-security-rules.json`
+
+**Note:** Firebase setup is required for the desktop packaging feature (Task 1 of the packaging spec).
+
 ### Troubleshooting
 
 #### Backend Server Issues

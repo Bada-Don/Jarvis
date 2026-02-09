@@ -29,3 +29,6 @@ openai
 
 # Environment variable management
 python-dotenv
+
+# Firebase Admin SDK for desktop-to-mobile communication
+firebase-admin

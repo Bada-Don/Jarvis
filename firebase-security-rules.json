@@ -1,0 +1,109 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    
+    "devices": {
+      "$deviceId": {
+        ".read": "auth != null && (auth.uid == $deviceId || root.child('devices/' + auth.uid + '/pairedWith').val() == $deviceId)",
+        ".write": "auth != null && auth.uid == $deviceId",
+        ".validate": "newData.hasChildren(['type', 'paired', 'lastSeen', 'version'])",
+        
+        "type": {
+          ".validate": "newData.isString() && (newData.val() == 'desktop' || newData.val() == 'mobile')"
+        },
+        "paired": {
+          ".validate": "newData.isBoolean()"
+        },
+        "pairedWith": {
+          ".validate": "newData.isString()"
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "version": {
+          ".validate": "newData.isString()"
+        }
+      }
+    },
+    
+    "pairing": {
+      "$token": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('used').val() == false)",
+        ".validate": "newData.hasChildren(['desktopId', 'expiresAt', 'used'])",
+        
+        "desktopId": {
+          ".validate": "newData.isString()"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber() && newData.val() > now"
+        },
+        "used": {
+          ".validate": "newData.isBoolean()"
+        },
+        "mobileId": {
+          ".validate": "newData.isString()"
+        }
+      }
+    },
+    
+    "messages": {
+      "$deviceId": {
+        ".read": "auth != null && (auth.uid == $deviceId || root.child('devices/' + auth.uid + '/pairedWith').val() == $deviceId)",
+        ".write": "auth != null && (auth.uid == $deviceId || root.child('devices/' + auth.uid + '/pairedWith').val() == $deviceId)",
+        
+        "commands": {
+          "$messageId": {
+            ".validate": "newData.hasChildren(['type', 'text', 'timestamp', 'processed'])",
+            
+            "type": {
+              ".validate": "newData.val() == 'command'"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1000"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            },
+            "processed": {
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+        
+        "status": {
+          "$messageId": {
+            ".validate": "newData.hasChildren(['type', 'message', 'timestamp'])",
+            
+            "type": {
+              ".validate": "newData.isString() && (newData.val() == 'status' || newData.val() == 'progress' || newData.val() == 'error' || newData.val() == 'completion')"
+            },
+            "message": {
+              ".validate": "newData.isString() && newData.val().length <= 1000"
+            },
+            "progress": {
+              ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100)"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            }
+          }
+        }
+      }
+    },
+    
+    "rateLimiting": {
+      "$userId": {
+        "pairingAttempts": {
+          ".read": "auth != null && auth.uid == $userId",
+          ".write": "auth != null && auth.uid == $userId",
+          
+          "$timestamp": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    }
+  }
+}
