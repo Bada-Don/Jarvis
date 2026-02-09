@@ -66,6 +66,23 @@ except ImportError:
     print("⚠️ Warning: permission_service.py not found")
     PERMISSION_SERVICE_AVAILABLE = False
 
+# Import error handler
+try:
+    from error_handler import (
+        ErrorHandler,
+        ConfigurationError,
+        NetworkError,
+        ComponentError,
+        PairingError,
+        RuntimeError as JarvisRuntimeError,
+        get_error_handler,
+        set_error_handler
+    )
+    ERROR_HANDLER_AVAILABLE = True
+except ImportError:
+    print("⚠️ Warning: error_handler.py not found")
+    ERROR_HANDLER_AVAILABLE = False
+
 # Initialize SocketIO Client with reconnection settings
 sio = socketio.Client(
     reconnection=True,
@@ -83,11 +100,20 @@ permission_service = None
 firebase_service = None
 firebase_enabled = False
 
+# Error handler instance
+error_handler = None
+
 
 @sio.event
 def connect():
-    global permission_service, firebase_service, firebase_enabled
+    global permission_service, firebase_service, firebase_enabled, error_handler
     print('✅ Connected to JARVIS Server')
+    
+    # Initialize error handler
+    if ERROR_HANDLER_AVAILABLE and error_handler is None:
+        error_handler = ErrorHandler(status_callback=send_status)
+        set_error_handler(error_handler)
+        print('✅ Error handler initialized')
     
     # Initialize permission service after connection
     if PERMISSION_SERVICE_AVAILABLE:
@@ -116,9 +142,23 @@ def connect():
                 firebase_enabled = True
                 print('✅ Firebase service initialized and listening')
             else:
-                print('⚠️ Firebase credentials not found, Firebase features disabled')
+                if error_handler:
+                    error = ConfigurationError(
+                        "Firebase credentials not found",
+                        details={'type': 'missing_firebase', 'path': firebase_creds_path}
+                    )
+                    error_handler.handle_configuration_error(error)
+                else:
+                    print('⚠️ Firebase credentials not found, Firebase features disabled')
         except Exception as e:
-            print(f'⚠️ Firebase initialization error: {e}')
+            if error_handler:
+                error = NetworkError(
+                    f"Firebase initialization failed: {str(e)}",
+                    details={'type': 'firebase_connection'}
+                )
+                error_handler.handle_network_error(error)
+            else:
+                print(f'⚠️ Firebase initialization error: {e}')
 
 
 @sio.event
@@ -431,13 +471,19 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
                 debug_logger.complete(success=False)
                 
     except Exception as e:
-        print(f"❌ Execution error: {e}")
-        send_status({
-            'message': f'Error: {str(e)}',
-            'progress': 0,
-            'status': 'error',
-            'error': str(e)
-        }, "error")
+        error_msg = f"Execution error: {str(e)}"
+        print(f"❌ {error_msg}")
+        
+        # Use error handler if available
+        if error_handler:
+            error_handler.handle_generic_error(e, context="Two-Model Pipeline execution")
+        else:
+            send_status({
+                'message': f'Error: {str(e)}',
+                'progress': 0,
+                'status': 'error',
+                'error': str(e)
+            }, "error")
         
         if debug_logger:
             debug_logger.log_error(str(e))
@@ -491,6 +537,7 @@ def main():
     print(f"Debug Logger: {'✅' if DEBUG_LOGGER_AVAILABLE else '❌'}")
     print(f"Permission Service: {'✅' if PERMISSION_SERVICE_AVAILABLE else '❌'}")
     print(f"Firebase Service: {'✅' if FIREBASE_SERVICE_AVAILABLE else '❌'}")
+    print(f"Error Handler: {'✅' if ERROR_HANDLER_AVAILABLE else '❌'}")
     print("=" * 50)
     
     try:
@@ -502,6 +549,22 @@ def main():
         # Cleanup Firebase
         if firebase_enabled and firebase_service:
             firebase_service.close()
+        
+        sio.disconnect()
+    except Exception as e:
+        print(f"\n❌ Connection failed: {e}")
+        
+        # Use error handler if available
+        if ERROR_HANDLER_AVAILABLE:
+            error_handler = get_error_handler()
+            error = NetworkError(
+                f"Failed to connect to server: {str(e)}",
+                details={'type': 'api_unreachable', 'server_url': SERVER_URL}
+            )
+            error_handler.handle_network_error(error)
+        else:
+            print("Retrying in 5 seconds...")
+            time.sleep(5)
         
         sio.disconnect()
     except Exception as e:

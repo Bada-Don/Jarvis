@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { ChatHeader } from '../components/ChatHeader';
 import { MessageList } from '../components/MessageList';
 import { ChatInput } from '../components/ChatInput';
 import { PermissionModal } from '../components/PermissionModal';
 import { AbortButton } from '../components/AbortButton';
+import { PairingScreen } from './PairingScreen';
 import { 
     sendMessage, 
     uploadFile, 
@@ -14,6 +15,9 @@ import {
     abortTask,
     PermissionRequest,
 } from '../services/api';
+import { FirebaseService } from '../services/FirebaseService';
+import { PairingManager } from '../services/PairingManager';
+import { isFirebaseConfigured } from '../config/firebase';
 
 const createId = () => Math.random().toString(36).slice(2);
 
@@ -29,13 +33,155 @@ export default function ChatScreen() {
     const [isSending, setIsSending] = useState(false);
     const [isTaskRunning, setIsTaskRunning] = useState(false);
     const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
+    const [showPairingScreen, setShowPairingScreen] = useState(false);
+    const [isPaired, setIsPaired] = useState(false);
+    const [useFirebase, setUseFirebase] = useState(false);
+    
+    // Firebase and Pairing services
+    const firebaseServiceRef = useRef<FirebaseService | null>(null);
+    const pairingManagerRef = useRef<PairingManager | null>(null);
     
     // Use ref to track progress message ID to avoid re-creating the effect
     const progressMessageIdRef = useRef<string | null>(null);
     const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Connect to real-time status updates - only run once on mount
+    // Initialize Firebase and Pairing on mount
     useEffect(() => {
+        initializeServices();
+    }, []);
+
+    const initializeServices = async () => {
+        try {
+            // Check if Firebase is configured
+            const firebaseConfigured = isFirebaseConfigured();
+            
+            if (firebaseConfigured) {
+                console.log('🔥 Firebase is configured, initializing services...');
+                
+                // Initialize PairingManager
+                const pairingManager = new PairingManager();
+                pairingManagerRef.current = pairingManager;
+                
+                // Check if already paired
+                const paired = await pairingManager.isPaired();
+                setIsPaired(paired);
+                
+                if (paired) {
+                    // Get paired desktop ID
+                    const desktopId = await pairingManager.getPairedDesktopId();
+                    
+                    if (desktopId) {
+                        // Get device ID
+                        const deviceId = await pairingManager.getDeviceId();
+                        
+                        if (deviceId) {
+                            // Initialize Firebase service
+                            const firebaseService = new FirebaseService(deviceId, desktopId);
+                            firebaseServiceRef.current = firebaseService;
+                            
+                            // Connect to Firebase
+                            await firebaseService.connect();
+                            
+                            // Set up status listener
+                            firebaseService.listenForStatus(handleFirebaseStatus);
+                            
+                            setUseFirebase(true);
+                            console.log('✅ Firebase messaging enabled');
+                        }
+                    }
+                } else {
+                    console.log('⚠️ Device not paired. Showing pairing screen...');
+                    setShowPairingScreen(true);
+                }
+            } else {
+                console.log('⚠️ Firebase not configured. Using WebSocket only.');
+                setUseFirebase(false);
+            }
+        } catch (error) {
+            console.error('❌ Failed to initialize services:', error);
+            Alert.alert(
+                'Initialization Error',
+                'Failed to initialize Firebase services. Using local connection only.'
+            );
+        }
+    };
+
+    const handleFirebaseStatus = (status: any) => {
+        console.log('📱 Firebase status update:', status);
+        
+        // Extract progress info
+        const progress = status.progress;
+        const message = status.message;
+        const statusType = status.type;
+        
+        // Update task running state
+        if (progress !== undefined) {
+            if (progress > 0 && progress < 100 && statusType !== 'completion' && statusType !== 'error') {
+                setIsTaskRunning(true);
+            } else if (statusType === 'completion' || statusType === 'error' || progress >= 100) {
+                setIsTaskRunning(false);
+            }
+        }
+        
+        // Clear any pending timeout
+        if (clearTimeoutRef.current) {
+            clearTimeout(clearTimeoutRef.current);
+            clearTimeoutRef.current = null;
+        }
+        
+        // Determine the final status
+        const progressStatus = statusType === 'completion' ? 'success' : statusType === 'error' ? 'error' : 'running';
+        
+        // Check if we have an existing progress message to update
+        if (progressMessageIdRef.current) {
+            // Update existing progress message
+            setMessages((prev) =>
+                prev.map((msg) =>
+                    msg.id === progressMessageIdRef.current
+                        ? {
+                              ...msg,
+                              progress: progress,
+                              progressTitle: message,
+                              progressStatus: progressStatus,
+                          }
+                        : msg
+                )
+            );
+        } else {
+            // Create new progress message
+            const newProgressId = createId();
+            progressMessageIdRef.current = newProgressId;
+            
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: newProgressId,
+                    role: 'assistant',
+                    content: '',
+                    isProgress: true,
+                    progress: progress,
+                    progressTitle: message,
+                    progressStatus: progressStatus,
+                },
+            ]);
+        }
+        
+        // Clear progress message ID when complete
+        if (statusType === 'completion' || statusType === 'error') {
+            clearTimeoutRef.current = setTimeout(() => {
+                progressMessageIdRef.current = null;
+                clearTimeoutRef.current = null;
+            }, 3000);
+        }
+    };
+
+    // Connect to WebSocket status updates (fallback)
+    useEffect(() => {
+        if (useFirebase) {
+            // Skip WebSocket if using Firebase
+            return;
+        }
+        
         const cleanup = connectToStatusUpdates((statusData) => {
             console.log('Status update received:', statusData);
             
@@ -126,7 +272,7 @@ export default function ChatScreen() {
                 clearTimeout(clearTimeoutRef.current);
             }
         };
-    }, []); // Empty dependency array - only run once on mount
+    }, [useFirebase]);
 
     // Connect to permission requests
     useEffect(() => {
@@ -136,6 +282,28 @@ export default function ChatScreen() {
 
         return cleanup;
     }, []);
+
+    // Cleanup Firebase on unmount
+    useEffect(() => {
+        return () => {
+            if (firebaseServiceRef.current) {
+                firebaseServiceRef.current.disconnect();
+            }
+        };
+    }, []);
+
+    const handlePairingComplete = async () => {
+        setShowPairingScreen(false);
+        setIsPaired(true);
+        
+        // Reinitialize services after pairing
+        await initializeServices();
+        
+        Alert.alert(
+            'Pairing Complete',
+            'Your device is now paired with the desktop application. You can now send commands remotely!'
+        );
+    };
 
     const handlePermissionApprove = () => {
         if (permissionRequest) {
@@ -187,18 +355,25 @@ export default function ChatScreen() {
         setMessages((prev) => [...prev, userMessage]);
 
         try {
-            // Upload files first
+            // Upload files first (always use WebSocket for file uploads)
             for (const file of attachments) {
                 await uploadFile(file.uri, file.name, file.type);
             }
 
-            // Send message
+            // Send message via Firebase or WebSocket
             if (text) {
-                await sendMessage(text);
+                if (useFirebase && firebaseServiceRef.current) {
+                    // Send via Firebase
+                    await firebaseServiceRef.current.sendCommand(text);
+                    console.log('✅ Command sent via Firebase');
+                } else {
+                    // Send via WebSocket
+                    await sendMessage(text);
+                    console.log('✅ Message sent via WebSocket');
+                }
             }
 
-            // Progress updates will come via WebSocket
-            // No need to add a static response message
+            // Progress updates will come via Firebase or WebSocket
         } catch (error) {
             console.error('Error in handleSend:', error);
             setMessages((prev) => [
@@ -214,6 +389,21 @@ export default function ChatScreen() {
         }
     };
 
+    // Show pairing screen if not paired and Firebase is configured
+    if (showPairingScreen && pairingManagerRef.current) {
+        return (
+            <PairingScreen
+                pairingManager={pairingManagerRef.current}
+                onPairingComplete={handlePairingComplete}
+                onCancel={() => {
+                    setShowPairingScreen(false);
+                    // Continue with WebSocket only
+                    setUseFirebase(false);
+                }}
+            />
+        );
+    }
+
     return (
         <KeyboardAvoidingView 
             style={styles.container}
@@ -224,7 +414,7 @@ export default function ChatScreen() {
 
             <ChatHeader
                 title="Jarvis"
-                subtitle="Online · Realtime"
+                subtitle={useFirebase ? 'Online · Firebase' : 'Online · Local'}
             />
 
             <View style={styles.contentContainer}>

@@ -21,6 +21,19 @@ from prompt_manager import PromptManager, read_all_prompts, write_prompts_to_fil
 from validation_service import ValidationService
 from packaging_service import PackagingService
 
+# Import error handler
+try:
+    from error_handler import (
+        ErrorHandler,
+        ConfigurationError,
+        get_error_handler,
+        set_error_handler
+    )
+    ERROR_HANDLER_AVAILABLE = True
+except ImportError:
+    ERROR_HANDLER_AVAILABLE = False
+    print("⚠️ Warning: error_handler.py not found")
+
 
 class SettingsAPI:
     """
@@ -47,6 +60,13 @@ class SettingsAPI:
         # Initialize PackagingService
         self.packaging_service = PackagingService(self.project_root_str)
         
+        # Initialize error handler
+        self.error_handler = None
+        if ERROR_HANDLER_AVAILABLE:
+            self.error_handler = ErrorHandler()
+            set_error_handler(self.error_handler)
+            print("✅ Error handler initialized in Settings API")
+        
         # Prompt managers will be created on-demand for each file
     
     # Configuration Methods
@@ -72,6 +92,14 @@ class SettingsAPI:
                 "data": settings
             }
         except Exception as e:
+            # Use error handler if available
+            if self.error_handler:
+                error = ConfigurationError(
+                    f"Failed to read settings: {str(e)}",
+                    details={'type': 'corrupted_config'}
+                )
+                self.error_handler.handle_configuration_error(error)
+            
             return {
                 "success": False,
                 "error": {

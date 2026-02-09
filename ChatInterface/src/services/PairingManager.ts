@@ -6,6 +6,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import { getFirebaseDatabase } from '../config/firebase';
+import { ref, get, update, set } from 'firebase/database';
 
 interface PairingToken {
   token: string;
@@ -21,22 +23,15 @@ interface DeviceConfig {
 }
 
 export class PairingManager {
-  private firebaseService: any; // Firebase service instance
+  private database: any; // Firebase database instance
   private deviceId: string | null = null;
   private readonly DEVICE_CONFIG_KEY = '@jarvis_device_config';
   
   /**
    * Initialize PairingManager.
-   * 
-   * @param firebaseService - Firebase service instance for database operations
-   * @throws Error if firebaseService is null
+   * Uses Firebase database directly for pairing operations.
    */
-  constructor(firebaseService: any) {
-    if (!firebaseService) {
-      throw new Error('firebaseService cannot be null');
-    }
-    
-    this.firebaseService = firebaseService;
+  constructor() {
     this._initializeDeviceId();
   }
   
@@ -47,6 +42,10 @@ export class PairingManager {
     try {
       const deviceId = await this._getOrCreateDeviceId();
       this.deviceId = deviceId;
+      
+      // Initialize Firebase database
+      this.database = getFirebaseDatabase();
+      
       console.log('✅ PairingManager initialized');
       console.log(`   Device ID: ${deviceId}`);
     } catch (error) {
@@ -204,12 +203,15 @@ export class PairingManager {
         throw new Error('Device ID not initialized');
       }
       
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
+      
       console.log(`🔑 Submitting pairing token: ${token}`);
       
       // Get token data from Firebase
-      const tokenRef = this.firebaseService.database()
-        .ref(`pairing/${token}`);
-      const tokenSnapshot = await tokenRef.once('value');
+      const tokenRef = ref(this.database, `pairing/${token}`);
+      const tokenSnapshot = await get(tokenRef);
       const tokenData = tokenSnapshot.val();
       
       if (!tokenData) {
@@ -231,7 +233,7 @@ export class PairingManager {
       }
       
       // Mark token as used and store mobile device ID
-      await tokenRef.update({
+      await update(tokenRef, {
         used: true,
         mobileId: this.deviceId,
         usedAt: currentTime,
@@ -263,10 +265,13 @@ export class PairingManager {
         throw new Error('Device ID not initialized');
       }
       
-      const deviceRef = this.firebaseService.database()
-        .ref(`devices/${this.deviceId}`);
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
       
-      await deviceRef.set({
+      const deviceRef = ref(this.database, `devices/${this.deviceId}`);
+      
+      await set(deviceRef, {
         type: 'mobile',
         paired: true,
         pairedWith: desktopId,
@@ -297,10 +302,13 @@ export class PairingManager {
         return false;
       }
       
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
+      
       // Check Firebase device status
-      const deviceRef = this.firebaseService.database()
-        .ref(`devices/${this.deviceId}`);
-      const deviceSnapshot = await deviceRef.once('value');
+      const deviceRef = ref(this.database, `devices/${this.deviceId}`);
+      const deviceSnapshot = await get(deviceRef);
       const deviceData = deviceSnapshot.val();
       
       if (deviceData) {
@@ -330,10 +338,13 @@ export class PairingManager {
         return null;
       }
       
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
+      
       // Check Firebase device status
-      const deviceRef = this.firebaseService.database()
-        .ref(`devices/${this.deviceId}`);
-      const deviceSnapshot = await deviceRef.once('value');
+      const deviceRef = ref(this.database, `devices/${this.deviceId}`);
+      const deviceSnapshot = await get(deviceRef);
       const deviceData = deviceSnapshot.val();
       
       if (deviceData && deviceData.paired) {
@@ -380,11 +391,14 @@ export class PairingManager {
         return false;
       }
       
-      // Update Firebase device status
-      const deviceRef = this.firebaseService.database()
-        .ref(`devices/${this.deviceId}`);
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
       
-      await deviceRef.update({
+      // Update Firebase device status
+      const deviceRef = ref(this.database, `devices/${this.deviceId}`);
+      
+      await update(deviceRef, {
         paired: false,
         pairedWith: null,
         unpairedAt: Math.floor(Date.now() / 1000),
@@ -415,10 +429,13 @@ export class PairingManager {
         return;
       }
       
-      const deviceRef = this.firebaseService.database()
-        .ref(`devices/${this.deviceId}`);
+      if (!this.database) {
+        this.database = getFirebaseDatabase();
+      }
       
-      await deviceRef.update({
+      const deviceRef = ref(this.database, `devices/${this.deviceId}`);
+      
+      await update(deviceRef, {
         lastSeen: Math.floor(Date.now() / 1000),
       });
       

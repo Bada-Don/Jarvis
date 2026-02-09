@@ -12,8 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Camera, CameraView } from 'expo-camera';
-import { BarCodeScanner, BarCodeScannerResult } from 'expo-barcode-scanner';
+import { Camera, CameraView, BarcodeScanningResult } from 'expo-camera';
 
 interface QRScannerProps {
   onScan: (token: string) => void;
@@ -51,7 +50,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  const handleBarCodeScanned = ({ type, data }: BarCodeScannerResult) => {
+  const handleBarCodeScanned = ({ data }: BarcodeScanningResult) => {
     if (scanned || isProcessing) {
       return;
     }

@@ -13,6 +13,16 @@ from typing import Optional, Tuple
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Import error handler
+try:
+    from error_handler import (
+        PairingError,
+        get_error_handler
+    )
+    ERROR_HANDLER_AVAILABLE = True
+except ImportError:
+    ERROR_HANDLER_AVAILABLE = False
+
 
 class PairingManager:
     """
@@ -149,7 +159,18 @@ class PairingManager:
             return token
             
         except Exception as e:
-            raise Exception(f"Failed to generate pairing token: {e}")
+            error_msg = f"Failed to generate pairing token: {e}"
+            
+            # Use error handler if available
+            if ERROR_HANDLER_AVAILABLE:
+                error_handler = get_error_handler()
+                error = PairingError(
+                    error_msg,
+                    details={'type': 'token_generation_failed'}
+                )
+                error_handler.handle_pairing_error(error)
+            
+            raise Exception(error_msg)
     
     def generate_pairing_qr(self, ttl: int = 300) -> Tuple[str, bytes]:
         """

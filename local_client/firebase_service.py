@@ -11,6 +11,17 @@ import uuid
 import os
 import threading
 
+# Import error handler
+try:
+    from error_handler import (
+        NetworkError,
+        ConfigurationError,
+        get_error_handler
+    )
+    ERROR_HANDLER_AVAILABLE = True
+except ImportError:
+    ERROR_HANDLER_AVAILABLE = False
+
 
 class FirebaseService:
     """
@@ -31,7 +42,18 @@ class FirebaseService:
             Exception: If Firebase initialization fails
         """
         if not os.path.exists(credentials_path):
-            raise ValueError(f"Firebase credentials file not found: {credentials_path}")
+            error_msg = f"Firebase credentials file not found: {credentials_path}"
+            
+            # Use error handler if available
+            if ERROR_HANDLER_AVAILABLE:
+                error_handler = get_error_handler()
+                error = ConfigurationError(
+                    error_msg,
+                    details={'type': 'missing_firebase', 'path': credentials_path}
+                )
+                error_handler.handle_configuration_error(error)
+            
+            raise ValueError(error_msg)
         
         try:
             # Check if Firebase is already initialized
@@ -86,7 +108,18 @@ class FirebaseService:
             self._presence_running = False
             
         except Exception as e:
-            raise Exception(f"Failed to initialize Firebase: {e}")
+            error_msg = f"Failed to initialize Firebase: {e}"
+            
+            # Use error handler if available
+            if ERROR_HANDLER_AVAILABLE:
+                error_handler = get_error_handler()
+                error = NetworkError(
+                    error_msg,
+                    details={'type': 'firebase_connection'}
+                )
+                error_handler.handle_network_error(error)
+            
+            raise Exception(error_msg)
     
     def set_device_id(self, device_id: str) -> None:
         """

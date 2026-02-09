@@ -23,7 +23,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA"
       ],
       "package": "com.anonymous.ChatInterface"
     },
@@ -37,7 +38,22 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for voice messages."
         }
       ],
-      "expo-video"
-    ]
+      "expo-video",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR code scanning."
+        }
+      ]
+    ],
+    "extra": {
+      "firebaseApiKey": "",
+      "firebaseAuthDomain": "",
+      "firebaseDatabaseUrl": "",
+      "firebaseProjectId": "",
+      "firebaseStorageBucket": "",
+      "firebaseMessagingSenderId": "",
+      "firebaseAppId": ""
+    }
   }
 }
