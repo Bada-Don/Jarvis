@@ -1,515 +1,455 @@
 """
-Configuration Manager for JARVIS Settings Interface
+Configuration Manager for JARVIS Desktop Application
 
-This module provides the ConfigManager class for reading and writing
-configuration settings to config.py while preserving file structure.
+This module provides the ConfigurationManager class for loading, saving,
+validating, and managing JARVIS configuration with backup/restore functionality.
 """
 
-import os
-import re
+import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
-from dotenv import get_key, set_key
+from typing import Any, Dict, List, Optional
+from datetime import datetime
+import re
+from urllib.parse import urlparse
 
-# Path to the backend .env file
-ENV_PATH = Path(__file__).parent.parent / "backend" / ".env"
-
-
-# Settings schema with default values and metadata
-SETTINGS_SCHEMA = {
-    "system": {
-        "SERVER_URL": {
-            "type": "string",
-            "default": "http://localhost:5000",
-            "validation": "url",
-            "description": "Backend server URL"
-        },
-        "WINDOWS_USERNAME": {
-            "type": "string",
-            "default": "",
-            "required": True,
-            "description": "Windows username for path generation"
-        }
-    },
-    "llm": {
-        "LLM_PROVIDER": {
-            "type": "string",
-            "default": "gemini",
-            "description": "LLM Provider (gemini or openai)"
-        },
-        "OPENAI_API_KEY": {
-            "type": "string",
-            "default": "",
-            "description": "OpenAI API Key (leave empty to use env var)"
-        }
-    },
-    "paths": {
-        "DESKTOP_PATH": {
-            "type": "string",
-            "default": "",
-            "description": "Path to Desktop folder (used in AI prompts)"
-        },
-        "DOCUMENTS_PATH": {
-            "type": "string",
-            "default": "",
-            "description": "Path to Documents folder (used in AI prompts)"
-        },
-        "DOWNLOADS_PATH": {
-            "type": "string",
-            "default": "",
-            "description": "Path to Downloads folder (used in AI prompts)"
-        },
-        "STICKERS_PATH": {
-            "type": "string",
-            "default": "",
-            "description": "Path to Stickers/New Briefcase folder (used in AI prompts)"
-        }
-    },
-    "timing": {
-        "ACTION_DELAY": {
-            "type": "float",
-            "default": 0.3,
-            "min": 0.0,
-            "max": 10.0,
-            "unit": "seconds",
-            "description": "Default delay after each step"
-        },
-        "APP_LAUNCH_WAIT": {
-            "type": "float",
-            "default": 3.0,
-            "min": 0.5,
-            "max": 30.0,
-            "unit": "seconds",
-            "description": "Extended delay after launching an application"
-        },
-        "HOTKEY_DELAY": {
-            "type": "float",
-            "default": 0.5,
-            "min": 0.0,
-            "max": 5.0,
-            "unit": "seconds",
-            "description": "Delay after hotkey combinations"
-        },
-        "PRE_TYPE_DELAY": {
-            "type": "float",
-            "default": 0.2,
-            "min": 0.0,
-            "max": 2.0,
-            "unit": "seconds",
-            "description": "Small delay before typing text"
-        },
-        "SCREENSHOT_DELAY": {
-            "type": "float",
-            "default": 0.5,
-            "min": 0.0,
-            "max": 5.0,
-            "unit": "seconds",
-            "description": "Screenshot delay before vision analysis"
-        },
-        "WINDOW_ACTIVATION_TIMEOUT": {
-            "type": "float",
-            "default": 10.0,
-            "min": 1.0,
-            "max": 60.0,
-            "unit": "seconds",
-            "description": "Maximum time to wait for window appearance"
-        },
-        "WINDOW_POLL_INTERVAL": {
-            "type": "float",
-            "default": 0.5,
-            "min": 0.1,
-            "max": 5.0,
-            "unit": "seconds",
-            "description": "How often to poll for window appearance"
-        }
-    },
-    "window_manager": {
-        "WINDOW_ACTIVATION_ATTEMPTS": {
-            "type": "int",
-            "default": 3,
-            "min": 1,
-            "max": 10,
-            "description": "Maximum attempts to activate a window"
-        },
-        "WINDOW_MANAGER_VERBOSE": {
-            "type": "bool",
-            "default": True,
-            "description": "Verbose logging for window operations"
-        }
-    },
-    "flexisign": {
-        "FLEXISIGN_PROCESS_NAME": {
-            "type": "string",
-            "default": "Production Suite Scanner 10.5.1 Build 1806 Protected",
-            "description": "FlexiSIGN process name"
-        },
-        "FLEXISIGN_EXE_PATH": {
-            "type": "path",
-            "default": "",
-            "file_type": "executable",
-            "description": "Path to FlexiSIGN executable"
-        },
-        "FLEXISIGN_WINDOW_TITLE": {
-            "type": "string",
-            "default": "FlexiSIGN-PRO",
-            "description": "FlexiSIGN window title"
-        },
-        "STARTUP_MODAL_ENABLED": {
-            "type": "bool",
-            "default": True,
-            "description": "Enable startup modal handling"
-        },
-        "STARTUP_MODAL_TITLE": {
-            "type": "string",
-            "default": "FlexiSIGN",
-            "description": "Startup modal window title"
-        },
-        "STARTUP_MODAL_BUTTON": {
-            "type": "string",
-            "default": "OK",
-            "description": "Startup modal button text"
-        },
-        "STARTUP_MODAL_TIMEOUT": {
-            "type": "int",
-            "default": 30,
-            "min": 5,
-            "max": 120,
-            "unit": "seconds",
-            "description": "Startup modal timeout"
-        }
-    },
-    "verification": {
-        "VERIFICATION_ENABLED": {
-            "type": "bool",
-            "default": False,
-            "description": "Enable task verification after execution"
-        },
-        "MAX_RETRIES": {
-            "type": "int",
-            "default": 0,
-            "min": 0,
-            "max": 10,
-            "description": "Maximum retry attempts if verification fails"
-        },
-        "RETRY_DELAY": {
-            "type": "float",
-            "default": 2.0,
-            "min": 0.5,
-            "max": 30.0,
-            "unit": "seconds",
-            "description": "Delay before retrying after verification failure"
-        },
-        "VERIFICATION_DELAY": {
-            "type": "float",
-            "default": 1.0,
-            "min": 0.0,
-            "max": 10.0,
-            "unit": "seconds",
-            "description": "Delay before starting verification"
-        },
-        "CONFIDENCE_THRESHOLD": {
-            "type": "float",
-            "default": 0.7,
-            "min": 0.0,
-            "max": 1.0,
-            "description": "Minimum confidence score for successful verification"
-        }
-    },
-    "legacy": {
-        "PROCESS_START_WAIT": {
-            "type": "int",
-            "default": 5,
-            "description": "Legacy process start wait time"
-        },
-        "WINDOW_SWITCH_WAIT": {
-            "type": "int",
-            "default": 1,
-            "description": "Legacy window switch wait time"
-        },
-        "MODAL_CHECK_INTERVAL": {
-            "type": "int",
-            "default": 1,
-            "description": "Legacy modal check interval"
-        }
-    }
-}
+from config_schema import (
+    Configuration,
+    DEFAULT_CONFIG,
+    VALIDATION_RULES,
+    ValidationRule,
+    get_config_template,
+)
 
 
-class ConfigManager:
+class ConfigurationManager:
     """
-    Manages reading and writing configuration settings to config.py
-    while preserving file structure and comments.
+    Manages JARVIS configuration with validation, backup, and persistence.
     
-    Note: All paths are stored as strings to avoid pywebview serialization issues.
+    Responsibilities:
+    - Load configuration from file or create with defaults
+    - Validate configuration against defined rules
+    - Save configuration to disk
+    - Create and restore backups
+    - Detect first-run state
     """
     
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: Optional[Path] = None):
         """
-        Initialize ConfigManager with path to config.py
+        Initialize ConfigurationManager.
         
         Args:
-            config_path: Path to the config.py file
+            config_path: Path to configuration file. Defaults to local_client/config.py
         """
-        # Store as strings only - no Path objects to avoid pywebview serialization issues
-        self.config_path_str = str(config_path)
-        self.backup_path_str = str(config_path) + '.backup'
+        if config_path is None:
+            config_path = Path(__file__).parent / "config.py"
         
-        if not Path(self.config_path_str).exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+        self.config_path = Path(config_path)
+        self.json_config_path = self.config_path.with_suffix('.json')
+        self.backup_dir = self.config_path.parent / "config_backups"
+        self.backup_dir.mkdir(exist_ok=True)
+        
+        self.config: Configuration = self._load_or_create()
     
-    def read_config(self) -> Dict[str, Any]:
+    def _load_or_create(self) -> Configuration:
         """
-        Read current configuration from config.py
+        Load existing configuration or create from defaults.
         
         Returns:
-            dict: Configuration settings organized by category
+            Configuration object
         """
-        config_dict = {}
+        # Try to load from JSON first (new format)
+        if self.json_config_path.exists():
+            try:
+                return self._load_from_json()
+            except Exception as e:
+                print(f"Warning: Failed to load JSON config: {e}")
         
-        # Read the config file
-        with open(self.config_path_str, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # Try to load from Python config file (legacy format)
+        if self.config_path.exists():
+            try:
+                return self._load_from_python_config()
+            except Exception as e:
+                print(f"Warning: Failed to load Python config: {e}")
         
-        # Extract all variable assignments
-        # Pattern matches: VARIABLE_NAME = value
-        pattern = r'^([A-Z_][A-Z0-9_]*)\s*=\s*(.+?)(?:\s*#.*)?$'
-        
-        for line in content.split('\n'):
-            line = line.strip()
-            match = re.match(pattern, line)
-            
-            if match:
-                var_name = match.group(1)
-                var_value_str = match.group(2).strip()
-                
-                # Parse the value
-                value = self._parse_value(var_value_str)
-                
-                # Find which category this setting belongs to
-                category = self._find_category(var_name)
-                
-                if category:
-                    if category not in config_dict:
-                        config_dict[category] = {}
-                    config_dict[category][var_name] = value
-        
-        # Override sensitive keys from .env
-        try:
-            if ENV_PATH.exists():
-                api_key = get_key(ENV_PATH, "OPENAI_API_KEY")
-                if api_key and "llm" in config_dict:
-                    config_dict["llm"]["OPENAI_API_KEY"] = api_key
-        except Exception as e:
-            print(f"Warning: Could not read .env file: {e}")
-
-        return config_dict
+        # Create new configuration with defaults
+        print("Creating new configuration with defaults")
+        return Configuration.from_dict(DEFAULT_CONFIG)
     
-    def write_config(self, settings: Dict[str, Dict[str, Any]]) -> bool:
+    def _load_from_json(self) -> Configuration:
+        """Load configuration from JSON file"""
+        with open(self.json_config_path, 'r') as f:
+            data = json.load(f)
+        return Configuration.from_dict(data)
+    
+    def _load_from_python_config(self) -> Configuration:
         """
-        Write settings back to config.py while preserving structure
+        Load configuration from existing Python config.py file.
+        This provides backward compatibility with the existing config format.
+        """
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("config", self.config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+        
+        # Map old config to new structure
+        config_dict = DEFAULT_CONFIG.copy()
+        
+        # System
+        if hasattr(config_module, 'SERVER_URL'):
+            config_dict['system']['server_url'] = config_module.SERVER_URL
+        if hasattr(config_module, 'WINDOWS_USERNAME'):
+            config_dict['system']['windows_username'] = config_module.WINDOWS_USERNAME
+        
+        # LLM
+        if hasattr(config_module, 'LLM_PROVIDER'):
+            config_dict['llm']['provider'] = config_module.LLM_PROVIDER
+        if hasattr(config_module, 'OPENAI_API_KEY'):
+            config_dict['llm']['openai_api_key'] = config_module.OPENAI_API_KEY
+        if hasattr(config_module, 'GEMINI_API_KEY'):
+            config_dict['llm']['gemini_api_key'] = getattr(config_module, 'GEMINI_API_KEY', '')
+        
+        # Paths
+        if hasattr(config_module, 'DESKTOP_PATH'):
+            config_dict['paths']['desktop'] = config_module.DESKTOP_PATH
+        if hasattr(config_module, 'DOCUMENTS_PATH'):
+            config_dict['paths']['documents'] = config_module.DOCUMENTS_PATH
+        if hasattr(config_module, 'DOWNLOADS_PATH'):
+            config_dict['paths']['downloads'] = config_module.DOWNLOADS_PATH
+        if hasattr(config_module, 'STICKERS_PATH'):
+            config_dict['paths']['stickers'] = getattr(config_module, 'STICKERS_PATH', '')
+        
+        # Timing
+        if hasattr(config_module, 'ACTION_DELAY'):
+            config_dict['timing']['action_delay'] = config_module.ACTION_DELAY
+        if hasattr(config_module, 'APP_LAUNCH_WAIT'):
+            config_dict['timing']['app_launch_wait'] = config_module.APP_LAUNCH_WAIT
+        if hasattr(config_module, 'HOTKEY_DELAY'):
+            config_dict['timing']['hotkey_delay'] = getattr(config_module, 'HOTKEY_DELAY', 0.5)
+        if hasattr(config_module, 'PRE_TYPE_DELAY'):
+            config_dict['timing']['pre_type_delay'] = getattr(config_module, 'PRE_TYPE_DELAY', 0.2)
+        if hasattr(config_module, 'SCREENSHOT_DELAY'):
+            config_dict['timing']['screenshot_delay'] = getattr(config_module, 'SCREENSHOT_DELAY', 0.5)
+        if hasattr(config_module, 'WINDOW_ACTIVATION_TIMEOUT'):
+            config_dict['timing']['window_activation_timeout'] = getattr(config_module, 'WINDOW_ACTIVATION_TIMEOUT', 10)
+        if hasattr(config_module, 'WINDOW_POLL_INTERVAL'):
+            config_dict['timing']['window_poll_interval'] = getattr(config_module, 'WINDOW_POLL_INTERVAL', 0.5)
+        if hasattr(config_module, 'RETRY_DELAY'):
+            config_dict['timing']['retry_delay'] = getattr(config_module, 'RETRY_DELAY', 2)
+        if hasattr(config_module, 'VERIFICATION_DELAY'):
+            config_dict['timing']['verification_delay'] = getattr(config_module, 'VERIFICATION_DELAY', 1)
+        
+        # Verification
+        if hasattr(config_module, 'VERIFICATION_ENABLED'):
+            config_dict['verification']['enabled'] = config_module.VERIFICATION_ENABLED
+        if hasattr(config_module, 'MAX_RETRIES'):
+            config_dict['verification']['max_retries'] = config_module.MAX_RETRIES
+        if hasattr(config_module, 'CONFIDENCE_THRESHOLD'):
+            config_dict['verification']['confidence_threshold'] = getattr(config_module, 'CONFIDENCE_THRESHOLD', 0.7)
+        
+        # Window Manager
+        if hasattr(config_module, 'WINDOW_ACTIVATION_ATTEMPTS'):
+            config_dict['window_manager']['activation_attempts'] = getattr(config_module, 'WINDOW_ACTIVATION_ATTEMPTS', 3)
+        if hasattr(config_module, 'WINDOW_MANAGER_VERBOSE'):
+            config_dict['window_manager']['verbose'] = getattr(config_module, 'WINDOW_MANAGER_VERBOSE', True)
+        
+        # FlexiSign
+        if hasattr(config_module, 'FLEXISIGN_PROCESS_NAME'):
+            config_dict['flexisign']['process_name'] = getattr(config_module, 'FLEXISIGN_PROCESS_NAME', '')
+        if hasattr(config_module, 'FLEXISIGN_EXE_PATH'):
+            config_dict['flexisign']['exe_path'] = getattr(config_module, 'FLEXISIGN_EXE_PATH', '')
+        if hasattr(config_module, 'FLEXISIGN_WINDOW_TITLE'):
+            config_dict['flexisign']['window_title'] = getattr(config_module, 'FLEXISIGN_WINDOW_TITLE', '')
+        if hasattr(config_module, 'STARTUP_MODAL_ENABLED'):
+            config_dict['flexisign']['startup_modal_enabled'] = getattr(config_module, 'STARTUP_MODAL_ENABLED', True)
+        if hasattr(config_module, 'STARTUP_MODAL_TITLE'):
+            config_dict['flexisign']['startup_modal_title'] = getattr(config_module, 'STARTUP_MODAL_TITLE', '')
+        if hasattr(config_module, 'STARTUP_MODAL_BUTTON'):
+            config_dict['flexisign']['startup_modal_button'] = getattr(config_module, 'STARTUP_MODAL_BUTTON', '')
+        if hasattr(config_module, 'STARTUP_MODAL_TIMEOUT'):
+            config_dict['flexisign']['startup_modal_timeout'] = getattr(config_module, 'STARTUP_MODAL_TIMEOUT', 30)
+        
+        return Configuration.from_dict(config_dict)
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Get configuration value by dot-notation key.
         
         Args:
-            settings: Dictionary of settings organized by category
+            key: Configuration key in dot notation (e.g., 'llm.provider')
+            default: Default value if key not found
             
         Returns:
-            bool: True if successful, False otherwise
+            Configuration value or default
         """
-        try:
-            # Create backup before modifying
-            self.create_backup()
-            
-            # Read current file content
-            with open(self.config_path_str, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Update each setting in the content
-            for category, category_settings in settings.items():
-                for key, value in category_settings.items():
-                    
-                    # Intercept sensitive keys
-                    if key == "OPENAI_API_KEY":
-                        try:
-                            # Write to .env
-                            if not ENV_PATH.parent.exists():
-                                ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
-                            if not ENV_PATH.exists():
-                                 with open(ENV_PATH, 'w') as f:
-                                     f.write("")
-                            
-                            # Only update if value is not empty (or handle clearing?)
-                            # If value is provided, update .env
-                            if value:
-                                set_key(ENV_PATH, "OPENAI_API_KEY", str(value))
-                            
-                            # Always clear from config.py to avoid storing secrets
-                            value = ""
-                        except Exception as e:
-                            print(f"Error writing to .env: {e}")
-                    
-                    content = self._update_setting_in_content(content, key, value)
-            
-            # Write back to file
-            with open(self.config_path_str, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Error writing config: {e}")
-            # Attempt to restore backup
-            if Path(self.backup_path_str).exists():
-                self.restore_backup()
-            return False
-    
-    def create_backup(self) -> None:
-        """Create backup of current config before modifications"""
-        if Path(self.config_path_str).exists():
-            shutil.copy2(self.config_path_str, self.backup_path_str)
-    
-    def restore_backup(self) -> bool:
-        """
-        Restore config from backup
+        parts = key.split('.')
+        value = self.config
         
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            if Path(self.backup_path_str).exists():
-                shutil.copy2(self.backup_path_str, self.config_path_str)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error restoring backup: {e}")
-            return False
-    
-    def get_default_value(self, key: str) -> Optional[Any]:
-        """
-        Get default value for a setting from schema
-        
-        Args:
-            key: Setting key name
-            
-        Returns:
-            Default value or None if not found
-        """
-        for category, settings in SETTINGS_SCHEMA.items():
-            if key in settings:
-                return settings[key].get("default")
-        return None
-    
-    def _parse_value(self, value_str: str) -> Any:
-        """
-        Parse a string value from config.py into appropriate Python type
-        
-        Args:
-            value_str: String representation of the value
-            
-        Returns:
-            Parsed value
-        """
-        value_str = value_str.strip()
-        
-        # Handle string values (single or double quotes)
-        if (value_str.startswith("'") and value_str.endswith("'")) or \
-           (value_str.startswith('"') and value_str.endswith('"')):
-            return value_str[1:-1]
-        
-        # Handle raw strings (r"..." or r'...')
-        if value_str.startswith('r"') and value_str.endswith('"'):
-            return value_str[2:-1]
-        if value_str.startswith("r'") and value_str.endswith("'"):
-            return value_str[2:-1]
-        
-        # Handle boolean values
-        if value_str == 'True':
-            return True
-        if value_str == 'False':
-            return False
-        
-        # Handle numeric values
-        try:
-            # Try integer first
-            if '.' not in value_str:
-                return int(value_str)
-            # Then float
-            return float(value_str)
-        except ValueError:
-            pass
-        
-        # Return as string if can't parse
-        return value_str
-    
-    def _format_value(self, value: Any) -> str:
-        """
-        Format a Python value for writing to config.py
-        
-        Args:
-            value: Value to format
-            
-        Returns:
-            String representation suitable for config.py
-        """
-        if isinstance(value, bool):
-            return str(value)
-        elif isinstance(value, (int, float)):
-            return str(value)
-        elif isinstance(value, str):
-            # Check if it's a path (contains backslashes or forward slashes)
-            if '\\' in value or '/' in value:
-                # Use raw string for paths
-                return f'r"{value}"'
+        for part in parts:
+            if hasattr(value, part):
+                value = getattr(value, part)
             else:
-                # Use regular string
-                return f"'{value}'"
+                return default
+        
+        return value
+    
+    def set(self, key: str, value: Any) -> None:
+        """
+        Set configuration value by dot-notation key.
+        
+        Args:
+            key: Configuration key in dot notation (e.g., 'llm.provider')
+            value: Value to set
+        """
+        parts = key.split('.')
+        obj = self.config
+        
+        # Navigate to the parent object
+        for part in parts[:-1]:
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            else:
+                raise KeyError(f"Invalid configuration key: {key}")
+        
+        # Set the final value
+        if hasattr(obj, parts[-1]):
+            setattr(obj, parts[-1], value)
         else:
-            return str(value)
+            raise KeyError(f"Invalid configuration key: {key}")
     
-    def _update_setting_in_content(self, content: str, key: str, value: Any) -> str:
+    def save(self) -> None:
         """
-        Update a single setting in the file content
+        Save configuration to disk in both JSON and Python formats.
+        Creates a backup before saving.
+        """
+        # Create backup before saving
+        if self.json_config_path.exists():
+            self.backup()
+        
+        # Save as JSON (primary format)
+        config_dict = self.config.to_dict()
+        with open(self.json_config_path, 'w') as f:
+            json.dump(config_dict, f, indent=2)
+        
+        # Save as Python config file (for backward compatibility)
+        config_content = get_config_template(self.config)
+        with open(self.config_path, 'w') as f:
+            f.write(config_content)
+    
+    def validate(self) -> List[str]:
+        """
+        Validate configuration against defined rules.
+        
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+        config_dict = self.config.to_dict()
+        
+        for rule in VALIDATION_RULES:
+            error = self._validate_rule(config_dict, rule)
+            if error:
+                errors.append(error)
+        
+        return errors
+    
+    def _validate_rule(self, config_dict: Dict[str, Any], rule: ValidationRule) -> Optional[str]:
+        """
+        Validate a single rule against configuration.
         
         Args:
-            content: Current file content
-            key: Setting key to update
-            value: New value
+            config_dict: Configuration as dictionary
+            rule: Validation rule to check
             
         Returns:
-            Updated content
+            Error message if validation fails, None otherwise
         """
-        # Pattern to match the variable assignment line
-        # Matches: KEY = value (with optional comment)
-        pattern = rf'^({key}\s*=\s*)(.+?)(\s*#.*)?$'
+        # Get value from config using dot notation
+        value = self._get_nested_value(config_dict, rule.field_path)
         
-        formatted_value = self._format_value(value)
+        if rule.rule_type == "required":
+            if value is None or value == "":
+                return rule.error_message
         
-        lines = content.split('\n')
-        updated_lines = []
+        elif rule.rule_type == "type":
+            expected_type = rule.params.get("expected_type")
+            if value is not None and not isinstance(value, expected_type):
+                return rule.error_message
         
-        for line in lines:
-            match = re.match(pattern, line)
-            if match:
-                # Preserve the assignment operator and any comment
-                prefix = match.group(1)
-                comment = match.group(3) if match.group(3) else ''
-                updated_line = f"{prefix}{formatted_value}{comment}"
-                updated_lines.append(updated_line)
-            else:
-                updated_lines.append(line)
+        elif rule.rule_type == "choice":
+            choices = rule.params.get("choices", [])
+            if value not in choices:
+                return rule.error_message
         
-        return '\n'.join(updated_lines)
-    
-    def _find_category(self, key: str) -> Optional[str]:
-        """
-        Find which category a setting belongs to
+        elif rule.rule_type == "range":
+            min_val = rule.params.get("min")
+            max_val = rule.params.get("max")
+            if value is not None:
+                if min_val is not None and value < min_val:
+                    return rule.error_message
+                if max_val is not None and value > max_val:
+                    return rule.error_message
         
-        Args:
-            key: Setting key name
-            
-        Returns:
-            Category name or None if not found
-        """
-        for category, settings in SETTINGS_SCHEMA.items():
-            if key in settings:
-                return category
+        elif rule.rule_type == "path_exists":
+            if value and not Path(value).exists():
+                return rule.error_message
+        
+        elif rule.rule_type == "url":
+            if value:
+                try:
+                    result = urlparse(value)
+                    if not all([result.scheme, result.netloc]):
+                        return rule.error_message
+                except Exception:
+                    return rule.error_message
+        
+        elif rule.rule_type == "api_key":
+            # Basic API key validation (non-empty, reasonable length)
+            if value and (len(value) < 10 or len(value) > 200):
+                return rule.error_message
+        
         return None
+    
+    def _get_nested_value(self, data: Dict[str, Any], path: str) -> Any:
+        """Get nested dictionary value using dot notation"""
+        parts = path.split('.')
+        value = data
+        
+        for part in parts:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return None
+        
+        return value
+    
+    def backup(self) -> Path:
+        """
+        Create a backup of the current configuration.
+        
+        Returns:
+            Path to backup file
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = self.backup_dir / f"config_backup_{timestamp}.json"
+        
+        if self.json_config_path.exists():
+            shutil.copy2(self.json_config_path, backup_path)
+        
+        return backup_path
+    
+    def restore(self, backup_path: Path) -> None:
+        """
+        Restore configuration from a backup file.
+        
+        Args:
+            backup_path: Path to backup file
+        """
+        if not backup_path.exists():
+            raise FileNotFoundError(f"Backup file not found: {backup_path}")
+        
+        # Load backup
+        with open(backup_path, 'r') as f:
+            data = json.load(f)
+        
+        # Update current configuration
+        self.config = Configuration.from_dict(data)
+        
+        # Save restored configuration
+        self.save()
+    
+    def list_backups(self) -> List[Path]:
+        """
+        List all available backup files.
+        
+        Returns:
+            List of backup file paths, sorted by date (newest first)
+        """
+        backups = list(self.backup_dir.glob("config_backup_*.json"))
+        return sorted(backups, reverse=True)
+    
+    def is_first_run(self) -> bool:
+        """
+        Check if this is the first run of the application.
+        
+        Returns:
+            True if first run, False otherwise
+        """
+        return not self.config.first_run_complete
+    
+    def mark_configured(self) -> None:
+        """Mark first-run setup as complete"""
+        self.config.first_run_complete = True
+        self.save()
+    
+    def reset_to_defaults(self) -> None:
+        """Reset configuration to default values"""
+        self.config = Configuration.from_dict(DEFAULT_CONFIG)
+        self.save()
+    
+    def get_config_dict(self) -> Dict[str, Any]:
+        """Get configuration as dictionary"""
+        return self.config.to_dict()
+    
+    def update_from_dict(self, updates: Dict[str, Any]) -> None:
+        """
+        Update configuration from dictionary.
+        
+        Args:
+            updates: Dictionary with configuration updates
+        """
+        current_dict = self.config.to_dict()
+        self._deep_update(current_dict, updates)
+        self.config = Configuration.from_dict(current_dict)
+    
+    def _deep_update(self, base: Dict[str, Any], updates: Dict[str, Any]) -> None:
+        """Recursively update nested dictionary"""
+        for key, value in updates.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                self._deep_update(base[key], value)
+            else:
+                base[key] = value
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS
+# =============================================================================
+
+def get_config_manager(config_path: Optional[Path] = None) -> ConfigurationManager:
+    """
+    Get or create a ConfigurationManager instance.
+    
+    Args:
+        config_path: Optional path to configuration file
+        
+    Returns:
+        ConfigurationManager instance
+    """
+    return ConfigurationManager(config_path)
+
+
+def load_config(config_path: Optional[Path] = None) -> Configuration:
+    """
+    Load configuration from file.
+    
+    Args:
+        config_path: Optional path to configuration file
+        
+    Returns:
+        Configuration object
+    """
+    manager = ConfigurationManager(config_path)
+    return manager.config
+
+
+def save_config(config: Configuration, config_path: Optional[Path] = None) -> None:
+    """
+    Save configuration to file.
+    
+    Args:
+        config: Configuration object to save
+        config_path: Optional path to configuration file
+    """
+    manager = ConfigurationManager(config_path)
+    manager.config = config
+    manager.save()
