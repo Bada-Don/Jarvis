@@ -274,6 +274,12 @@ class APIService {
       console.log('Mock: Checking first run status');
       return false; // In development, assume not first run
     }
+    
+    // Debug: Check what methods are actually available
+    console.log('Available API methods:', Object.keys(window.pywebview.api));
+    console.log('Checking for is_first_run method:', typeof window.pywebview.api.is_first_run);
+    console.log('Checking for isFirstRun method:', typeof window.pywebview.api.isFirstRun);
+    
     console.log('Calling Python backend: is_first_run()');
     const response = await window.pywebview.api.is_first_run();
     console.log('is_first_run response:', response);

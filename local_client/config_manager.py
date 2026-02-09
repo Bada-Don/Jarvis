@@ -382,12 +382,12 @@ class ConfigurationManager:
     def backup(self) -> Path:
         """
         Create a backup of the current configuration.
+        Updates the single backup file instead of creating multiple backups.
         
         Returns:
             Path to backup file
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = self._backup_dir / f"config_backup_{timestamp}.json"
+        backup_path = self._backup_dir / "config_backup.json"
         
         if self._json_config_path.exists():
             shutil.copy2(self._json_config_path, backup_path)
@@ -419,10 +419,10 @@ class ConfigurationManager:
         List all available backup files.
         
         Returns:
-            List of backup file paths, sorted by date (newest first)
+            List of backup file paths (single backup file)
         """
-        backups = list(self._backup_dir.glob("config_backup_*.json"))
-        return sorted(backups, reverse=True)
+        backup_path = self._backup_dir / "config_backup.json"
+        return [backup_path] if backup_path.exists() else []
     
     def is_first_run(self) -> bool:
         """

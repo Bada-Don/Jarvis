@@ -61,3 +61,6 @@ local_client/config.json
 local_client/config.py
 local_client/flexisign_config.json
 data/firebase_config.json
+
+# Config backups
+local_client/config_backups/
