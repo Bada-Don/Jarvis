@@ -22,6 +22,61 @@ from config_schema import (
 )
 
 
+# Settings schema for the Settings UI
+SETTINGS_SCHEMA = {
+    "system": {
+        "server_url": {"type": "string", "label": "Server URL", "default": "http://localhost:5000"},
+        "windows_username": {"type": "string", "label": "Windows Username", "default": ""},
+    },
+    "llm": {
+        "provider": {"type": "choice", "label": "LLM Provider", "choices": ["gemini", "openai"], "default": "gemini"},
+        "gemini_api_key": {"type": "string", "label": "Gemini API Key", "default": "", "secret": True},
+        "openai_api_key": {"type": "string", "label": "OpenAI API Key", "default": "", "secret": True},
+    },
+    "paths": {
+        "desktop": {"type": "path", "label": "Desktop Path", "default": ""},
+        "documents": {"type": "path", "label": "Documents Path", "default": ""},
+        "downloads": {"type": "path", "label": "Downloads Path", "default": ""},
+        "stickers": {"type": "path", "label": "Stickers Path", "default": ""},
+    },
+    "firebase": {
+        "device_id": {"type": "string", "label": "Device ID", "default": "", "readonly": True},
+        "paired": {"type": "boolean", "label": "Paired", "default": False, "readonly": True},
+        "paired_device_id": {"type": "string", "label": "Paired Device ID", "default": "", "readonly": True},
+        "credentials_path": {"type": "path", "label": "Credentials Path", "default": "data/firebase-admin-credentials.json"},
+    },
+    "timing": {
+        "action_delay": {"type": "number", "label": "Action Delay (s)", "default": 0.3, "min": 0.0, "max": 10.0},
+        "app_launch_wait": {"type": "number", "label": "App Launch Wait (s)", "default": 3.0, "min": 0.0, "max": 60.0},
+        "hotkey_delay": {"type": "number", "label": "Hotkey Delay (s)", "default": 0.5, "min": 0.0, "max": 10.0},
+        "pre_type_delay": {"type": "number", "label": "Pre-Type Delay (s)", "default": 0.2, "min": 0.0, "max": 10.0},
+        "screenshot_delay": {"type": "number", "label": "Screenshot Delay (s)", "default": 0.5, "min": 0.0, "max": 10.0},
+        "window_activation_timeout": {"type": "number", "label": "Window Activation Timeout (s)", "default": 10.0, "min": 1.0, "max": 60.0},
+        "window_poll_interval": {"type": "number", "label": "Window Poll Interval (s)", "default": 0.5, "min": 0.1, "max": 5.0},
+        "retry_delay": {"type": "number", "label": "Retry Delay (s)", "default": 2.0, "min": 0.0, "max": 10.0},
+        "verification_delay": {"type": "number", "label": "Verification Delay (s)", "default": 1.0, "min": 0.0, "max": 10.0},
+    },
+    "verification": {
+        "enabled": {"type": "boolean", "label": "Verification Enabled", "default": False},
+        "max_retries": {"type": "number", "label": "Max Retries", "default": 0, "min": 0, "max": 10},
+        "confidence_threshold": {"type": "number", "label": "Confidence Threshold", "default": 0.7, "min": 0.0, "max": 1.0},
+    },
+    "window_manager": {
+        "activation_attempts": {"type": "number", "label": "Activation Attempts", "default": 3, "min": 1, "max": 10},
+        "verbose": {"type": "boolean", "label": "Verbose Logging", "default": True},
+    },
+    "flexisign": {
+        "process_name": {"type": "string", "label": "Process Name", "default": "Production Suite Scanner 10.5.1 Build 1806 Protected"},
+        "exe_path": {"type": "path", "label": "Executable Path", "default": ""},
+        "window_title": {"type": "string", "label": "Window Title", "default": "FlexiSIGN-PRO"},
+        "startup_modal_enabled": {"type": "boolean", "label": "Startup Modal Enabled", "default": True},
+        "startup_modal_title": {"type": "string", "label": "Startup Modal Title", "default": "FlexiSIGN"},
+        "startup_modal_button": {"type": "string", "label": "Startup Modal Button", "default": "OK"},
+        "startup_modal_timeout": {"type": "number", "label": "Startup Modal Timeout (s)", "default": 30, "min": 5, "max": 120},
+    },
+}
+
+
 class ConfigurationManager:
     """
     Manages JARVIS configuration with validation, backup, and persistence.
@@ -44,10 +99,11 @@ class ConfigurationManager:
         if config_path is None:
             config_path = Path(__file__).parent / "config.py"
         
-        self.config_path = Path(config_path)
-        self.json_config_path = self.config_path.with_suffix('.json')
-        self.backup_dir = self.config_path.parent / "config_backups"
-        self.backup_dir.mkdir(exist_ok=True)
+        # Use private attributes to avoid pywebview serialization issues
+        self._config_path = Path(config_path)
+        self._json_config_path = self._config_path.with_suffix('.json')
+        self._backup_dir = self._config_path.parent / "config_backups"
+        self._backup_dir.mkdir(exist_ok=True)
         
         self.config: Configuration = self._load_or_create()
     
@@ -59,14 +115,14 @@ class ConfigurationManager:
             Configuration object
         """
         # Try to load from JSON first (new format)
-        if self.json_config_path.exists():
+        if self._json_config_path.exists():
             try:
                 return self._load_from_json()
             except Exception as e:
                 print(f"Warning: Failed to load JSON config: {e}")
         
         # Try to load from Python config file (legacy format)
-        if self.config_path.exists():
+        if self._config_path.exists():
             try:
                 return self._load_from_python_config()
             except Exception as e:
@@ -78,7 +134,7 @@ class ConfigurationManager:
     
     def _load_from_json(self) -> Configuration:
         """Load configuration from JSON file"""
-        with open(self.json_config_path, 'r') as f:
+        with open(self._json_config_path, 'r') as f:
             data = json.load(f)
         return Configuration.from_dict(data)
     
@@ -88,7 +144,7 @@ class ConfigurationManager:
         This provides backward compatibility with the existing config format.
         """
         import importlib.util
-        spec = importlib.util.spec_from_file_location("config", self.config_path)
+        spec = importlib.util.spec_from_file_location("config", self._config_path)
         config_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(config_module)
         
@@ -223,17 +279,17 @@ class ConfigurationManager:
         Creates a backup before saving.
         """
         # Create backup before saving
-        if self.json_config_path.exists():
+        if self._json_config_path.exists():
             self.backup()
         
         # Save as JSON (primary format)
         config_dict = self.config.to_dict()
-        with open(self.json_config_path, 'w') as f:
+        with open(self._json_config_path, 'w') as f:
             json.dump(config_dict, f, indent=2)
         
         # Save as Python config file (for backward compatibility)
         config_content = get_config_template(self.config)
-        with open(self.config_path, 'w') as f:
+        with open(self._config_path, 'w') as f:
             f.write(config_content)
     
     def validate(self) -> List[str]:
@@ -331,10 +387,10 @@ class ConfigurationManager:
             Path to backup file
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = self.backup_dir / f"config_backup_{timestamp}.json"
+        backup_path = self._backup_dir / f"config_backup_{timestamp}.json"
         
-        if self.json_config_path.exists():
-            shutil.copy2(self.json_config_path, backup_path)
+        if self._json_config_path.exists():
+            shutil.copy2(self._json_config_path, backup_path)
         
         return backup_path
     
@@ -365,7 +421,7 @@ class ConfigurationManager:
         Returns:
             List of backup file paths, sorted by date (newest first)
         """
-        backups = list(self.backup_dir.glob("config_backup_*.json"))
+        backups = list(self._backup_dir.glob("config_backup_*.json"))
         return sorted(backups, reverse=True)
     
     def is_first_run(self) -> bool:
@@ -409,6 +465,55 @@ class ConfigurationManager:
                 self._deep_update(base[key], value)
             else:
                 base[key] = value
+    
+    def read_config(self) -> Dict[str, Any]:
+        """
+        Read configuration as dictionary.
+        Alias for get_config_dict() for backward compatibility.
+        
+        Returns:
+            Configuration as dictionary
+        """
+        return self.get_config_dict()
+    
+    def write_config(self, config_dict: Dict[str, Any]) -> bool:
+        """
+        Write configuration from dictionary.
+        
+        Args:
+            config_dict: Configuration dictionary to write
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.update_from_dict(config_dict)
+            self.save()
+            return True
+        except Exception as e:
+            print(f"Error writing config: {e}")
+            return False
+    
+    def get_default_value(self, key: str) -> Any:
+        """
+        Get default value for a configuration key.
+        
+        Args:
+            key: Configuration key in dot notation (e.g., 'llm.provider')
+            
+        Returns:
+            Default value from SETTINGS_SCHEMA or None if not found
+        """
+        parts = key.split('.')
+        if len(parts) != 2:
+            return None
+        
+        category, setting_key = parts
+        
+        if category in SETTINGS_SCHEMA and setting_key in SETTINGS_SCHEMA[category]:
+            return SETTINGS_SCHEMA[category][setting_key].get('default')
+        
+        return None
 
 
 # =============================================================================

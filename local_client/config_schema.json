@@ -1,0 +1,227 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JARVIS Configuration",
+  "description": "Configuration schema for JARVIS Desktop Application",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "default": "1.0.0"
+    },
+    "first_run_complete": {
+      "type": "boolean",
+      "description": "Whether first-run setup has been completed",
+      "default": false
+    },
+    "system": {
+      "type": "object",
+      "properties": {
+        "server_url": {
+          "type": "string",
+          "description": "Backend server URL",
+          "format": "uri"
+        },
+        "windows_username": {
+          "type": "string",
+          "description": "Windows username"
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["gemini", "openai"],
+          "description": "LLM provider to use"
+        },
+        "gemini_api_key": {
+          "type": "string",
+          "description": "Google Gemini API key"
+        },
+        "openai_api_key": {
+          "type": "string",
+          "description": "OpenAI API key"
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "desktop": {
+          "type": "string",
+          "description": "Path to Desktop folder"
+        },
+        "documents": {
+          "type": "string",
+          "description": "Path to Documents folder"
+        },
+        "downloads": {
+          "type": "string",
+          "description": "Path to Downloads folder"
+        },
+        "stickers": {
+          "type": "string",
+          "description": "Path to Stickers folder"
+        }
+      }
+    },
+    "firebase": {
+      "type": "object",
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "description": "Firebase device ID"
+        },
+        "paired": {
+          "type": "boolean",
+          "description": "Whether device is paired"
+        },
+        "paired_device_id": {
+          "type": ["string", "null"],
+          "description": "Paired device ID"
+        },
+        "credentials_path": {
+          "type": "string",
+          "description": "Path to Firebase credentials file"
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "action_delay": {
+          "type": "number",
+          "description": "Delay between actions (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "app_launch_wait": {
+          "type": "number",
+          "description": "Wait time after launching app (seconds)",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "hotkey_delay": {
+          "type": "number",
+          "description": "Delay for hotkey presses (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "pre_type_delay": {
+          "type": "number",
+          "description": "Delay before typing (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "screenshot_delay": {
+          "type": "number",
+          "description": "Delay for screenshots (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "window_activation_timeout": {
+          "type": "number",
+          "description": "Window activation timeout (seconds)",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "window_poll_interval": {
+          "type": "number",
+          "description": "Window polling interval (seconds)",
+          "minimum": 0.1,
+          "maximum": 5
+        },
+        "retry_delay": {
+          "type": "number",
+          "description": "Retry delay (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "verification_delay": {
+          "type": "number",
+          "description": "Verification delay (seconds)",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether verification is enabled"
+        },
+        "max_retries": {
+          "type": "integer",
+          "description": "Maximum retry attempts",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "confidence_threshold": {
+          "type": "number",
+          "description": "Confidence threshold for verification",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "window_manager": {
+      "type": "object",
+      "properties": {
+        "activation_attempts": {
+          "type": "integer",
+          "description": "Number of window activation attempts",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "Enable verbose logging"
+        }
+      }
+    },
+    "flexisign": {
+      "type": "object",
+      "properties": {
+        "process_name": {
+          "type": "string",
+          "description": "FlexiSign process name"
+        },
+        "exe_path": {
+          "type": "string",
+          "description": "Path to FlexiSign executable"
+        },
+        "window_title": {
+          "type": "string",
+          "description": "FlexiSign window title"
+        },
+        "startup_modal_enabled": {
+          "type": "boolean",
+          "description": "Whether startup modal is enabled"
+        },
+        "startup_modal_title": {
+          "type": "string",
+          "description": "Startup modal window title"
+        },
+        "startup_modal_button": {
+          "type": "string",
+          "description": "Startup modal button text"
+        },
+        "startup_modal_timeout": {
+          "type": "integer",
+          "description": "Startup modal timeout (seconds)",
+          "minimum": 5,
+          "maximum": 120
+        }
+      }
+    }
+  },
+  "required": ["version", "first_run_complete"]
+}

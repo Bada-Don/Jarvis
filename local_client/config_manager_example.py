@@ -27,7 +27,7 @@ def main():
         print("\nConfiguring application...")
         manager.set("system.windows_username", "demo_user")
         manager.set("llm.provider", "gemini")
-        manager.set("llm.gemini_api_key", "demo-api-key-123")
+        manager.set("llm.gemini_api_key", "YOUR_GEMINI_API_KEY_HERE")  # Replace with your actual API key
         manager.set("paths.desktop", r"C:\Users\demo_user\Desktop")
         manager.set("paths.documents", r"C:\Users\demo_user\Documents")
         manager.set("paths.downloads", r"C:\Users\demo_user\Downloads")

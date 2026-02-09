@@ -15,3 +15,19 @@ export { default as PackagingPanel } from './PackagingPanel';
 export { default as Toast } from './Toast';
 export { default as ToastContainer, useToast } from './ToastContainer';
 export { default as Loading, InlineLoading } from './Loading';
+
+// UI Components
+export {
+  Modal,
+  ModalTrigger,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalFooter,
+  useModal,
+} from './ui/AnimatedModal';
+
+// Utilities
+export { cn } from '../utils/cn';

@@ -239,6 +239,62 @@ class APIService {
     }
   }
 
+  async generatePairingCode() {
+    if (!this.isReady()) {
+      console.log('Mock: Generating pairing code');
+      return {
+        token: 'pair_mock123456',
+        qrCodeData: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        expiresAt: Math.floor(Date.now() / 1000) + 300,
+      };
+    }
+    const response = await window.pywebview.api.generate_pairing_code();
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to generate pairing code');
+    }
+    return response.data;
+  }
+
+  async checkPairingStatus(token) {
+    if (!this.isReady()) {
+      console.log('Mock: Checking pairing status for token', token);
+      return { paired: false };
+    }
+    const response = await window.pywebview.api.check_pairing_status(token);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to check pairing status');
+    }
+    return response.data;
+  }
+
+  async isFirstRun() {
+    await this.waitForPyWebView();
+    
+    if (!this.isReady()) {
+      console.log('Mock: Checking first run status');
+      return false; // In development, assume not first run
+    }
+    console.log('Calling Python backend: is_first_run()');
+    const response = await window.pywebview.api.is_first_run();
+    console.log('is_first_run response:', response);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to check first run status');
+    }
+    console.log('is_first_run data:', response.data);
+    return response.data;
+  }
+
+  async completeFirstRun(configuration) {
+    if (!this.isReady()) {
+      console.log('Mock: Completing first run with configuration', configuration);
+      return;
+    }
+    const response = await window.pywebview.api.complete_first_run(configuration);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to complete first run');
+    }
+  }
+
   getMockSettings() {
     return {
       system: {

@@ -7,15 +7,15 @@
     "windows_username": "your_username"
   },
   "llm": {
-    "provider": "openai",
-    "gemini_api_key": "",
-    "openai_api_key": ""
+    "provider": "gemini",
+    "gemini_api_key": "AIzaSy... (your Gemini API key)",
+    "openai_api_key": "sk-proj-... (your OpenAI API key - optional)"
   },
   "paths": {
     "desktop": "C:\\Users\\your_username\\Desktop",
     "documents": "C:\\Users\\your_username\\Documents",
     "downloads": "C:\\Users\\your_username\\Downloads",
-    "stickers": "C:\\Path\\To\\Your\\Stickers"
+    "stickers": ""
   },
   "firebase": {
     "device_id": "",
@@ -44,8 +44,8 @@
     "verbose": true
   },
   "flexisign": {
-    "process_name": "Your FlexiSign Process Name",
-    "exe_path": "C:\\Path\\To\\FlexiSign.exe",
+    "process_name": "Production Suite Scanner 10.5.1 Build 1806 Protected",
+    "exe_path": "",
     "window_title": "FlexiSIGN-PRO",
     "startup_modal_enabled": true,
     "startup_modal_title": "FlexiSIGN",

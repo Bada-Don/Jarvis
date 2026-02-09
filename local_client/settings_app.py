@@ -9,13 +9,14 @@ a bridge between the UI and the Python configuration system.
 import os
 import sys
 import json
+import time
 import webview
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Tuple
 
 # Import managers
-from config_manager import ConfigManager, SETTINGS_SCHEMA
+from config_manager import ConfigurationManager, SETTINGS_SCHEMA
 from prompt_manager import PromptManager, read_all_prompts, write_prompts_to_file, PROMPT_SCHEMA
 from validation_service import ValidationService
 from packaging_service import PackagingService
@@ -36,9 +37,9 @@ class SettingsAPI:
         # Store as string to avoid pywebview serialization issues with Path objects
         self.project_root_str = str(Path(__file__).parent.parent)
         
-        # Initialize ConfigManager
+        # Initialize ConfigurationManager
         config_path = Path(self.project_root_str) / "local_client" / "config.py"
-        self.config_manager = ConfigManager(str(config_path))
+        self.config_manager = ConfigurationManager(str(config_path))
         
         # Initialize ValidationService
         self.validation_service = ValidationService()
@@ -752,6 +753,277 @@ class SettingsAPI:
                     "message": f"Failed to test configuration: {str(e)}",
                     "details": {},
                     "suggestions": ["Check that all configuration files are accessible"]
+                }
+            }
+    
+    # First-Run Setup Methods
+    def is_first_run(self):
+        """
+        Check if this is the first run of the application.
+        
+        Returns:
+            dict: Response with first-run status
+        """
+        try:
+            is_first_run = self.config_manager.is_first_run()
+            return {
+                "success": True,
+                "data": is_first_run
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": {
+                    "code": "CHECK_ERROR",
+                    "message": f"Failed to check first-run status: {str(e)}",
+                    "details": {},
+                    "suggestions": []
+                }
+            }
+    
+    def complete_first_run(self, configuration):
+        """
+        Complete first-run setup and save configuration.
+        
+        Args:
+            configuration (dict): Configuration from first-run wizard containing:
+                - apiKeys: {gemini, openai}
+                - paths: {desktop, documents, downloads}
+                - pairing: {completed, deviceId}
+        
+        Returns:
+            dict: Response with success status
+        """
+        try:
+            # Update configuration with first-run data
+            config_updates = {}
+            
+            # Update LLM settings
+            if 'apiKeys' in configuration:
+                config_updates['llm'] = {
+                    'gemini_api_key': configuration['apiKeys'].get('gemini', ''),
+                    'openai_api_key': configuration['apiKeys'].get('openai', ''),
+                }
+            
+            # Update paths
+            if 'paths' in configuration:
+                config_updates['paths'] = {
+                    'desktop': configuration['paths'].get('desktop', ''),
+                    'documents': configuration['paths'].get('documents', ''),
+                    'downloads': configuration['paths'].get('downloads', ''),
+                }
+            
+            # Update Firebase pairing status
+            if 'pairing' in configuration:
+                config_updates['firebase'] = {
+                    'paired': configuration['pairing'].get('completed', False),
+                    'paired_device_id': configuration['pairing'].get('deviceId', ''),
+                }
+            
+            # Apply updates
+            self.config_manager.update_from_dict(config_updates)
+            
+            # Mark first-run as complete
+            self.config_manager.mark_configured()
+            
+            return {
+                "success": True,
+                "message": "First-run setup completed successfully"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": {
+                    "code": "SETUP_ERROR",
+                    "message": f"Failed to complete first-run setup: {str(e)}",
+                    "details": {},
+                    "suggestions": ["Check configuration file permissions"]
+                }
+            }
+    
+    # Pairing Methods
+    def generate_pairing_code(self):
+        """
+        Generate a pairing token and QR code for device pairing.
+        
+        Returns:
+            dict: Response with pairing token, QR code data, and expiration time
+        """
+        try:
+            # Check if Firebase service is available
+            try:
+                from firebase_service import FirebaseService
+                from pairing_manager import PairingManager
+                
+                # Initialize Firebase service
+                firebase_config_path = Path(self.project_root_str) / "data" / "firebase_config.json"
+                firebase_credentials_path = Path(self.project_root_str) / "data" / "firebase-admin-credentials.json"
+                
+                if not firebase_credentials_path.exists():
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "FIREBASE_NOT_CONFIGURED",
+                            "message": "Firebase is not configured",
+                            "details": {},
+                            "suggestions": [
+                                "Add service account credentials to data/firebase-admin-credentials.json",
+                                "Optionally add Firebase config to data/firebase_config.json"
+                            ]
+                        }
+                    }
+                
+                # Read database URL from config if available
+                database_url = None
+                if firebase_config_path.exists():
+                    try:
+                        import json
+                        with open(firebase_config_path, 'r') as f:
+                            config_data = json.load(f)
+                            database_url = config_data.get('database_url')
+                    except Exception as e:
+                        print(f"Warning: Could not read firebase_config.json: {e}")
+                
+                # Initialize Firebase service with correct parameters
+                firebase_service = FirebaseService(
+                    str(firebase_credentials_path),  # credentials_path (required)
+                    database_url=database_url        # database_url (optional)
+                )
+                
+                # Initialize pairing manager
+                pairing_manager = PairingManager(firebase_service)
+                
+                # Generate pairing code and QR
+                token, qr_bytes = pairing_manager.generate_pairing_qr(ttl=300)
+                
+                # Convert QR code bytes to base64 for transmission
+                import base64
+                qr_base64 = base64.b64encode(qr_bytes).decode('utf-8')
+                
+                # Get expiration time
+                expires_at = int(time.time()) + 300
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "token": token,
+                        "qrCodeData": qr_base64,
+                        "expiresAt": expires_at
+                    }
+                }
+                
+            except ImportError as e:
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "FIREBASE_NOT_AVAILABLE",
+                        "message": "Firebase service is not available",
+                        "details": {"import_error": str(e)},
+                        "suggestions": [
+                            "Install Firebase dependencies: pip install firebase-admin",
+                            "Ensure firebase_service.py and pairing_manager.py exist"
+                        ]
+                    }
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": {
+                    "code": "PAIRING_ERROR",
+                    "message": f"Failed to generate pairing code: {str(e)}",
+                    "details": {},
+                    "suggestions": ["Check Firebase configuration and connectivity"]
+                }
+            }
+    
+    def check_pairing_status(self, token):
+        """
+        Check if a pairing token has been used (device paired).
+        
+        Args:
+            token (str): Pairing token to check
+        
+        Returns:
+            dict: Response with pairing status
+        """
+        try:
+            # Check if Firebase service is available
+            try:
+                from firebase_service import FirebaseService
+                from pairing_manager import PairingManager
+                
+                # Initialize Firebase service
+                firebase_config_path = Path(self.project_root_str) / "data" / "firebase_config.json"
+                firebase_credentials_path = Path(self.project_root_str) / "data" / "firebase-admin-credentials.json"
+                
+                if not firebase_credentials_path.exists():
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "FIREBASE_NOT_CONFIGURED",
+                            "message": "Firebase is not configured",
+                            "details": {},
+                            "suggestions": []
+                        }
+                    }
+                
+                # Read database URL from config if available
+                database_url = None
+                if firebase_config_path.exists():
+                    try:
+                        import json
+                        with open(firebase_config_path, 'r') as f:
+                            config_data = json.load(f)
+                            database_url = config_data.get('database_url')
+                    except Exception as e:
+                        print(f"Warning: Could not read firebase_config.json: {e}")
+                
+                # Initialize Firebase service with correct parameters
+                firebase_service = FirebaseService(
+                    str(firebase_credentials_path),  # credentials_path (required)
+                    database_url=database_url        # database_url (optional)
+                )
+                
+                # Initialize pairing manager
+                pairing_manager = PairingManager(firebase_service)
+                
+                # Check pairing status
+                is_paired = pairing_manager.check_pairing_status(token)
+                
+                # Get paired device ID if paired
+                device_id = None
+                if is_paired:
+                    device_id = pairing_manager.get_paired_device_id()
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "paired": is_paired,
+                        "deviceId": device_id
+                    }
+                }
+                
+            except ImportError:
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "FIREBASE_NOT_AVAILABLE",
+                        "message": "Firebase service is not available",
+                        "details": {},
+                        "suggestions": []
+                    }
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": {
+                    "code": "STATUS_CHECK_ERROR",
+                    "message": f"Failed to check pairing status: {str(e)}",
+                    "details": {},
+                    "suggestions": []
                 }
             }
     

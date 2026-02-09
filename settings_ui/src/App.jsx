@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { AlertTriangle, RefreshCw, Search, X, Info, Mic, MicOff } from 'lucide-react';
 import './App.css';
 import { api } from './api';
+
+console.log('App.jsx: Module loaded');
 import Loader from './components/Loader';
 import Sidebar from './components/SideBar';
 import SystemSettingsPanel from './components/SystemSettingsPanel';
@@ -19,6 +21,7 @@ import PackagingPanel from './components/PackagingPanel';
 import ToastContainer, { useToast } from './components/ToastContainer';
 import { ThemeProvider } from './components/ThemeProvider';
 import { ThemeToggle } from './components/ThemeToggle';
+import FirstRunSetup from './components/setup/FirstRunSetup';
 
 // Dashboard Components
 import DashboardLayout from './components/dashboard/DashboardLayout';
@@ -35,15 +38,24 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showFirstRunSetup, setShowFirstRunSetup] = useState(false);
+  const [checkingFirstRun, setCheckingFirstRun] = useState(true);
 
   const { toasts, removeToast, showSuccess, showError } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Check for first run on mount
+  useEffect(() => {
+    checkFirstRun();
+  }, []);
+
   // Load settings on mount
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (!checkingFirstRun && !showFirstRunSetup) {
+      loadSettings();
+    }
+  }, [checkingFirstRun, showFirstRunSetup]);
 
   // Sync route with settings overlay
   useEffect(() => {
@@ -51,6 +63,72 @@ function AppContent() {
       setIsSettingsOpen(true);
     }
   }, [location]);
+
+  const checkFirstRun = async () => {
+    console.log('Checking first run status...');
+    setCheckingFirstRun(true);
+    try {
+      const isFirstRun = await api.isFirstRun();
+      console.log('First run check result:', isFirstRun);
+      setShowFirstRunSetup(isFirstRun);
+    } catch (err) {
+      console.error('Failed to check first run status:', err);
+      // If check fails, assume not first run and continue
+      setShowFirstRunSetup(false);
+    } finally {
+      setCheckingFirstRun(false);
+    }
+  };
+
+  const handleFirstRunComplete = async (configuration) => {
+    setIsLoading(true);
+    try {
+      // Save configuration to backend
+      await api.completeFirstRun(configuration);
+      
+      // Update settings with new configuration
+      const updatedSettings = {
+        ...settings,
+        llm: {
+          ...settings?.llm,
+          gemini_api_key: configuration.apiKeys.gemini,
+          openai_api_key: configuration.apiKeys.openai,
+        },
+        paths: {
+          ...settings?.paths,
+          desktop: configuration.paths.desktop,
+          documents: configuration.paths.documents,
+          downloads: configuration.paths.downloads,
+        },
+        firebase: {
+          ...settings?.firebase,
+          paired: configuration.pairing.completed,
+          paired_device_id: configuration.pairing.deviceId,
+        },
+      };
+
+      // Save updated settings
+      await api.saveSettings(updatedSettings);
+      
+      // Close first-run modal
+      setShowFirstRunSetup(false);
+      
+      // Load settings
+      await loadSettings();
+      
+      showSuccess('Setup completed successfully! Welcome to JARVIS.');
+    } catch (err) {
+      console.error('Failed to complete first run:', err);
+      showError('Failed to save configuration. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFirstRunSkip = () => {
+    setShowFirstRunSetup(false);
+    loadSettings();
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -166,6 +244,28 @@ function AppContent() {
     setIsSettingsOpen(false);
     navigate('/');
   };
+
+  // Show loading while checking first run
+  if (checkingFirstRun) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader variant="jarvis" size="xl" text="Initializing JARVIS..." fullScreen={false} />
+      </div>
+    );
+  }
+
+  // Show first-run setup modal if needed
+  if (showFirstRunSetup) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <FirstRunSetup
+          isOpen={showFirstRunSetup}
+          onComplete={handleFirstRunComplete}
+          onSkip={handleFirstRunSkip}
+        />
+      </div>
+    );
+  }
 
   if (isLoading && !settings) {
     return (
