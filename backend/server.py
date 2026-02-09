@@ -40,6 +40,56 @@ try:
 except ValueError as e:
     print(f"⚠ Gemini Planner Service not available: {e}")
 
+# Initialize Firebase Service (optional)
+firebase_service = None
+firebase_enabled = False
+try:
+    from firebase_service import FirebaseService
+    
+    # Check for Firebase credentials
+    firebase_creds_path = os.path.join('data', 'firebase-admin-credentials.json')
+    if os.path.exists(firebase_creds_path):
+        firebase_service = FirebaseService(firebase_creds_path)
+        firebase_enabled = True
+        print("✓ Firebase Service initialized successfully")
+    else:
+        print("⚠ Firebase credentials not found, Firebase features disabled")
+except Exception as e:
+    print(f"⚠ Firebase Service not available: {e}")
+
+
+def get_or_create_device_id():
+    """
+    Get or create a unique device ID for this backend instance.
+    Stored in data/device_id.txt
+    """
+    device_id_path = os.path.join('data', 'device_id.txt')
+    
+    # Try to load existing device ID
+    if os.path.exists(device_id_path):
+        try:
+            with open(device_id_path, 'r') as f:
+                device_id = f.read().strip()
+                if device_id:
+                    return device_id
+        except Exception as e:
+            print(f"⚠️ Error reading device ID: {e}")
+    
+    # Generate new device ID
+    import uuid
+    device_id = f"desktop_{uuid.uuid4().hex[:16]}"
+    
+    # Save device ID
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open(device_id_path, 'w') as f:
+            f.write(device_id)
+        print(f"✓ Generated new device ID: {device_id}")
+    except Exception as e:
+        print(f"⚠️ Error saving device ID: {e}")
+    
+    return device_id
+
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -55,6 +105,36 @@ def chat():
             
         return jsonify({"status": "success", "message": "Message logged"}), 200
     return jsonify({"status": "error", "message": "No message provided"}), 400
+
+
+def send_command_dual(command_payload):
+    """
+    Send command via both WebSocket (for backward compatibility) and Firebase.
+    
+    Args:
+        command_payload: Command data to send
+    """
+    # Send via WebSocket (existing behavior)
+    socketio.emit('command', command_payload)
+    
+    # Send via Firebase if enabled
+    if firebase_enabled and firebase_service and firebase_service.device_id:
+        firebase_service.send_command(firebase_service.device_id, command_payload)
+
+
+def send_status_dual(status_data):
+    """
+    Send status update via both WebSocket and Firebase.
+    
+    Args:
+        status_data: Status data to send
+    """
+    # Send via WebSocket (existing behavior)
+    socketio.emit('jarvis_status', status_data)
+    
+    # Send via Firebase if enabled
+    if firebase_enabled and firebase_service and firebase_service.device_id:
+        firebase_service.send_status(firebase_service.device_id, status_data)
 
 
 @app.route('/api/upload', methods=['POST'])
@@ -118,7 +198,7 @@ def process_instruction():
     
     try:
         # Emit status update
-        socketio.emit('jarvis_status', {
+        send_status_dual({
             'message': 'Processing your request...',
             'status': 'running',
             'progress': 5
@@ -131,7 +211,7 @@ def process_instruction():
         step_count = len(plan.get('sequence', []))
         print(f"✓ Plan generated: {step_count} steps (mode: {mode})")
         
-        socketio.emit('jarvis_status', {
+        send_status_dual({
             'message': f'Plan ready ({step_count} steps), sending to executor...',
             'status': 'running',
             'progress': 20
@@ -145,9 +225,9 @@ def process_instruction():
             "mode": mode
         }
         
-        # Send to Local Client via WebSocket
+        # Send to Local Client via WebSocket and Firebase
         print(f"📤 Sending execute_plan command (mode: {mode})...")
-        socketio.emit('command', command_payload)
+        send_command_dual(command_payload)
         
         return jsonify({
             "status": "success",
@@ -159,7 +239,7 @@ def process_instruction():
     except ValueError as e:
         error_msg = f"Failed to generate plan: {e}"
         print(f"✗ {error_msg}")
-        socketio.emit('jarvis_status', {
+        send_status_dual({
             'message': error_msg,
             'status': 'error',
             'error': str(e)
@@ -172,7 +252,7 @@ def process_instruction():
     except Exception as e:
         error_msg = f"Error processing request: {e}"
         print(f"✗ {error_msg}")
-        socketio.emit('jarvis_status', {
+        send_status_dual({
             'message': 'An error occurred while processing your request.',
             'status': 'error',
             'error': str(e)
@@ -189,6 +269,27 @@ def process_instruction():
 def handle_connect():
     print('Client connected')
     emit('status', {'data': 'Connected to JARVIS Brain'})
+    
+    # Register device with Firebase if enabled
+    if firebase_enabled and firebase_service:
+        try:
+            # Generate or load device ID
+            device_id = get_or_create_device_id()
+            firebase_service.set_device_id(device_id)
+            firebase_service.register_device(device_id, device_type="desktop")
+            firebase_service.update_presence(device_id)
+            
+            # Emit Firebase connection status
+            emit('firebase_status', {
+                'connected': True,
+                'device_id': device_id
+            })
+        except Exception as e:
+            print(f"⚠️ Firebase registration error: {e}")
+            emit('firebase_status', {
+                'connected': False,
+                'error': str(e)
+            })
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -206,20 +307,22 @@ def handle_status_update(data):
     
     if isinstance(message, dict) and 'progress' in message:
         print(f"📱 Progress: {message.get('message')} ({message.get('progress')}%)")
-        socketio.emit('jarvis_status', {
+        status_data = {
             'progress': message.get('progress'),
             'message': message.get('message'),
             'status': message.get('status', 'running'),
             'error': message.get('error'),
             'timestamp': data.get('timestamp')
-        })
+        }
+        send_status_dual(status_data)
     else:
         print(f"📱 Status [{status_type}]: {message}")
-        socketio.emit('jarvis_status', {
+        status_data = {
             'message': message,
             'type': status_type,
             'timestamp': data.get('timestamp')
-        })
+        }
+        send_status_dual(status_data)
 
 
 # --- Permission Request Handling ---

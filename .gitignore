@@ -44,3 +44,14 @@ google-services.json
 GoogleService-Info.plist
 ChatInterface/google-services.json
 ChatInterface/GoogleService-Info.plist
+
+# Firebase config (contains project-specific URLs)
+data/firebase_config.json
+
+# Device-specific config files
+data/device_config.json
+
+# Test output files
+local_client/test_qr_code.png
+local_client/pairing_qr_*.png
+*.png

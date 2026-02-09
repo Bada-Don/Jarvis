@@ -1,0 +1,6 @@
+{
+  "project_id": "your-project-id",
+  "database_url": "https://your-project-id-default-rtdb.firebaseio.com",
+  "region": "us-central1",
+  "_comment": "Copy this file to firebase_config.json and update with your actual Firebase database URL"
+}

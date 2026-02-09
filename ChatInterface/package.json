@@ -9,11 +9,14 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.0",
     "axios": "^1.13.2",
     "expo": "~54.0.27",
     "expo-audio": "~1.0.16",
     "expo-av": "~16.0.8",
+    "expo-barcode-scanner": "~14.0.3",
     "expo-blur": "~15.0.8",
+    "expo-camera": "~17.0.5",
     "expo-constants": "~18.0.11",
     "expo-document-picker": "~14.0.8",
     "expo-image-picker": "~17.0.9",
@@ -21,6 +24,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.15",
+    "firebase": "^11.2.0",
     "lucide-react-native": "^0.554.0",
     "react": "19.1.0",
     "react-native": "0.81.5",

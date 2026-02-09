@@ -38,6 +38,14 @@ except ImportError as e:
     print(f"⚠️ Warning: Two-Model Pipeline components not available: {e}")
     TWO_MODEL_PIPELINE_AVAILABLE = False
 
+# Import Firebase Service
+try:
+    from firebase_service import FirebaseService
+    FIREBASE_SERVICE_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Warning: Firebase Service not available: {e}")
+    FIREBASE_SERVICE_AVAILABLE = False
+
 # Import debug logger
 try:
     from debug_logger import create_new_session, get_debug_logger
@@ -71,10 +79,14 @@ sio = socketio.Client(
 # Permission service instance (initialized after connection)
 permission_service = None
 
+# Firebase service instance (initialized if credentials available)
+firebase_service = None
+firebase_enabled = False
+
 
 @sio.event
 def connect():
-    global permission_service
+    global permission_service, firebase_service, firebase_enabled
     print('✅ Connected to JARVIS Server')
     
     # Initialize permission service after connection
@@ -82,6 +94,31 @@ def connect():
         permission_service = PermissionService(sio, status_callback=send_status)
         register_abort_handler(sio)
         print('✅ Permission service initialized')
+    
+    # Initialize Firebase service if available
+    if FIREBASE_SERVICE_AVAILABLE and not firebase_enabled:
+        try:
+            firebase_creds_path = os.path.join('data', 'firebase-admin-credentials.json')
+            if os.path.exists(firebase_creds_path):
+                firebase_service = FirebaseService(firebase_creds_path)
+                
+                # Get or create device ID
+                device_id = get_or_create_device_id()
+                firebase_service.set_device_id(device_id)
+                firebase_service.register_device(device_id, device_type="desktop")
+                
+                # Start presence tracking
+                firebase_service.start_presence_tracking(device_id)
+                
+                # Listen for commands from Firebase
+                firebase_service.listen_for_commands(device_id, handle_firebase_command)
+                
+                firebase_enabled = True
+                print('✅ Firebase service initialized and listening')
+            else:
+                print('⚠️ Firebase credentials not found, Firebase features disabled')
+        except Exception as e:
+            print(f'⚠️ Firebase initialization error: {e}')
 
 
 @sio.event
@@ -95,28 +132,82 @@ def command(data):
     execute_command(data)
 
 
-def send_status(message, status_type="info"):
-    """Send status update to server."""
+def get_or_create_device_id():
+    """
+    Get or create a unique device ID for this client instance.
+    Stored in data/device_id.txt
+    """
+    device_id_path = os.path.join('data', 'device_id.txt')
+    
+    # Try to load existing device ID
+    if os.path.exists(device_id_path):
+        try:
+            with open(device_id_path, 'r') as f:
+                device_id = f.read().strip()
+                if device_id:
+                    return device_id
+        except Exception as e:
+            print(f"⚠️ Error reading device ID: {e}")
+    
+    # Generate new device ID
+    import uuid
+    device_id = f"desktop_{uuid.uuid4().hex[:16]}"
+    
+    # Save device ID
     try:
-        # Check if socket is connected before emitting
-        if not sio.connected:
-            print(f"⚠️ Socket disconnected, skipping status: {message if isinstance(message, str) else message.get('message', '')}")
-            return
-        
+        os.makedirs('data', exist_ok=True)
+        with open(device_id_path, 'w') as f:
+            f.write(device_id)
+        print(f"✓ Generated new device ID: {device_id}")
+    except Exception as e:
+        print(f"⚠️ Error saving device ID: {e}")
+    
+    return device_id
+
+
+def handle_firebase_command(command_data):
+    """
+    Handle commands received from Firebase.
+    
+    Args:
+        command_data: Command data from Firebase
+    """
+    print(f'📥 Firebase command received: {command_data.get("action", "unknown")}')
+    execute_command(command_data)
+
+
+def send_status(message, status_type="info"):
+    """Send status update to server via WebSocket and Firebase."""
+    try:
+        # Prepare status data
         if isinstance(message, dict):
-            sio.emit('status_update', {
+            status_data = {
                 'message': message,
                 'type': message.get('status', status_type),
                 'timestamp': time.time()
-            })
+            }
             print(f"📤 Progress: {message.get('message', '')} ({message.get('progress', 0)}%)")
         else:
-            sio.emit('status_update', {
+            status_data = {
                 'message': message,
                 'type': status_type,
                 'timestamp': time.time()
-            })
+            }
             print(f"📤 Status: {message}")
+        
+        # Send via WebSocket if connected
+        if sio.connected:
+            sio.emit('status_update', status_data)
+        else:
+            print(f"⚠️ Socket disconnected, skipping WebSocket status")
+        
+        # Send via Firebase if enabled
+        if firebase_enabled and firebase_service and firebase_service.device_id:
+            # For Firebase, we need to send to the paired mobile device
+            # For now, we'll send to the same device ID (will be updated with pairing)
+            firebase_service.send_status(firebase_service.device_id, 
+                                        message if isinstance(message, dict) else {'message': message, 'type': status_type})
+            
     except Exception as e:
         print(f"Failed to send status: {e}")
 
@@ -399,6 +490,7 @@ def main():
     print(f"Two-Model Pipeline: {'✅' if TWO_MODEL_PIPELINE_AVAILABLE else '❌'}")
     print(f"Debug Logger: {'✅' if DEBUG_LOGGER_AVAILABLE else '❌'}")
     print(f"Permission Service: {'✅' if PERMISSION_SERVICE_AVAILABLE else '❌'}")
+    print(f"Firebase Service: {'✅' if FIREBASE_SERVICE_AVAILABLE else '❌'}")
     print("=" * 50)
     
     try:
@@ -406,6 +498,11 @@ def main():
         sio.wait()
     except KeyboardInterrupt:
         print("\n👋 Shutting down...")
+        
+        # Cleanup Firebase
+        if firebase_enabled and firebase_service:
+            firebase_service.close()
+        
         sio.disconnect()
     except Exception as e:
         print(f"Connection failed: {e}")

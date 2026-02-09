@@ -1,57 +1,62 @@
-# JARVIS Data Directory
+# Data Directory
 
-This directory contains runtime data and configuration files for JARVIS.
+This directory contains Firebase configuration and credentials.
 
-## Firebase Credentials
+## Required Files
 
-### Required File: `firebase-admin-credentials.json`
+### 1. firebase-admin-credentials.json (Required)
 
-This file contains your Firebase Admin SDK service account credentials. It is required for desktop-to-mobile communication.
-
-**How to obtain:**
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your JARVIS project
-3. Navigate to **Project Settings** → **Service accounts**
-4. Click "Generate new private key"
+Download from Firebase Console:
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Select your project
+3. Go to Project Settings > Service Accounts
+4. Click "Generate New Private Key"
 5. Save the downloaded file as `firebase-admin-credentials.json` in this directory
 
-**Security:**
-- ⚠️ **NEVER commit this file to version control**
-- ⚠️ **NEVER share this file publicly**
-- ⚠️ This file is already in `.gitignore`
-- ⚠️ Keep this file secure on your local machine
+**⚠️ NEVER commit this file to git!** It contains sensitive credentials.
 
-### Template File: `firebase-config-template.json`
+### 2. firebase_config.json (Optional but Recommended)
 
-This is a template showing the structure of the credentials file. Do NOT use this template directly - download the actual credentials from Firebase Console.
+If your Firebase database is in a non-US region, create this file:
 
-## Directory Structure
+```json
+{
+  "project_id": "your-project-id",
+  "database_url": "https://your-project-id-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "region": "asia-southeast1"
+}
+```
+
+**Common regions:**
+- `us-central1` (United States) - Default
+- `europe-west1` (Belgium)
+- `asia-southeast1` (Singapore)
+
+**To auto-generate this file:**
+```bash
+python fix_firebase_region.py
+```
+
+### 3. device_config.json (Auto-generated)
+
+This file is automatically created when you run the pairing manager. It stores your device ID.
+
+**⚠️ Do not commit this file** - it's device-specific.
+
+## Files in This Directory
 
 ```
 data/
-├── README.md                           # This file
-├── firebase-config-template.json      # Template (DO NOT USE)
-├── firebase-admin-credentials.json    # Your actual credentials (NOT IN GIT)
-├── config.py                          # User configuration (created on first run)
-└── logs/                              # Application logs
+├── firebase-admin-credentials.json    # Your Firebase credentials (REQUIRED, DO NOT COMMIT)
+├── firebase_config.json               # Database URL config (optional, DO NOT COMMIT)
+├── device_config.json                 # Device ID (auto-generated, DO NOT COMMIT)
+├── firebase_config.json.example       # Template for firebase_config.json
+└── README.md                          # This file
 ```
 
-## Setup Instructions
+## Security Notes
 
-See the following guides for complete setup instructions:
-- `docs/FIREBASE_SETUP_GUIDE.md` - Detailed Firebase setup guide
-- `docs/FIREBASE_QUICK_START.md` - Quick start checklist
-
-## Verification
-
-After placing your credentials file, run the verification script:
-
-```bash
-python scripts/verify_firebase_setup.py
-```
-
-This will check that:
-- Credentials file exists and is valid
-- Environment variables are configured
-- Firebase connection works
-- Security rules are in place
+- ✅ `.gitignore` is configured to exclude sensitive files
+- ✅ Only commit `.example` files
+- ✅ Never share credentials publicly
+- ✅ Rotate credentials if accidentally exposed
