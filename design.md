@@ -9,6 +9,8 @@ The system consists of three main components:
 2. **Local Client** (Python): Executes plans on the user's PC using multiple automation techniques
 3. **Mobile App** (React Native): User interface for sending commands and receiving status updates
 
+This document covers both the core automation architecture and the desktop packaging design that enables JARVIS to be distributed as a production-ready application with Firebase-based mobile connectivity.
+
 ## Architecture
 
 ### System Architecture
@@ -770,3 +772,771 @@ End-to-end tests verify complete workflows:
 - **Task scheduling**: Schedule automation tasks for future execution
 - **Conversation memory**: Remember context across multiple commands
 - **Learning from corrections**: Improve plans based on verification failures
+
+---
+
+## Desktop Packaging Architecture
+
+### Overview
+
+JARVIS is packaged as a production-ready desktop application with Firebase-based mobile connectivity. The packaging system transforms the multi-component development setup into a single distributable package that users can install and run with minimal configuration.
+
+### Packaging Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│         Desktop Application Package (ZIP)               │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐ │
+│  │              UI Layer                             │ │
+│  │  ┌─────────────────┐  ┌──────────────────────┐  │ │
+│  │  │  Settings UI    │  │  First-Run Modal     │  │ │
+│  │  │  React + Vite   │  │  Aceternity UI       │  │ │
+│  │  └─────────────────┘  └──────────────────────┘  │ │
+│  └───────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐ │
+│  │            Backend Layer                          │ │
+│  │  ┌─────────────────┐  ┌──────────────────────┐  │ │
+│  │  │  Flask Server   │  │  Planner Service     │  │ │
+│  │  │  Port 5000      │  │  Gemini API          │  │ │
+│  │  └─────────────────┘  └──────────────────────┘  │ │
+│  └───────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐ │
+│  │           Execution Layer                         │ │
+│  │  ┌─────────────────┐  ┌──────────────────────┐  │ │
+│  │  │  Local Client   │  │  Vision Service      │  │ │
+│  │  │  Python         │  │  Plan Executor       │  │ │
+│  │  └─────────────────┘  └──────────────────────┘  │ │
+│  └───────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐ │
+│  │          Process Manager                          │ │
+│  │  ┌─────────────────┐  ┌──────────────────────┐  │ │
+│  │  │ Launcher Script │  │ System Tray Manager  │  │ │
+│  │  └─────────────────┘  └──────────────────────┘  │ │
+│  └───────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          │ Firebase Connection
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│              Cloud Services                             │
+│  ┌─────────────────────┐  ┌──────────────────────────┐ │
+│  │ Firebase Realtime   │  │  Firebase Auth           │ │
+│  │ Database            │  │  (Anonymous)             │ │
+│  └─────────────────────┘  └──────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          │ Mobile Connection
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│              Mobile App                                 │
+│  ┌─────────────────────┐  ┌──────────────────────────┐ │
+│  │ React Native App    │  │  QR Scanner              │ │
+│  └─────────────────────┘  └──────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Packaged Application Directory Structure
+
+```
+JARVIS/
+├── runtime/
+│   ├── python/          # Embedded Python 3.10+
+│   └── node/            # Embedded Node.js 18+
+├── app/
+│   ├── backend/         # Flask server + dependencies
+│   ├── local_client/    # Automation client + dependencies
+│   └── settings_ui/     # Built React app (dist/)
+├── assets/
+│   ├── weights/         # FastSAM-s.pt
+│   ├── icons/           # Application icons
+│   └── config/          # Default configuration templates
+├── data/
+│   ├── config.py        # User configuration (created on first run)
+│   ├── firebase.json    # Firebase credentials
+│   └── logs/            # Application logs
+├── JARVIS.exe           # Main launcher
+├── README.txt           # Quick start guide
+└── LICENSE.txt          # License information
+```
+
+## Packaging Components
+
+### Packaging System
+
+**Technology**: PyInstaller + Vite + Custom build scripts
+
+**Interface**:
+```python
+class PackagingSystem:
+    def bundle_python_components() -> Path:
+        """Bundle backend and local_client with PyInstaller"""
+        
+    def bundle_nodejs_components() -> Path:
+        """Bundle settings_ui with Vite build"""
+        
+    def include_assets() -> None:
+        """Copy FastSAM weights, icons, configs"""
+        
+    def create_launcher() -> Path:
+        """Generate main launcher executable"""
+        
+    def create_distribution() -> Path:
+        """Create final ZIP file with version info"""
+```
+
+### First-Run Setup Wizard
+
+**Technology**: React + Aceternity UI Modal + Framer Motion
+
+**Interface**:
+```typescript
+interface FirstRunSetupProps {
+  onComplete: (config: Configuration) => void;
+  onSkip: () => void;
+}
+
+interface Configuration {
+  apiKeys: {
+    gemini: string;
+    openai?: string;
+  };
+  paths: {
+    desktop: string;
+    documents: string;
+    downloads: string;
+  };
+  system: {
+    username: string;
+  };
+}
+
+class FirstRunSetup extends React.Component<FirstRunSetupProps> {
+  validateApiKey(key: string, provider: 'gemini' | 'openai'): Promise<boolean>;
+  validatePath(path: string): boolean;
+  saveConfiguration(config: Configuration): Promise<void>;
+  generatePairingCode(): string;
+}
+```
+
+**Component Structure**:
+```
+settings_ui/src/components/
+├── ui/
+│   └── AnimatedModal.jsx       # Adapted from Aceternity UI
+├── setup/
+│   ├── FirstRunSetup.jsx       # Main setup wizard
+│   ├── ApiKeyStep.jsx          # API key input step
+│   ├── PathConfigStep.jsx      # Path configuration step
+│   └── PairingStep.jsx         # QR code pairing step
+└── utils/
+    └── cn.js                   # Class name utility
+```
+
+### Firebase Integration
+
+**Technology**: Firebase Realtime Database + Firebase Admin SDK
+
+**Data Structure**:
+```json
+{
+  "devices": {
+    "{deviceId}": {
+      "type": "desktop" | "mobile",
+      "paired": true,
+      "lastSeen": 1234567890,
+      "version": "1.0.0"
+    }
+  },
+  "pairing": {
+    "{pairingToken}": {
+      "desktopId": "{deviceId}",
+      "expiresAt": 1234567890,
+      "used": false
+    }
+  },
+  "messages": {
+    "{deviceId}": {
+      "commands": {
+        "{messageId}": {
+          "type": "command",
+          "text": "open notepad",
+          "timestamp": 1234567890,
+          "processed": false
+        }
+      },
+      "status": {
+        "{messageId}": {
+          "type": "status",
+          "message": "Processing...",
+          "progress": 50,
+          "timestamp": 1234567890
+        }
+      }
+    }
+  }
+}
+```
+
+**Security Rules**:
+```javascript
+{
+  "rules": {
+    "devices": {
+      "$deviceId": {
+        ".read": "auth != null && auth.uid == $deviceId",
+        ".write": "auth != null && auth.uid == $deviceId"
+      }
+    },
+    "pairing": {
+      "$token": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists()"
+      }
+    },
+    "messages": {
+      "$deviceId": {
+        ".read": "auth != null && (auth.uid == $deviceId || root.child('devices/' + auth.uid + '/pairedWith').val() == $deviceId)",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
+```
+
+**Interface**:
+```python
+class FirebaseService:
+    def __init__(self, credentials_path: str):
+        """Initialize Firebase with service account"""
+        
+    def generate_pairing_token(self, desktop_id: str, ttl: int = 300) -> str:
+        """Generate time-limited pairing token"""
+        
+    def verify_pairing_token(self, token: str, mobile_id: str) -> bool:
+        """Verify and consume pairing token"""
+        
+    def pair_devices(self, desktop_id: str, mobile_id: str) -> str:
+        """Create persistent device pairing"""
+        
+    def send_command(self, device_id: str, command: dict) -> None:
+        """Send command to device"""
+        
+    def send_status(self, device_id: str, status: dict) -> None:
+        """Send status update to device"""
+        
+    def listen_for_commands(self, device_id: str, callback: Callable) -> None:
+        """Listen for incoming commands"""
+        
+    def update_presence(self, device_id: str) -> None:
+        """Update device last-seen timestamp"""
+```
+
+### Device Pairing System
+
+**Desktop Side**:
+```python
+class PairingManager:
+    def __init__(self, firebase: FirebaseService):
+        self.firebase = firebase
+        self.device_id = self._get_or_create_device_id()
+        
+    def _get_or_create_device_id(self) -> str:
+        """Load or generate unique device ID"""
+        
+    def generate_pairing_qr(self) -> tuple[str, bytes]:
+        """Generate pairing token and QR code image"""
+        token = self.firebase.generate_pairing_token(self.device_id)
+        qr_image = self._create_qr_code(token)
+        return token, qr_image
+        
+    def _create_qr_code(self, data: str) -> bytes:
+        """Create QR code image using qrcode library"""
+        
+    def check_pairing_status(self, token: str) -> bool:
+        """Check if pairing completed"""
+        
+    def is_paired(self) -> bool:
+        """Check if device is already paired"""
+        
+    def unpair(self) -> None:
+        """Remove pairing and require re-pairing"""
+```
+
+**Mobile Side**:
+```typescript
+class PairingManager {
+  constructor(firebase: FirebaseService) {}
+  
+  async scanQRCode(): Promise<string> {
+    // Use React Native Camera to scan QR code
+  }
+  
+  async submitPairingToken(token: string): Promise<boolean> {
+    // Send token to Firebase for verification
+  }
+  
+  async isPaired(): Promise<boolean> {
+    // Check if device has valid pairing
+  }
+  
+  getDeviceId(): string {
+    // Get stored device ID from secure storage
+  }
+}
+```
+
+### Application Launcher
+
+**Technology**: Python + subprocess + pystray (system tray)
+
+**Interface**:
+```python
+class ApplicationLauncher:
+    def __init__(self):
+        self.processes = {}
+        self.tray_icon = None
+        
+    def start(self) -> None:
+        """Start all components in correct order"""
+        self._start_backend()
+        self._start_local_client()
+        self._start_settings_ui()
+        self._create_system_tray()
+        
+    def _start_backend(self) -> subprocess.Popen:
+        """Start Flask backend server"""
+        
+    def _start_local_client(self) -> subprocess.Popen:
+        """Start local automation client"""
+        
+    def _start_settings_ui(self) -> subprocess.Popen:
+        """Start Settings UI with PyWebView"""
+        
+    def _create_system_tray(self) -> None:
+        """Create system tray icon with menu"""
+        
+    def _monitor_processes(self) -> None:
+        """Monitor and restart crashed components"""
+        
+    def shutdown(self) -> None:
+        """Gracefully shutdown all components"""
+```
+
+**System Tray Menu**:
+```
+JARVIS
+├── Show Settings
+├── Pairing Status: ✓ Paired
+├── Backend: ✓ Running
+├── Client: ✓ Running
+├── ───────────────
+├── Restart All
+├── View Logs
+├── ───────────────
+└── Quit
+```
+
+### Configuration Management
+
+**Interface**:
+```python
+class ConfigurationManager:
+    def __init__(self, config_path: Path):
+        self.config_path = config_path
+        self.config = self._load_or_create()
+        
+    def _load_or_create(self) -> dict:
+        """Load existing config or create from template"""
+        
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value"""
+        
+    def set(self, key: str, value: Any) -> None:
+        """Set configuration value"""
+        
+    def save(self) -> None:
+        """Save configuration to disk"""
+        
+    def validate(self) -> list[str]:
+        """Validate configuration and return errors"""
+        
+    def backup(self) -> Path:
+        """Create configuration backup"""
+        
+    def restore(self, backup_path: Path) -> None:
+        """Restore from backup"""
+        
+    def is_first_run(self) -> bool:
+        """Check if this is first run"""
+        
+    def mark_configured(self) -> None:
+        """Mark first-run setup as complete"""
+```
+
+**Configuration Schema**:
+```python
+DEFAULT_CONFIG = {
+    "version": "1.0.0",
+    "first_run_complete": False,
+    "system": {
+        "server_url": "http://localhost:5000",
+        "windows_username": "",
+    },
+    "llm": {
+        "provider": "gemini",
+        "gemini_api_key": "",
+        "openai_api_key": "",
+    },
+    "paths": {
+        "desktop": "",
+        "documents": "",
+        "downloads": "",
+    },
+    "firebase": {
+        "device_id": "",
+        "paired": False,
+        "paired_device_id": "",
+    },
+    "timing": {
+        "action_delay": 0.5,
+        "app_launch_wait": 5,
+    },
+    "verification": {
+        "enabled": True,
+        "max_retries": 2,
+    }
+}
+```
+
+## Packaging Data Models
+
+### Device Model
+```python
+@dataclass
+class Device:
+    id: str
+    type: Literal["desktop", "mobile"]
+    paired: bool
+    paired_with: Optional[str]
+    last_seen: datetime
+    version: str
+    
+    def to_dict(self) -> dict:
+        """Convert to Firebase-compatible dict"""
+        
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Device':
+        """Create from Firebase data"""
+```
+
+### Pairing Token Model
+```python
+@dataclass
+class PairingToken:
+    token: str
+    desktop_id: str
+    expires_at: datetime
+    used: bool
+    
+    def is_valid(self) -> bool:
+        """Check if token is still valid"""
+        
+    def is_expired(self) -> bool:
+        """Check if token has expired"""
+```
+
+### Message Model
+```python
+@dataclass
+class Message:
+    id: str
+    type: Literal["command", "status", "progress", "error", "completion"]
+    content: dict
+    timestamp: datetime
+    processed: bool
+    
+    def to_dict(self) -> dict:
+        """Convert to Firebase-compatible dict"""
+```
+
+### Configuration Model
+```python
+@dataclass
+class Configuration:
+    version: str
+    first_run_complete: bool
+    system: SystemConfig
+    llm: LLMConfig
+    paths: PathsConfig
+    firebase: FirebaseConfig
+    timing: TimingConfig
+    verification: VerificationConfig
+    
+    def validate(self) -> list[str]:
+        """Validate all configuration sections"""
+        
+    def to_dict(self) -> dict:
+        """Convert to saveable dict"""
+```
+
+## Packaging Correctness Properties
+
+### Property 53: Configuration Persistence
+*For any* configuration changes made through the Settings UI, saving the configuration and restarting the application should result in the same configuration being loaded.
+**Validates: Requirements 29.1, 29.2**
+
+### Property 54: Component Startup Order
+*For any* application launch, the Backend Server should start before the Local Client, and both should be running before the Settings UI becomes interactive.
+**Validates: Requirements 28.1**
+
+### Property 55: Pairing Token Expiration
+*For any* generated pairing token, attempting to use it after its expiration time should result in rejection.
+**Validates: Requirements 25.2, 25.6**
+
+### Property 56: Device Authentication
+*For any* message sent from a mobile device, the message should only be processed if the device has a valid Device_Identifier that matches a paired desktop.
+**Validates: Requirements 25.11, 26.4**
+
+### Property 57: Message Ordering
+*For any* sequence of commands sent from the mobile app, they should be processed by the desktop in the same order they were sent.
+**Validates: Requirements 27.7**
+
+### Property 58: Firebase Reconnection
+*For any* network disconnection, when connectivity is restored, the system should automatically reconnect to Firebase and resume message processing.
+**Validates: Requirements 24.5, 24.9**
+
+### Property 59: Configuration Validation
+*For any* configuration file, loading it should either succeed with valid configuration or fail with specific error messages for each invalid field.
+**Validates: Requirements 29.4, 30.1**
+
+### Property 60: API Key Validation
+*For any* API key entered during first-run setup, the system should verify it works before allowing setup completion.
+**Validates: Requirements 22.6**
+
+### Property 61: Path Validation
+*For any* system path entered during first-run setup, the system should verify the path exists before allowing setup completion.
+**Validates: Requirements 22.7**
+
+### Property 62: Component Crash Recovery
+*For any* component crash, the launcher should detect it within 5 seconds and restart the component automatically.
+**Validates: Requirements 30.4, 30.5**
+
+### Property 63: Pairing Uniqueness
+*For any* desktop device, it should only be paired with one mobile device at a time, and attempting to pair with a second device should require unpairing the first.
+**Validates: Requirements 25.11**
+
+### Property 64: Message Cleanup
+*For any* successfully delivered message, it should be removed from Firebase within 60 seconds to prevent accumulation.
+**Validates: Requirements 27.8**
+
+### Property 65: Configuration Backup
+*For any* configuration save operation, a backup of the previous configuration should be created before writing the new one.
+**Validates: Requirements 29.5**
+
+### Property 66: First-Run Detection
+*For any* application launch, if no configuration file exists or first_run_complete is false, the first-run modal should be displayed.
+**Validates: Requirements 22.1**
+
+### Property 67: QR Code Generation
+*For any* pairing token, generating a QR code and then scanning it should produce the original token string.
+**Validates: Requirements 25.3, 25.4**
+
+## Packaging Error Handling
+
+### Packaging-Specific Error Categories
+
+1. **Configuration Errors**
+   - Missing or invalid API keys
+   - Invalid system paths
+   - Corrupted configuration file
+   - Missing Firebase credentials
+
+2. **Network Errors**
+   - Firebase connection failure
+   - API endpoint unreachable
+   - Timeout errors
+   - Rate limiting
+
+3. **Component Errors**
+   - Backend server crash
+   - Local client crash
+   - Settings UI crash
+   - Process startup failure
+
+4. **Pairing Errors**
+   - Expired pairing token
+   - Invalid pairing token
+   - Already paired device
+   - QR code scan failure
+
+5. **Runtime Errors**
+   - Permission denied
+   - Disk space full
+   - Memory exhaustion
+   - Dependency missing
+
+### Packaging Error Handler
+
+```python
+class ErrorHandler:
+    def handle_configuration_error(self, error: ConfigurationError) -> None:
+        """Display user-friendly message and offer to reset"""
+        
+    def handle_network_error(self, error: NetworkError) -> None:
+        """Show offline status and queue operations"""
+        
+    def handle_component_crash(self, component: str, error: Exception) -> None:
+        """Log error, attempt restart, notify user if fails"""
+        
+    def handle_pairing_error(self, error: PairingError) -> None:
+        """Display specific error and offer retry/regenerate"""
+        
+    def handle_runtime_error(self, error: RuntimeError) -> None:
+        """Log detailed error, show user-friendly message"""
+```
+
+### Error Recovery Procedures
+
+1. **Configuration Recovery**:
+   - Attempt to load backup configuration
+   - If backup fails, use default configuration
+   - Prompt user to reconfigure
+
+2. **Network Recovery**:
+   - Implement exponential backoff for reconnection
+   - Queue operations while offline
+   - Process queue when connection restored
+
+3. **Component Recovery**:
+   - Restart crashed component up to 3 times
+   - If restart fails, notify user and offer manual restart
+   - Log crash details for debugging
+
+4. **Pairing Recovery**:
+   - Generate new pairing token on expiration
+   - Clear invalid pairing state
+   - Guide user through re-pairing process
+
+## Packaging Testing Strategy
+
+### Property-Based Testing for Packaging
+
+**Example Property Tests**:
+
+```python
+from hypothesis import given, strategies as st
+
+@given(st.text(), st.text())
+def test_property_53_configuration_persistence(key, value):
+    """Property 53: Configuration round-trip"""
+    # Feature: jarvis-desktop-packaging, Property 53: Configuration Persistence
+    config = Configuration()
+    config.set(key, value)
+    config.save()
+    loaded = Configuration.load()
+    assert loaded.get(key) == value
+
+@given(st.integers(min_value=1, max_value=300))
+def test_property_55_pairing_token_expiration(ttl_seconds):
+    """Property 55: Pairing token expiration"""
+    # Feature: jarvis-desktop-packaging, Property 55: Pairing Token Expiration
+    token = generate_pairing_token(ttl=ttl_seconds)
+    time.sleep(ttl_seconds + 1)
+    assert is_token_valid(token) == False
+
+@given(st.lists(st.text(), min_size=1, max_size=10))
+def test_property_57_message_ordering(commands):
+    """Property 57: Message ordering preservation"""
+    # Feature: jarvis-desktop-packaging, Property 57: Message Ordering
+    for cmd in commands:
+        send_command(cmd)
+    received = get_received_commands()
+    assert received == commands
+
+@given(st.text(min_size=10, max_size=100))
+def test_property_67_qr_code_round_trip(token):
+    """Property 67: QR code generation and scanning"""
+    # Feature: jarvis-desktop-packaging, Property 67: QR Code Generation
+    qr_image = generate_qr_code(token)
+    scanned_token = scan_qr_code(qr_image)
+    assert scanned_token == token
+```
+
+### Integration Testing for Packaging
+
+**Test Scenarios**:
+1. Full application startup and shutdown
+2. First-run setup workflow
+3. Device pairing workflow
+4. Command execution from mobile to desktop
+5. Component crash and recovery
+6. Configuration save and restore
+7. Firebase connection and reconnection
+
+### Performance Testing for Packaging
+
+**Metrics**:
+- Application startup time: < 10 seconds
+- First-run modal display time: < 2 seconds
+- QR code generation time: < 1 second
+- Firebase message latency: < 500ms
+- Component restart time: < 5 seconds
+- Configuration save time: < 100ms
+
+### Security Testing for Packaging
+
+**Test Areas**:
+- Pairing token cannot be reused
+- Expired tokens are rejected
+- Unauthorized devices cannot send commands
+- Firebase security rules prevent unauthorized access
+- API keys are stored securely
+- Device identifiers are cryptographically secure
+
+## Packaging Implementation Notes
+
+### Build Process
+
+1. **Python Bundling**:
+   - Use PyInstaller with `--onedir` mode
+   - Include hidden imports for Firebase SDK
+   - Bundle FastSAM weights as data files
+   - Create spec file for reproducible builds
+
+2. **Node.js Bundling**:
+   - Use Vite build for production
+   - Optimize bundle size with tree-shaking
+   - Include only production dependencies
+   - Generate source maps for debugging
+
+3. **Asset Management**:
+   - Copy FastSAM weights to assets/weights/
+   - Include application icons in multiple sizes
+   - Package configuration templates
+   - Include Firebase credentials template
+
+4. **Distribution**:
+   - Create portable folder structure
+   - Generate launcher executable
+   - Create ZIP archive with version number
+   - Generate checksums for verification
+
+### Packaging Security Considerations
+
+- **Firebase Security**: Implement strict security rules
+- **Token Storage**: Use encrypted storage for device IDs
+- **API Keys**: Store in secure configuration files
+- **Network**: Use HTTPS/TLS for all communication
+- **Pairing**: Time-limited tokens with rate limiting
+
+### Packaging Future Enhancements
+
+- **Auto-update**: Implement automatic update checking
+- **Installer**: Create Windows installer (NSIS/Inno Setup)
+- **Code Signing**: Sign executables for Windows SmartScreen
+- **Multi-platform**: Support macOS and Linux
+- **Cloud Sync**: Sync configuration across devices
