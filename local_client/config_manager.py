@@ -7,6 +7,7 @@ validating, and managing JARVIS configuration with backup/restore functionality.
 
 import json
 import shutil
+import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
@@ -149,7 +150,8 @@ class ConfigurationManager:
         spec.loader.exec_module(config_module)
         
         # Map old config to new structure
-        config_dict = DEFAULT_CONFIG.copy()
+        # Use deepcopy to avoid mutating DEFAULT_CONFIG global
+        config_dict = copy.deepcopy(DEFAULT_CONFIG)
         
         # System
         if hasattr(config_module, 'SERVER_URL'):
@@ -459,12 +461,26 @@ class ConfigurationManager:
         self.config = Configuration.from_dict(current_dict)
     
     def _deep_update(self, base: Dict[str, Any], updates: Dict[str, Any]) -> None:
-        """Recursively update nested dictionary"""
+        """
+        Recursively update nested dictionary.
+        Only updates keys that already exist in the base dictionary (case-insensitive).
+        This ensures we don't add unexpected keys that would break dataclass initialization.
+        """
+        # Create a lowercase mapping of keys in the base dictionary
+        base_keys_lower = {k.lower(): k for k in base.keys()}
+        
         for key, value in updates.items():
-            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-                self._deep_update(base[key], value)
-            else:
-                base[key] = value
+            key_lower = key.lower()
+            
+            if key_lower in base_keys_lower:
+                actual_key = base_keys_lower[key_lower]
+                
+                if isinstance(base[actual_key], dict) and isinstance(value, dict):
+                    self._deep_update(base[actual_key], value)
+                else:
+                    base[actual_key] = value
+            # Explicitly ignore keys that are not in our schema to prevent dataclass errors
+
     
     def read_config(self) -> Dict[str, Any]:
         """

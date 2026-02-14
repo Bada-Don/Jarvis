@@ -121,11 +121,15 @@ class SettingsAPI:
             dict: Response with success status and any errors
         """
         try:
+            print(f"DEBUG: Attempting to save settings: {list(settings.keys())}")
+            # Create a shallow copy so we don't modify the original dict structure passed from UI
+            settings_copy = settings.copy()
+            
             # Separate prompts from regular settings
-            prompts = settings.pop('prompts', None)
+            prompts = settings_copy.pop('prompts', None)
             
             # Save regular settings to config.py
-            config_success = self.config_manager.write_config(settings)
+            config_success = self.config_manager.write_config(settings_copy)
             
             # Save prompts to service files if present
             prompts_success = True

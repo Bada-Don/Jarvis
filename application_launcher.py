@@ -89,11 +89,18 @@ class ApplicationLauncher:
         
         log_file = log_dir / f'launcher_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
         
+        # Ensure stdout can handle UTF-8 symbols (emojis)
+        if hasattr(sys.stdout, 'reconfigure'):
+            try:
+                sys.stdout.reconfigure(encoding='utf-8')
+            except Exception:
+                pass
+
         logging.basicConfig(
             level=log_level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file),
+                logging.FileHandler(log_file, encoding='utf-8'),
                 logging.StreamHandler(sys.stdout)
             ]
         )
@@ -197,12 +204,18 @@ class ApplicationLauncher:
                 self.logger.error(f'Script not found: {script_path}')
                 return False
             
+            # Use absolute path for the script to avoid issues with different working directories
+            abs_script_path = script_path.resolve()
+            
             # Prepare environment
             env = os.environ.copy()
+            # Ensure environmental variables support UTF-8
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
             
             # Start process
             process = subprocess.Popen(
-                [sys.executable, config.script_path],
+                [sys.executable, str(abs_script_path)],
                 cwd=config.working_dir,
                 env=env,
                 stdout=subprocess.PIPE,

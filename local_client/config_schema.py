@@ -158,6 +158,13 @@ VALIDATION_RULES = [
         params={"min": 0.0, "max": 1.0},
         error_message="Confidence threshold must be between 0.0 and 1.0"
     ),
+    
+    # Windows Username
+    ValidationRule(
+        field_path="system.windows_username",
+        rule_type="required",
+        error_message="Windows username is required"
+    ),
 ]
 
 # =============================================================================

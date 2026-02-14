@@ -83,12 +83,12 @@ def print_banner():
     banner = """
     ╔═══════════════════════════════════════════════════════════╗
     ║                                                           ║
-    ║        ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗          ║
-    ║        ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝          ║
-    ║        ██║███████║██████╔╝██║   ██║██║███████╗          ║
-    ║   ██   ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║          ║
-    ║   ╚█████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║███████║          ║
-    ║    ╚════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝          ║
+    ║        ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗            ║
+    ║        ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝            ║
+    ║        ██║███████║██████╔╝██║   ██║██║███████╗            ║
+    ║   ██   ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║            ║
+    ║   ╚█████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║███████║            ║
+    ║    ╚════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝            ║
     ║                                                           ║
     ║              AI Desktop Assistant v1.0.0                  ║
     ║                                                           ║
@@ -99,6 +99,13 @@ def print_banner():
 
 def main():
     """Main entry point for JARVIS application."""
+    # Ensure stdout can handle UTF-8 symbols (emojis)
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
+            
     # Parse command-line arguments
     parser = setup_argument_parser()
     args = parser.parse_args()
