@@ -22,8 +22,6 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.CAMERA"
       ],
       "package": "com.anonymous.ChatInterface"
@@ -47,13 +45,16 @@
       ]
     ],
     "extra": {
-      "firebaseApiKey": "",
-      "firebaseAuthDomain": "",
-      "firebaseDatabaseUrl": "",
-      "firebaseProjectId": "",
-      "firebaseStorageBucket": "",
-      "firebaseMessagingSenderId": "",
-      "firebaseAppId": ""
+      "firebaseApiKey": "AIzaSyBZmxVR5tdvdMg6SarCGsKSfFBgPfNpzjA",
+      "firebaseAuthDomain": "jarvis-0009.firebaseapp.com",
+      "firebaseDatabaseUrl": "https://jarvis-0009-default-rtdb.asia-southeast1.firebasedatabase.app",
+      "firebaseProjectId": "jarvis-0009",
+      "firebaseStorageBucket": "jarvis-0009.firebasestorage.app",
+      "firebaseMessagingSenderId": "59641107562",
+      "firebaseAppId": "1:59641107562:web:52391cae70866bc47fa613",
+      "eas": {
+        "projectId": "e347f95a-3aaa-4e1e-b89d-1576644af2ad"
+      }
     }
   }
 }
