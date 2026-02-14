@@ -76,9 +76,12 @@ class APIService {
     await this.waitForPyWebView();
 
     if (!this.isReady()) {
-      console.warn('PyWebView API not available - returning mock data');
-      // Return mock data for development
-      return this.getMockSettings();
+      // Only return mock data in development mode if explicitly requested or if no backend is expected
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.warn('PyWebView API not available - returning mock data for development');
+        return this.getMockSettings();
+      }
+      throw new Error('JARVIS Backend API not ready. Please try again or check if the backend is running.');
     }
 
     console.log('Calling Python backend: get_settings()');

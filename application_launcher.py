@@ -256,6 +256,13 @@ class ApplicationLauncher:
                         config = self.components[component_id]
                         exit_code = process.returncode
                         
+                        # Handle normal exit (code 0) - don't restart
+                        if exit_code == 0:
+                            self.logger.info(f'✅ {config.name} exited normally')
+                            if component_id in self.processes:
+                                del self.processes[component_id]
+                            continue
+
                         self.logger.warning(
                             f'⚠️ {config.name} crashed with exit code {exit_code}'
                         )
