@@ -2,7 +2,9 @@
 
 ## Introduction
 
-JARVIS (Joint Agentic and Robotic Virtual Interaction  System) is an AI-powered computer automation assistant that bridges the gap between natural language commands and system execution. The system converts user commands into structured execution plans and executes them using a multi-plane architecture that intelligently selects the fastest execution method for each task.
+JARVIS (Joint Agentic and Robotic Virtual Interaction System) is an AI-powered computer automation assistant that bridges the gap between natural language commands and system execution. The system converts user commands into structured execution plans and executes them using a multi-plane architecture that intelligently selects the fastest execution method for each task.
+
+This document covers both the core automation functionality and the desktop packaging requirements that enable JARVIS to be distributed as a production-ready application with Firebase-based mobile connectivity.
 
 ## Glossary
 
@@ -21,6 +23,15 @@ JARVIS (Joint Agentic and Robotic Virtual Interaction  System) is an AI-powered 
 - **Permission_Service**: System for requesting user approval for critical operations
 - **Debug_Logger**: Comprehensive logging system for execution traceability
 - **Verification_System**: Post-execution validation that task completed successfully
+- **Desktop_Application**: The packaged JARVIS application that runs on Windows as a standalone executable
+- **Settings_UI**: The React-based configuration interface for JARVIS settings
+- **Firebase**: Cloud-based real-time database and authentication service for device communication
+- **Pairing_Token**: A time-limited unique identifier used for initial device authentication
+- **QR_Code**: Visual representation of the pairing token displayed on desktop
+- **Device_Identifier**: Persistent authentication token stored after successful pairing
+- **First_Run_Setup**: Initial configuration wizard shown on first application launch
+- **Packaging_System**: The build system that creates distributable application bundles
+- **System_Tray**: Windows system tray interface for application control
 
 ## Requirements
 
@@ -300,3 +311,232 @@ JARVIS (Joint Agentic and Robotic Virtual Interaction  System) is an AI-powered 
 5. WHEN permission is denied, THE Permission_Service SHALL skip the operation and continue
 6. WHEN WebSocket disconnects, THE Local_Client SHALL attempt reconnection automatically
 7. WHEN the Planner_Model fails, THE Backend_Server SHALL return an error response to the mobile app
+
+
+---
+
+## Desktop Packaging Requirements
+
+### Requirement 21: Desktop Application Packaging
+
+**User Story:** As a user, I want to download and install JARVIS as a single application package, so that I can use it without manual setup of multiple components.
+
+#### Acceptance Criteria
+
+1. THE Packaging_System SHALL create a single ZIP file containing the complete Desktop_Application
+2. WHEN the user extracts the ZIP file, THE Desktop_Application SHALL be ready to run without additional installation steps
+3. THE Desktop_Application SHALL include all required dependencies (Python runtime, Node.js runtime, libraries)
+4. THE Desktop_Application SHALL support both installable and portable deployment modes
+5. WHEN the Desktop_Application starts, THE Settings_UI SHALL launch automatically
+6. WHEN the Settings_UI starts, THE Backend_Server SHALL start automatically
+7. WHEN the Backend_Server starts, THE Local_Client SHALL start automatically
+8. THE Desktop_Application SHALL maintain synchronized state between Settings_UI, Backend_Server, and Local_Client
+
+### Requirement 22: First-Run Setup Wizard
+
+**User Story:** As a new user, I want to be guided through initial configuration on first launch, so that I can quickly set up JARVIS with my API keys and system paths.
+
+#### Acceptance Criteria
+
+1. WHEN the Desktop_Application launches for the first time, THE First_Run_Setup SHALL display a modal dialog
+2. THE First_Run_Setup SHALL prevent access to main application features until configuration is complete
+3. THE First_Run_Setup SHALL prompt the user to enter their Gemini API key
+4. THE First_Run_Setup SHALL prompt the user to enter their OpenAI API key (optional)
+5. THE First_Run_Setup SHALL prompt the user to configure system paths (Desktop, Documents, Downloads)
+6. THE First_Run_Setup SHALL validate API keys before allowing completion
+7. THE First_Run_Setup SHALL validate system paths exist before allowing completion
+8. WHEN the user completes First_Run_Setup, THE Desktop_Application SHALL save configuration persistently
+9. WHEN the user completes First_Run_Setup, THE Desktop_Application SHALL close the modal and enable main features
+10. THE First_Run_Setup SHALL provide a "Skip" option that allows users to configure later
+
+### Requirement 23: Settings UI Modal Integration
+
+**User Story:** As a developer, I want to integrate the Aceternity UI modal component into the React-based Settings UI, so that the first-run setup has a polished user experience.
+
+#### Acceptance Criteria
+
+1. THE Settings_UI SHALL integrate the animated modal component from Aceternity UI
+2. THE Settings_UI SHALL adapt the modal component code to work with React (not Next.js)
+3. THE Settings_UI SHALL use the modal component for First_Run_Setup display
+4. THE Settings_UI SHALL handle Framer Motion dependencies correctly
+5. THE Settings_UI SHALL maintain existing Tailwind CSS styling compatibility
+6. THE Settings_UI SHALL ensure modal animations work smoothly on Windows
+
+### Requirement 24: Firebase-Based Device Communication
+
+**User Story:** As a user, I want my mobile app to communicate with my desktop application over the internet, so that I can control JARVIS remotely without being on the same network.
+
+#### Acceptance Criteria
+
+1. THE Desktop_Application SHALL connect to Firebase Realtime Database on startup
+2. THE Mobile_App SHALL connect to Firebase Realtime Database on startup
+3. THE Desktop_Application SHALL authenticate with Firebase using service account credentials
+4. THE Mobile_App SHALL authenticate with Firebase using anonymous authentication
+5. WHEN either device loses connection, THE system SHALL automatically reconnect
+6. WHEN the Desktop_Application receives a message from Firebase, THE Backend_Server SHALL process it
+7. WHEN the Backend_Server sends a status update, THE system SHALL publish it to Firebase
+8. THE system SHALL encrypt all communication using HTTPS/TLS
+9. THE system SHALL handle network loss gracefully with automatic retry
+10. THE system SHALL support bidirectional real-time messaging between Mobile_App and Desktop_Application
+
+### Requirement 25: Device Pairing System
+
+**User Story:** As a user, I want to securely pair my mobile device with my desktop application, so that only my authorized devices can control JARVIS.
+
+#### Acceptance Criteria
+
+1. WHEN the Desktop_Application starts for the first time, THE system SHALL generate a unique Pairing_Token
+2. THE Pairing_Token SHALL be time-limited with a configurable expiration (default 5 minutes)
+3. THE Desktop_Application SHALL display the Pairing_Token as a QR_Code on screen
+4. THE Mobile_App SHALL provide a QR code scanner to capture the Pairing_Token
+5. WHEN the Mobile_App scans the QR_Code, THE system SHALL send the Pairing_Token to Firebase for verification
+6. WHEN Firebase receives a Pairing_Token, THE system SHALL verify it is valid and not expired
+7. WHEN the Pairing_Token is valid, THE system SHALL generate a persistent Device_Identifier
+8. THE system SHALL store the Device_Identifier securely on both Mobile_App and Desktop_Application
+9. WHEN devices are paired, THE system SHALL enable automatic connection on subsequent launches
+10. THE system SHALL provide a mechanism to revoke pairing and require re-pairing
+11. THE system SHALL prevent unauthorized devices from connecting without valid Device_Identifier
+
+### Requirement 26: Secure Token Storage
+
+**User Story:** As a security-conscious user, I want my authentication tokens stored securely, so that unauthorized users cannot access my JARVIS system.
+
+#### Acceptance Criteria
+
+1. THE Desktop_Application SHALL store Device_Identifier in encrypted local storage
+2. THE Mobile_App SHALL store Device_Identifier in secure device storage (Keychain/Keystore)
+3. THE system SHALL never transmit Device_Identifier in plain text
+4. THE system SHALL use Firebase security rules to validate Device_Identifier
+5. WHEN a Pairing_Token expires, THE system SHALL delete it from Firebase
+6. THE system SHALL implement rate limiting on pairing attempts to prevent brute force attacks
+
+### Requirement 27: Real-Time Messaging System
+
+**User Story:** As a user, I want to send commands from my mobile app and receive real-time status updates, so that I can monitor JARVIS execution remotely.
+
+#### Acceptance Criteria
+
+1. WHEN the Mobile_App sends a command, THE system SHALL publish it to Firebase under the device-specific path
+2. WHEN the Desktop_Application detects a new command in Firebase, THE Backend_Server SHALL process it
+3. WHEN the Backend_Server generates a status update, THE system SHALL publish it to Firebase
+4. WHEN the Mobile_App detects a status update in Firebase, THE system SHALL display it to the user
+5. THE system SHALL support message types: command, status, progress, error, completion
+6. THE system SHALL include timestamps with all messages
+7. THE system SHALL maintain message ordering using Firebase's built-in ordering
+8. THE system SHALL clean up old messages after successful delivery
+9. WHEN the Desktop_Application is offline, THE system SHALL queue messages in Firebase
+10. WHEN the Desktop_Application comes online, THE system SHALL process queued messages in order
+
+### Requirement 28: Application Lifecycle Management
+
+**User Story:** As a user, I want the desktop application to handle startup, shutdown, and restarts gracefully, so that I have a reliable experience.
+
+#### Acceptance Criteria
+
+1. WHEN the Desktop_Application starts, THE system SHALL initialize all components in the correct order
+2. WHEN the Desktop_Application shuts down, THE system SHALL close all components gracefully
+3. WHEN the Desktop_Application crashes, THE system SHALL log error details for debugging
+4. THE Desktop_Application SHALL restore previous configuration on restart
+5. THE Desktop_Application SHALL restore pairing state on restart
+6. WHEN the user closes the Settings_UI window, THE Desktop_Application SHALL minimize to system tray
+7. WHEN the user clicks the system tray icon, THE Desktop_Application SHALL restore the Settings_UI window
+8. THE Desktop_Application SHALL provide a "Quit" option in the system tray menu
+
+### Requirement 29: Configuration Persistence
+
+**User Story:** As a user, I want my settings and configuration to be saved automatically, so that I don't have to reconfigure JARVIS after restarting.
+
+#### Acceptance Criteria
+
+1. WHEN the user changes settings in Settings_UI, THE system SHALL save them to local configuration file
+2. WHEN the Desktop_Application restarts, THE system SHALL load saved configuration
+3. THE system SHALL store configuration in a human-readable format (JSON)
+4. THE system SHALL validate configuration on load and use defaults for missing values
+5. THE system SHALL back up configuration before making changes
+6. WHEN configuration is corrupted, THE system SHALL restore from backup or use defaults
+
+### Requirement 30: Enhanced Error Handling and Recovery
+
+**User Story:** As a user, I want the application to handle errors gracefully and provide helpful error messages, so that I can troubleshoot issues.
+
+#### Acceptance Criteria
+
+1. WHEN an API key is invalid, THE system SHALL display a clear error message with instructions
+2. WHEN Firebase connection fails, THE system SHALL display connection status and retry automatically
+3. WHEN a component fails to start, THE system SHALL log the error and attempt recovery
+4. WHEN the Backend_Server crashes, THE system SHALL restart it automatically
+5. WHEN the Local_Client crashes, THE system SHALL restart it automatically
+6. THE system SHALL provide detailed error logs in a user-accessible location
+7. THE system SHALL display user-friendly error messages in the Settings_UI
+8. WHEN network connectivity is lost, THE system SHALL display offline status and queue operations
+
+### Requirement 31: Packaging System Requirements
+
+**User Story:** As a developer, I want an automated packaging system that creates distributable builds, so that I can release new versions efficiently.
+
+#### Acceptance Criteria
+
+1. THE Packaging_System SHALL bundle Python runtime with the Desktop_Application
+2. THE Packaging_System SHALL bundle Node.js runtime with the Desktop_Application
+3. THE Packaging_System SHALL include all Python dependencies in the bundle
+4. THE Packaging_System SHALL include all Node.js dependencies in the bundle
+5. THE Packaging_System SHALL include FastSAM model weights in the bundle
+6. THE Packaging_System SHALL create a single-folder portable application
+7. THE Packaging_System SHALL create a ZIP archive of the portable application
+8. THE Packaging_System SHALL generate version information in the bundle
+9. THE Packaging_System SHALL minimize bundle size by excluding development dependencies
+10. THE Packaging_System SHALL support Windows x64 architecture
+
+### Requirement 32: Mobile App QR Scanner
+
+**User Story:** As a mobile user, I want to scan a QR code to pair my device with the desktop application, so that I can quickly establish a secure connection.
+
+#### Acceptance Criteria
+
+1. THE Mobile_App SHALL provide a QR code scanner interface
+2. WHEN the user opens the scanner, THE Mobile_App SHALL request camera permissions
+3. WHEN camera permission is granted, THE Mobile_App SHALL activate the camera
+4. WHEN a QR_Code is detected, THE Mobile_App SHALL extract the Pairing_Token
+5. WHEN the Pairing_Token is extracted, THE Mobile_App SHALL send it to Firebase for verification
+6. WHEN pairing succeeds, THE Mobile_App SHALL display a success message
+7. WHEN pairing fails, THE Mobile_App SHALL display an error message with retry option
+8. THE Mobile_App SHALL provide manual token entry as an alternative to QR scanning
+
+### Requirement 33: Desktop QR Code Display
+
+**User Story:** As a desktop user, I want to see a QR code on my screen during pairing, so that I can easily scan it with my mobile device.
+
+#### Acceptance Criteria
+
+1. WHEN pairing is initiated, THE Desktop_Application SHALL generate a QR_Code image
+2. THE Desktop_Application SHALL display the QR_Code prominently in the Settings_UI
+3. THE Desktop_Application SHALL display the Pairing_Token as text below the QR_Code
+4. THE Desktop_Application SHALL display a countdown timer showing token expiration
+5. WHEN the Pairing_Token expires, THE Desktop_Application SHALL generate a new token and QR_Code
+6. WHEN pairing succeeds, THE Desktop_Application SHALL hide the QR_Code and show success message
+7. THE Desktop_Application SHALL provide a "Regenerate Code" button to create a new Pairing_Token
+
+### Requirement 34: Firebase Security Rules
+
+**User Story:** As a system administrator, I want Firebase security rules that prevent unauthorized access, so that the system remains secure.
+
+#### Acceptance Criteria
+
+1. THE system SHALL implement Firebase security rules that require authentication
+2. THE system SHALL restrict read/write access to device-specific paths
+3. THE system SHALL validate Device_Identifier before allowing operations
+4. THE system SHALL prevent users from accessing other users' data
+5. THE system SHALL implement rate limiting on pairing operations
+6. THE system SHALL log security violations for monitoring
+
+### Requirement 35: Version Compatibility
+
+**User Story:** As a user, I want the mobile app and desktop application to check version compatibility, so that I avoid issues from mismatched versions.
+
+#### Acceptance Criteria
+
+1. THE Desktop_Application SHALL include version information in its Firebase presence
+2. THE Mobile_App SHALL include version information in its Firebase presence
+3. WHEN versions are incompatible, THE system SHALL display a warning message
+4. THE system SHALL define minimum compatible version requirements
+5. THE system SHALL allow users to proceed with incompatible versions at their own risk
