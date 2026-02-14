@@ -5,7 +5,7 @@ import FormField from './FormField';
 
 const timingConfigs = [
   {
-    key: 'ACTION_DELAY',
+    key: 'action_delay',
     label: 'Action Delay',
     helpText: 'Default delay after each automation step. Recommended: 0.3-1.0 seconds',
     min: 0.0,
@@ -14,7 +14,7 @@ const timingConfigs = [
     step: 0.1,
   },
   {
-    key: 'APP_LAUNCH_WAIT',
+    key: 'app_launch_wait',
     label: 'Application Launch Wait',
     helpText: 'Extended delay after launching an application to allow it to fully load. Recommended: 2.0-5.0 seconds',
     min: 0.5,
@@ -23,7 +23,7 @@ const timingConfigs = [
     step: 0.5,
   },
   {
-    key: 'HOTKEY_DELAY',
+    key: 'hotkey_delay',
     label: 'Hotkey Delay',
     helpText: 'Delay after pressing hotkey combinations. Recommended: 0.3-1.0 seconds',
     min: 0.0,
@@ -32,7 +32,7 @@ const timingConfigs = [
     step: 0.1,
   },
   {
-    key: 'PRE_TYPE_DELAY',
+    key: 'pre_type_delay',
     label: 'Pre-Type Delay',
     helpText: 'Small delay before typing text to ensure focus is ready. Recommended: 0.1-0.5 seconds',
     min: 0.0,
@@ -41,7 +41,7 @@ const timingConfigs = [
     step: 0.1,
   },
   {
-    key: 'SCREENSHOT_DELAY',
+    key: 'screenshot_delay',
     label: 'Screenshot Delay',
     helpText: 'Delay before taking screenshots for vision analysis. Recommended: 0.3-1.0 seconds',
     min: 0.0,
@@ -50,7 +50,7 @@ const timingConfigs = [
     step: 0.1,
   },
   {
-    key: 'WINDOW_ACTIVATION_TIMEOUT',
+    key: 'window_activation_timeout',
     label: 'Window Activation Timeout',
     helpText: 'Maximum time to wait for a window to appear. Recommended: 5.0-15.0 seconds',
     min: 1.0,
@@ -59,12 +59,30 @@ const timingConfigs = [
     step: 1.0,
   },
   {
-    key: 'WINDOW_POLL_INTERVAL',
+    key: 'window_poll_interval',
     label: 'Window Poll Interval',
     helpText: 'How often to check for window appearance. Recommended: 0.3-1.0 seconds',
     min: 0.1,
     recommendedMin: 0.3,
     max: 5.0,
+    step: 0.1,
+  },
+  {
+    key: 'retry_delay',
+    label: 'Retry Delay',
+    helpText: 'Delay before retrying after a verification failure. Recommended: 1.0-3.0 seconds',
+    min: 0.5,
+    recommendedMin: 1.0,
+    max: 30.0,
+    step: 0.5,
+  },
+  {
+    key: 'verification_delay',
+    label: 'Verification Delay',
+    helpText: 'Delay before starting verification after task execution. Recommended: 0.5-2.0 seconds',
+    min: 0.0,
+    recommendedMin: 0.5,
+    max: 10.0,
     step: 0.1,
   },
 ];

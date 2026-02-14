@@ -12,9 +12,9 @@ class APIService {
     this.readyPromise = new Promise((resolve) => {
       // Helper function to check if API methods are actually available
       const isApiReady = () => {
-        return window.pywebview?.api && 
-               typeof window.pywebview.api.get_settings === 'function' &&
-               typeof window.pywebview.api.is_first_run === 'function';
+        return window.pywebview?.api &&
+          typeof window.pywebview.api.get_settings === 'function' &&
+          typeof window.pywebview.api.is_first_run === 'function';
       };
 
       // Check if already available
@@ -276,12 +276,12 @@ class APIService {
 
   async isFirstRun() {
     await this.waitForPyWebView();
-    
+
     if (!this.isReady()) {
       console.log('Mock: Checking first run status');
       return false; // In development, assume not first run
     }
-    
+
     console.log('Calling Python backend: is_first_run()');
     const response = await window.pywebview.api.is_first_run();
     if (!response.success) {
@@ -304,38 +304,54 @@ class APIService {
   getMockSettings() {
     return {
       system: {
-        SERVER_URL: 'http://localhost:5000',
-        WINDOWS_USERNAME: 'user',
+        server_url: 'http://localhost:5000',
+        windows_username: 'user',
       },
       timing: {
-        ACTION_DELAY: 0.3,
-        APP_LAUNCH_WAIT: 3.0,
-        HOTKEY_DELAY: 0.5,
-        PRE_TYPE_DELAY: 0.2,
-        SCREENSHOT_DELAY: 0.5,
-        WINDOW_ACTIVATION_TIMEOUT: 10.0,
-        WINDOW_POLL_INTERVAL: 0.5,
+        action_delay: 0.3,
+        app_launch_wait: 3.0,
+        hotkey_delay: 0.5,
+        pre_type_delay: 0.2,
+        screenshot_delay: 0.5,
+        window_activation_timeout: 10.0,
+        window_poll_interval: 0.5,
+        retry_delay: 2.0,
+        verification_delay: 1.0,
       },
       window_manager: {
-        WINDOW_ACTIVATION_ATTEMPTS: 3,
-        WINDOW_MANAGER_VERBOSE: true,
+        activation_attempts: 3,
+        verbose: true,
       },
-      paths: {},
+      paths: {
+        desktop: '',
+        documents: '',
+        downloads: '',
+        stickers: '',
+      },
+      llm: {
+        provider: 'gemini',
+        gemini_api_key: '',
+        openai_api_key: '',
+      },
+      firebase: {
+        device_id: '',
+        paired: false,
+        paired_device_id: '',
+        credentials_path: 'data/firebase-admin-credentials.json',
+      },
       flexisign: {
-        FLEXISIGN_PROCESS_NAME: 'Production Suite Scanner 10.5.1 Build 1806 Protected',
-        FLEXISIGN_EXE_PATH: '',
-        FLEXISIGN_WINDOW_TITLE: 'FlexiSIGN-PRO',
-        STARTUP_MODAL_ENABLED: true,
-        STARTUP_MODAL_TITLE: 'FlexiSIGN',
-        STARTUP_MODAL_BUTTON: 'OK',
-        STARTUP_MODAL_TIMEOUT: 30,
+        process_name: 'Production Suite Scanner 10.5.1 Build 1806 Protected',
+        exe_path: '',
+        window_title: 'FlexiSIGN-PRO',
+        startup_modal_enabled: true,
+        startup_modal_title: 'FlexiSIGN',
+        startup_modal_button: 'OK',
+        startup_modal_timeout: 30,
       },
       verification: {
-        VERIFICATION_ENABLED: false,
-        MAX_RETRIES: 0,
-        RETRY_DELAY: 2.0,
-        VERIFICATION_DELAY: 1.0,
-        CONFIDENCE_THRESHOLD: 0.7,
+        enabled: false,
+        max_retries: 0,
+        confidence_threshold: 0.7,
       },
       prompts: {
         planner: {

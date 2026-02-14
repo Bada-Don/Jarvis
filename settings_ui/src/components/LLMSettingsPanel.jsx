@@ -28,13 +28,14 @@ export default function LLMSettingsPanel({
     // Filter settings based on search query
     const matchesSearch = (text) => {
         if (!searchQuery) return true;
-        return text.toLowerCase().includes(searchQuery.toLowerCase());
+        return String(text || '').toLowerCase().includes(searchQuery.toLowerCase());
     };
 
-    const showProvider = matchesSearch('LLM Provider') || matchesSearch('LLM_PROVIDER');
-    const showOpenAiKey = matchesSearch('OpenAI API Key') || matchesSearch('OPENAI_API_KEY');
+    const showProvider = matchesSearch('LLM Provider') || matchesSearch('provider');
+    const showOpenAiKey = matchesSearch('OpenAI API Key') || matchesSearch('openai_api_key');
+    const showGeminiKey = matchesSearch('Gemini API Key') || matchesSearch('gemini_api_key');
 
-    const hasVisibleSettings = showProvider || showOpenAiKey;
+    const hasVisibleSettings = showProvider || showOpenAiKey || showGeminiKey;
 
     if (searchQuery && !hasVisibleSettings) {
         return (
@@ -70,25 +71,44 @@ export default function LLMSettingsPanel({
                 {showProvider && (
                     <FormField
                         label="LLM Provider"
-                        value={settings?.LLM_PROVIDER || 'gemini'}
+                        value={settings?.provider || 'gemini'}
                         type="select"
                         options={[
                             { value: 'gemini', label: 'Google Gemini' },
                             { value: 'openai', label: 'OpenAI' },
                         ]}
-                        onChange={(value) => onChange('LLM_PROVIDER', value)}
+                        onChange={(value) => onChange('provider', value)}
                         helpText="Select the AI provider to use for planning tasks."
-                        onReset={() => onReset('LLM_PROVIDER')}
+                        onReset={() => onReset('provider')}
                         highlight={searchQuery}
                     />
                 )}
 
-                {showOpenAiKey && (settings?.LLM_PROVIDER === 'openai') && (
+                {showGeminiKey && (settings?.provider === 'gemini') && (
+                    <FormField
+                        label="Gemini API Key"
+                        value={settings?.gemini_api_key}
+                        type="password"
+                        onChange={(value) => onChange('gemini_api_key', value)}
+                        validation={[
+                            {
+                                type: 'required',
+                                message: 'Gemini API Key is required when using Gemini provider',
+                            },
+                        ]}
+                        helpText="Your Google Gemini API Key"
+                        placeholder="AIza..."
+                        onReset={() => onReset('gemini_api_key')}
+                        highlight={searchQuery}
+                    />
+                )}
+
+                {showOpenAiKey && (settings?.provider === 'openai') && (
                     <FormField
                         label="OpenAI API Key"
-                        value={settings?.OPENAI_API_KEY}
+                        value={settings?.openai_api_key}
                         type="password"
-                        onChange={(value) => onChange('OPENAI_API_KEY', value)}
+                        onChange={(value) => onChange('openai_api_key', value)}
                         validation={[
                             {
                                 type: 'required',
@@ -97,16 +117,16 @@ export default function LLMSettingsPanel({
                         ]}
                         helpText="Your OpenAI API Key (sk-...)"
                         placeholder="sk-..."
-                        onReset={() => onReset('OPENAI_API_KEY')}
+                        onReset={() => onReset('openai_api_key')}
                         highlight={searchQuery}
                     />
                 )}
 
-                {showOpenAiKey && (settings?.LLM_PROVIDER !== 'openai') && (
+                {showOpenAiKey && (settings?.provider !== 'openai') && (
                     <div className="opacity-50 pointer-events-none">
                         <FormField
                             label="OpenAI API Key"
-                            value={settings?.OPENAI_API_KEY}
+                            value={settings?.openai_api_key}
                             type="password"
                             onChange={() => { }}
                             helpText="Switch provider to OpenAI to configure this key."

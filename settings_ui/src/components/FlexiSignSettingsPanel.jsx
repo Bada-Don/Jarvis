@@ -28,33 +28,33 @@ export default function FlexiSignSettingsPanel({
 
   const matchesSearch = (text) => {
     if (!searchQuery) return true;
-    return text.toLowerCase().includes(searchQuery.toLowerCase());
+    return String(text || '').toLowerCase().includes(searchQuery.toLowerCase());
   };
 
   const showProcessName =
     matchesSearch("Process Name") ||
-    matchesSearch("FLEXISIGN_PROCESS_NAME") ||
-    matchesSearch(settings.FLEXISIGN_PROCESS_NAME);
+    matchesSearch("process_name") ||
+    matchesSearch(settings.process_name);
   const showExePath =
     matchesSearch("Executable Path") ||
-    matchesSearch("FLEXISIGN_EXE_PATH") ||
-    matchesSearch(settings.FLEXISIGN_EXE_PATH);
+    matchesSearch("exe_path") ||
+    matchesSearch(settings.exe_path);
   const showWindowTitle =
     matchesSearch("Window Title") ||
-    matchesSearch("FLEXISIGN_WINDOW_TITLE") ||
-    matchesSearch(settings.FLEXISIGN_WINDOW_TITLE);
+    matchesSearch("window_title") ||
+    matchesSearch(settings.window_title);
   const showModalEnabled =
-    matchesSearch("Startup Modal") || matchesSearch("STARTUP_MODAL_ENABLED");
+    matchesSearch("Startup Modal") || matchesSearch("startup_modal_enabled");
   const showModalTitle =
     matchesSearch("Modal Title") ||
-    matchesSearch("STARTUP_MODAL_TITLE") ||
-    matchesSearch(settings.STARTUP_MODAL_TITLE);
+    matchesSearch("startup_modal_title") ||
+    matchesSearch(settings.startup_modal_title);
   const showModalButton =
     matchesSearch("Modal Button") ||
-    matchesSearch("STARTUP_MODAL_BUTTON") ||
-    matchesSearch(settings.STARTUP_MODAL_BUTTON);
+    matchesSearch("startup_modal_button") ||
+    matchesSearch(settings.startup_modal_button);
   const showModalTimeout =
-    matchesSearch("Modal Timeout") || matchesSearch("STARTUP_MODAL_TIMEOUT");
+    matchesSearch("Modal Timeout") || matchesSearch("startup_modal_timeout");
 
   const hasBasicSettings = showProcessName || showExePath || showWindowTitle;
   const hasModalSettings =
@@ -97,9 +97,9 @@ export default function FlexiSignSettingsPanel({
             {showProcessName && (
               <FormField
                 label="FlexiSIGN Process Name"
-                value={settings.FLEXISIGN_PROCESS_NAME}
+                value={settings.process_name}
                 type="text"
-                onChange={(value) => onChange("FLEXISIGN_PROCESS_NAME", value)}
+                onChange={(value) => onChange("process_name", value)}
                 validation={[
                   {
                     type: "required",
@@ -108,7 +108,7 @@ export default function FlexiSignSettingsPanel({
                 ]}
                 helpText="The exact process name of FlexiSIGN as it appears in Task Manager"
                 placeholder="Production Suite Scanner 10.5.1 Build 1806 Protected"
-                onReset={() => onReset("FLEXISIGN_PROCESS_NAME")}
+                onReset={() => onReset("process_name")}
                 highlight={searchQuery}
               />
             )}
@@ -116,14 +116,14 @@ export default function FlexiSignSettingsPanel({
             {showExePath && (
               <FormField
                 label="FlexiSIGN Executable Path"
-                value={settings.FLEXISIGN_EXE_PATH}
+                value={settings.exe_path}
                 type="path"
-                onChange={(value) => onChange("FLEXISIGN_EXE_PATH", value)}
+                onChange={(value) => onChange("exe_path", value)}
                 helpText="Path to the FlexiSIGN executable file (.exe)"
                 pathType="file"
                 fileTypes={[".exe"]}
                 placeholder="C:\\Program Files\\SAi\\FlexiSIGN\\FlexiSIGN.exe"
-                onReset={() => onReset("FLEXISIGN_EXE_PATH")}
+                onReset={() => onReset("exe_path")}
                 highlight={searchQuery}
               />
             )}
@@ -131,9 +131,9 @@ export default function FlexiSignSettingsPanel({
             {showWindowTitle && (
               <FormField
                 label="FlexiSIGN Window Title"
-                value={settings.FLEXISIGN_WINDOW_TITLE}
+                value={settings.window_title}
                 type="text"
-                onChange={(value) => onChange("FLEXISIGN_WINDOW_TITLE", value)}
+                onChange={(value) => onChange("window_title", value)}
                 validation={[
                   {
                     type: "required",
@@ -142,7 +142,7 @@ export default function FlexiSignSettingsPanel({
                 ]}
                 helpText="The window title used to identify the FlexiSIGN application window"
                 placeholder="FlexiSIGN-PRO"
-                onReset={() => onReset("FLEXISIGN_WINDOW_TITLE")}
+                onReset={() => onReset("window_title")}
                 highlight={searchQuery}
               />
             )}
@@ -158,41 +158,40 @@ export default function FlexiSignSettingsPanel({
             {showModalEnabled && (
               <FormField
                 label="Enable Startup Modal Handling"
-                value={settings.STARTUP_MODAL_ENABLED}
+                value={settings.startup_modal_enabled}
                 type="boolean"
-                onChange={(value) => onChange("STARTUP_MODAL_ENABLED", value)}
+                onChange={(value) => onChange("startup_modal_enabled", value)}
                 helpText="Enable automatic handling of the startup modal dialog that appears when FlexiSIGN launches"
-                onReset={() => onReset("STARTUP_MODAL_ENABLED")}
+                onReset={() => onReset("startup_modal_enabled")}
                 highlight={searchQuery}
               />
             )}
 
             <div
-              className={`space-y-4 transition-opacity ${
-                settings.STARTUP_MODAL_ENABLED ? "opacity-100" : "opacity-50"
-              }`}
+              className={`space-y-4 transition-opacity ${settings.startup_modal_enabled ? "opacity-100" : "opacity-50"
+                }`}
             >
               {showModalTitle && (
                 <FormField
                   label="Startup Modal Title"
-                  value={settings.STARTUP_MODAL_TITLE}
+                  value={settings.startup_modal_title}
                   type="text"
-                  onChange={(value) => onChange("STARTUP_MODAL_TITLE", value)}
-                  disabled={!settings.STARTUP_MODAL_ENABLED}
+                  onChange={(value) => onChange("startup_modal_title", value)}
+                  disabled={!settings.startup_modal_enabled}
                   validation={
-                    settings.STARTUP_MODAL_ENABLED
+                    settings.startup_modal_enabled
                       ? [
-                          {
-                            type: "required",
-                            message:
-                              "Modal title is required when modal handling is enabled",
-                          },
-                        ]
+                        {
+                          type: "required",
+                          message:
+                            "Modal title is required when modal handling is enabled",
+                        },
+                      ]
                       : []
                   }
                   helpText="The title of the startup modal window"
                   placeholder="FlexiSIGN"
-                  onReset={() => onReset("STARTUP_MODAL_TITLE")}
+                  onReset={() => onReset("startup_modal_title")}
                   highlight={searchQuery}
                 />
               )}
@@ -200,24 +199,24 @@ export default function FlexiSignSettingsPanel({
               {showModalButton && (
                 <FormField
                   label="Startup Modal Button Text"
-                  value={settings.STARTUP_MODAL_BUTTON}
+                  value={settings.startup_modal_button}
                   type="text"
-                  onChange={(value) => onChange("STARTUP_MODAL_BUTTON", value)}
-                  disabled={!settings.STARTUP_MODAL_ENABLED}
+                  onChange={(value) => onChange("startup_modal_button", value)}
+                  disabled={!settings.startup_modal_enabled}
                   validation={
-                    settings.STARTUP_MODAL_ENABLED
+                    settings.startup_modal_enabled
                       ? [
-                          {
-                            type: "required",
-                            message:
-                              "Button text is required when modal handling is enabled",
-                          },
-                        ]
+                        {
+                          type: "required",
+                          message:
+                            "Button text is required when modal handling is enabled",
+                        },
+                      ]
                       : []
                   }
                   helpText="The text on the button to click in the startup modal"
                   placeholder="OK"
-                  onReset={() => onReset("STARTUP_MODAL_BUTTON")}
+                  onReset={() => onReset("startup_modal_button")}
                   highlight={searchQuery}
                 />
               )}
@@ -225,10 +224,10 @@ export default function FlexiSignSettingsPanel({
               {showModalTimeout && (
                 <FormField
                   label="Startup Modal Timeout"
-                  value={settings.STARTUP_MODAL_TIMEOUT}
+                  value={settings.startup_modal_timeout}
                   type="number"
-                  onChange={(value) => onChange("STARTUP_MODAL_TIMEOUT", value)}
-                  disabled={!settings.STARTUP_MODAL_ENABLED}
+                  onChange={(value) => onChange("startup_modal_timeout", value)}
+                  disabled={!settings.startup_modal_enabled}
                   validation={[
                     {
                       type: "min",
@@ -246,13 +245,13 @@ export default function FlexiSignSettingsPanel({
                   min={5}
                   max={120}
                   step={5}
-                  onReset={() => onReset("STARTUP_MODAL_TIMEOUT")}
+                  onReset={() => onReset("startup_modal_timeout")}
                   highlight={searchQuery}
                 />
               )}
             </div>
 
-            {!settings.STARTUP_MODAL_ENABLED && !searchQuery && (
+            {!settings.startup_modal_enabled && !searchQuery && (
               <div className="p-3 bg-blue-50 border border-blue-300 rounded text-sm text-blue-800 flex items-center">
                 <Info className="w-4 h-4 mr-2" />
                 Startup modal handling is disabled. The system will not
@@ -269,10 +268,9 @@ export default function FlexiSignSettingsPanel({
           disabled={isSaving}
           className={`
             px-6 py-2 rounded-md font-medium transition-colors
-            ${
-              isSaving
-                ? "bg-gray-400 cursor-not-allowed text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+            ${isSaving
+              ? "bg-gray-400 cursor-not-allowed text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
             }
           `}
         >

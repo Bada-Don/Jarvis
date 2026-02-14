@@ -5,23 +5,30 @@ import FormField from './FormField';
 
 const pathConfigs = [
   {
-    key: 'DOWNLOADS_PATH',
-    label: 'Downloads Folder',
-    helpText: 'Path to your Downloads folder',
-    pathType: 'folder',
-    required: false,
-  },
-  {
-    key: 'DESKTOP_PATH',
+    key: 'desktop',
     label: 'Desktop Folder',
     helpText: 'Path to your Desktop folder',
     pathType: 'folder',
     required: false,
   },
   {
-    key: 'DOCUMENTS_PATH',
+    key: 'documents',
     label: 'Documents Folder',
     helpText: 'Path to your Documents folder',
+    pathType: 'folder',
+    required: false,
+  },
+  {
+    key: 'downloads',
+    label: 'Downloads Folder',
+    helpText: 'Path to your Downloads folder',
+    pathType: 'folder',
+    required: false,
+  },
+  {
+    key: 'stickers',
+    label: 'Stickers Folder',
+    helpText: 'Path to your Stickers folder (used for sticker automation)',
     pathType: 'folder',
     required: false,
   },
@@ -130,11 +137,11 @@ export default function PathSettingsPanel({
               validation={
                 config.required
                   ? [
-                      {
-                        type: 'required',
-                        message: `${config.label} is required`,
-                      },
-                    ]
+                    {
+                      type: 'required',
+                      message: `${config.label} is required`,
+                    },
+                  ]
                   : []
               }
               helpText={config.helpText}
@@ -182,10 +189,9 @@ export default function PathSettingsPanel({
           disabled={isSaving}
           className={`
             px-6 py-2 rounded-md font-medium transition-colors flex items-center
-            ${
-              isSaving
-                ? 'bg-gray-400 cursor-not-allowed text-white'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            ${isSaving
+              ? 'bg-gray-400 cursor-not-allowed text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
             }
           `}
         >

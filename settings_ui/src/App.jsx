@@ -85,7 +85,7 @@ function AppContent() {
     try {
       // Save configuration to backend
       await api.completeFirstRun(configuration);
-      
+
       // Update settings with new configuration
       const updatedSettings = {
         ...settings,
@@ -109,13 +109,13 @@ function AppContent() {
 
       // Save updated settings
       await api.saveSettings(updatedSettings);
-      
+
       // Close first-run modal
       setShowFirstRunSetup(false);
-      
+
       // Load settings
       await loadSettings();
-      
+
       showSuccess('Setup completed successfully! Welcome to JARVIS.');
     } catch (err) {
       console.error('Failed to complete first run:', err);
@@ -201,8 +201,11 @@ function AppContent() {
 
     if (!confirmed) return;
 
+    // Use full key for reset if it's not already a dotted path
+    const fullKey = section === 'prompts' ? key : `${section}.${key}`;
+
     try {
-      const result = await api.resetSetting(key);
+      const result = await api.resetSetting(fullKey);
 
       if (result && result.value !== undefined) {
         if (section === 'prompts') {
@@ -325,8 +328,8 @@ function AppContent() {
               <button
                 onClick={() => setIsListening(!isListening)}
                 className={`flex items-center justify-center gap-3 px-8 py-3 rounded-full border transition-all duration-300 backdrop-blur-md ${isListening
-                    ? 'bg-red-500/20 border-red-500/50 text-red-500 hover:bg-red-500/30 shadow-[0_0_25px_rgba(239,68,68,0.3)]'
-                    : 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30 shadow-[0_0_25px_rgba(20,184,166,0.3)]'
+                  ? 'bg-red-500/20 border-red-500/50 text-red-500 hover:bg-red-500/30 shadow-[0_0_25px_rgba(239,68,68,0.3)]'
+                  : 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30 shadow-[0_0_25px_rgba(20,184,166,0.3)]'
                   }`}
               >
                 {isListening ? <MicOff size={20} /> : <Mic size={20} />}
@@ -384,9 +387,10 @@ function AppContent() {
                         <div className={panelClass}>
                           <SystemSettingsPanel
                             settings={settings.system}
-                            onChange={(key, value) => handleSettingChange('system', key, value)}
+                            windowManagerSettings={settings.window_manager}
+                            onChange={(section, key, value) => handleSettingChange(section, key, value)}
                             onSave={handleSave}
-                            onReset={(key) => handleReset('system', key)}
+                            onReset={(section, key) => handleReset(section, key)}
                             searchQuery={searchQuery}
                           />
                         </div>

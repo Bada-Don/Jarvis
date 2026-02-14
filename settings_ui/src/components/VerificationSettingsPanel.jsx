@@ -7,33 +7,27 @@ const presets = [
     name: "Fast Testing",
     description: "Quick iterations with minimal verification",
     settings: {
-      VERIFICATION_ENABLED: false,
-      MAX_RETRIES: 0,
-      RETRY_DELAY: 1.0,
-      VERIFICATION_DELAY: 0.5,
-      CONFIDENCE_THRESHOLD: 0.6,
+      enabled: false,
+      max_retries: 0,
+      confidence_threshold: 0.6,
     },
   },
   {
     name: "Production",
     description: "Balanced verification for production use",
     settings: {
-      VERIFICATION_ENABLED: true,
-      MAX_RETRIES: 2,
-      RETRY_DELAY: 2.0,
-      VERIFICATION_DELAY: 1.0,
-      CONFIDENCE_THRESHOLD: 0.7,
+      enabled: true,
+      max_retries: 2,
+      confidence_threshold: 0.7,
     },
   },
   {
     name: "Critical Tasks",
     description: "Maximum verification for critical operations",
     settings: {
-      VERIFICATION_ENABLED: true,
-      MAX_RETRIES: 5,
-      RETRY_DELAY: 3.0,
-      VERIFICATION_DELAY: 2.0,
-      CONFIDENCE_THRESHOLD: 0.85,
+      enabled: true,
+      max_retries: 5,
+      confidence_threshold: 0.85,
     },
   },
 ];
@@ -108,14 +102,14 @@ export default function VerificationSettingsPanel({
 
         <FormField
           label="Enable Verification"
-          value={settings.VERIFICATION_ENABLED}
+          value={settings.enabled}
           type="boolean"
-          onChange={(value) => onChange("VERIFICATION_ENABLED", value)}
+          onChange={(value) => onChange("enabled", value)}
           helpText="Enable task verification after execution to confirm successful completion"
-          onReset={() => onReset("VERIFICATION_ENABLED")}
+          onReset={() => onReset("enabled")}
         />
 
-        {!settings.VERIFICATION_ENABLED && (
+        {!settings.enabled && (
           <div className="p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800 flex items-center">
             <AlertTriangle className="w-4 h-4 mr-2" />
             Verification is disabled. Tasks will execute without confirmation of
@@ -124,16 +118,15 @@ export default function VerificationSettingsPanel({
         )}
 
         <div
-          className={`space-y-4 transition-opacity ${
-            settings.VERIFICATION_ENABLED ? "opacity-100" : "opacity-50"
-          }`}
+          className={`space-y-4 transition-opacity ${settings.enabled ? "opacity-100" : "opacity-50"
+            }`}
         >
           <FormField
             label="Maximum Retries"
-            value={settings.MAX_RETRIES}
+            value={settings.max_retries}
             type="number"
-            onChange={(value) => onChange("MAX_RETRIES", value)}
-            disabled={!settings.VERIFICATION_ENABLED}
+            onChange={(value) => onChange("max_retries", value)}
+            disabled={!settings.enabled}
             validation={[
               {
                 type: "min",
@@ -150,67 +143,15 @@ export default function VerificationSettingsPanel({
             min={0}
             max={10}
             step={1}
-            onReset={() => onReset("MAX_RETRIES")}
-          />
-
-          <FormField
-            label="Retry Delay"
-            value={settings.RETRY_DELAY}
-            type="number"
-            onChange={(value) => onChange("RETRY_DELAY", value)}
-            disabled={!settings.VERIFICATION_ENABLED}
-            validation={[
-              {
-                type: "min",
-                value: 0.5,
-                message: "Must be at least 0.5 seconds",
-              },
-              {
-                type: "max",
-                value: 30.0,
-                message: "Must be at most 30 seconds",
-              },
-            ]}
-            helpText="Delay before retrying after verification failure"
-            unit="seconds"
-            min={0.5}
-            max={30.0}
-            step={0.5}
-            onReset={() => onReset("RETRY_DELAY")}
-          />
-
-          <FormField
-            label="Verification Delay"
-            value={settings.VERIFICATION_DELAY}
-            type="number"
-            onChange={(value) => onChange("VERIFICATION_DELAY", value)}
-            disabled={!settings.VERIFICATION_ENABLED}
-            validation={[
-              {
-                type: "min",
-                value: 0.0,
-                message: "Must be at least 0 seconds",
-              },
-              {
-                type: "max",
-                value: 10.0,
-                message: "Must be at most 10 seconds",
-              },
-            ]}
-            helpText="Delay before starting verification after task execution"
-            unit="seconds"
-            min={0.0}
-            max={10.0}
-            step={0.5}
-            onReset={() => onReset("VERIFICATION_DELAY")}
+            onReset={() => onReset("max_retries")}
           />
 
           <FormField
             label="Confidence Threshold"
-            value={settings.CONFIDENCE_THRESHOLD}
+            value={settings.confidence_threshold}
             type="number"
-            onChange={(value) => onChange("CONFIDENCE_THRESHOLD", value)}
-            disabled={!settings.VERIFICATION_ENABLED}
+            onChange={(value) => onChange("confidence_threshold", value)}
+            disabled={!settings.enabled}
             validation={[
               {
                 type: "min",
@@ -227,14 +168,14 @@ export default function VerificationSettingsPanel({
             min={0.0}
             max={1.0}
             step={0.05}
-            onReset={() => onReset("CONFIDENCE_THRESHOLD")}
+            onReset={() => onReset("confidence_threshold")}
           />
 
-          {settings.CONFIDENCE_THRESHOLD > 0.9 && (
+          {settings.confidence_threshold > 0.9 && (
             <div className="p-3 bg-blue-50 border border-blue-300 rounded text-sm text-blue-800 flex items-center">
               <Info className="w-4 h-4 mr-2" />
               High confidence threshold (
-              {settings.CONFIDENCE_THRESHOLD.toFixed(2)}) may cause more
+              {settings.confidence_threshold.toFixed(2)}) may cause more
               verification failures. Consider lowering if experiencing issues.
             </div>
           )}
@@ -247,10 +188,9 @@ export default function VerificationSettingsPanel({
           disabled={isSaving}
           className={`
             px-6 py-2 rounded-md font-medium transition-colors
-            ${
-              isSaving
-                ? "bg-gray-400 cursor-not-allowed text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+            ${isSaving
+              ? "bg-gray-400 cursor-not-allowed text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
             }
           `}
         >

@@ -5,6 +5,7 @@ import FormField from './FormField';
 
 export default function SystemSettingsPanel({
   settings,
+  windowManagerSettings,
   onChange,
   onSave,
   onReset,
@@ -28,13 +29,16 @@ export default function SystemSettingsPanel({
   // Filter settings based on search query
   const matchesSearch = (text) => {
     if (!searchQuery) return true;
-    return text.toLowerCase().includes(searchQuery.toLowerCase());
+    return String(text || '').toLowerCase().includes(searchQuery.toLowerCase());
   };
 
-  const showServerUrl = matchesSearch('Server URL') || matchesSearch('SERVER_URL') || matchesSearch(settings.SERVER_URL);
-  const showUsername = matchesSearch('Windows Username') || matchesSearch('WINDOWS_USERNAME') || matchesSearch(settings.WINDOWS_USERNAME);
+  const showServerUrl = matchesSearch('Server URL') || matchesSearch('server_url') || matchesSearch(settings.server_url);
+  const showUsername = matchesSearch('Windows Username') || matchesSearch('windows_username') || matchesSearch(settings.windows_username);
 
-  const hasVisibleSettings = showServerUrl || showUsername;
+  const showActivationAttempts = matchesSearch('Activation Attempts') || matchesSearch('activation_attempts');
+  const showVerbose = matchesSearch('Verbose Logging') || matchesSearch('verbose');
+
+  const hasVisibleSettings = showServerUrl || showUsername || showActivationAttempts || showVerbose;
 
   if (searchQuery && !hasVisibleSettings) {
     return (
@@ -63,48 +67,91 @@ export default function SystemSettingsPanel({
         </div>
       )}
 
-      <div className="space-y-4">
-        {showServerUrl && (
-          <FormField
-            label="Server URL"
-            value={settings.SERVER_URL}
-            type="text"
-            onChange={(value) => onChange('SERVER_URL', value)}
-            validation={[
-              {
-                type: 'required',
-                message: 'Server URL is required',
-              },
-              {
-                type: 'pattern',
-                value: '^https?://.+',
-                message: 'Must be a valid URL starting with http:// or https://',
-              },
-            ]}
-            helpText="The URL of the backend server that processes automation commands"
-            placeholder="http://localhost:5000"
-            onReset={() => onReset('SERVER_URL')}
-            highlight={searchQuery}
-          />
-        )}
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-white border-b pb-2">Basic Configuration</h3>
 
-        {showUsername && (
-          <FormField
-            label="Windows Username"
-            value={settings.WINDOWS_USERNAME}
-            type="text"
-            onChange={(value) => onChange('WINDOWS_USERNAME', value)}
-            validation={[
-              {
-                type: 'required',
-                message: 'Windows username is required',
-              },
-            ]}
-            helpText="Your Windows username, used for generating file paths (e.g., C:\Users\[username]\...)"
-            placeholder="Enter your Windows username"
-            onReset={() => onReset('WINDOWS_USERNAME')}
-            highlight={searchQuery}
-          />
+          {showServerUrl && (
+            <FormField
+              label="Server URL"
+              value={settings.server_url}
+              type="text"
+              onChange={(value) => onChange('system', 'server_url', value)}
+              validation={[
+                {
+                  type: 'required',
+                  message: 'Server URL is required',
+                },
+                {
+                  type: 'pattern',
+                  value: '^https?://.+',
+                  message: 'Must be a valid URL starting with http:// or https://',
+                },
+              ]}
+              helpText="The URL of the backend server that processes automation commands"
+              placeholder="http://localhost:5000"
+              onReset={() => onReset('system', 'server_url')}
+              highlight={searchQuery}
+            />
+          )}
+
+          {showUsername && (
+            <FormField
+              label="Windows Username"
+              value={settings.windows_username}
+              type="text"
+              onChange={(value) => onChange('system', 'windows_username', value)}
+              validation={[
+                {
+                  type: 'required',
+                  message: 'Windows username is required',
+                },
+              ]}
+              helpText="Your Windows username, used for generating file paths (e.g., C:\Users\[username]\...)"
+              placeholder="Enter your Windows username"
+              onReset={() => onReset('system', 'windows_username')}
+              highlight={searchQuery}
+            />
+          )}
+        </div>
+
+        {(showActivationAttempts || showVerbose) && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-white border-b pb-2">Window Management</h3>
+
+            {showActivationAttempts && (
+              <FormField
+                label="Activation Attempts"
+                value={windowManagerSettings.activation_attempts}
+                type="number"
+                onChange={(value) => onChange('window_manager', 'activation_attempts', value)}
+                validation={[
+                  {
+                    type: 'min',
+                    value: 1,
+                    message: 'Must be at least 1',
+                  },
+                ]}
+                helpText="Number of times to try activating a window before failing"
+                min={1}
+                max={10}
+                onReset={() => onReset('window_manager', 'activation_attempts')}
+                highlight={searchQuery}
+              />
+            )}
+
+            {showVerbose && (
+              <FormField
+                label="Verbose Logging"
+                value={windowManagerSettings.verbose}
+                type="boolean"
+                onChange={(value) => onChange('window_manager', 'verbose', value)}
+                helpText="Enable detailed logging for window management operations"
+                onReset={() => onReset('window_manager', 'verbose')}
+                highlight={searchQuery}
+              />
+            )}
+          </div>
         )}
       </div>
 
