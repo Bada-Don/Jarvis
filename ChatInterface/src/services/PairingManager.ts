@@ -5,7 +5,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
-import { BarCodeScanner } from 'expo-barcode-scanner';
 import { getFirebaseDatabase } from '../config/firebase';
 import { ref, get, update, set } from 'firebase/database';
 
