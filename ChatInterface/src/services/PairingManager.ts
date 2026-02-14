@@ -5,7 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
-import { getFirebaseDatabase } from '../config/firebase';
+import { getFirebaseDatabase, signInAnonymouslyToFirebase } from '../config/firebase';
 import { ref, get, update, set } from 'firebase/database';
 
 interface PairingToken {
@@ -41,6 +41,9 @@ export class PairingManager {
     try {
       const deviceId = await this._getOrCreateDeviceId();
       this.deviceId = deviceId;
+
+      // Sign in anonymously to Firebase (required for security rules)
+      await signInAnonymouslyToFirebase();
 
       // Initialize Firebase database
       this.database = getFirebaseDatabase();
@@ -202,6 +205,13 @@ export class PairingManager {
         return { success: false, message: 'Device ID not initialized' };
       }
 
+      // Ensure we are authenticated with Firebase
+      try {
+        await signInAnonymouslyToFirebase();
+      } catch (authError) {
+        console.warn('⚠️ Firebase auth may already be initialized:', authError);
+      }
+
       if (!this.database) {
         this.database = getFirebaseDatabase();
       }
@@ -224,8 +234,6 @@ export class PairingManager {
       // Check for clock skew (if token future time is unreasonably far)
       if (tokenData.createdAt && currentTime < tokenData.createdAt - 60) {
         console.warn(`⚠️ Clock skew detected. Device time (${currentTime}) is behind Token creation (${tokenData.createdAt})`);
-        // proceed anyway, better early than late? No, if device time is behind, it might think token is valid when it is not? 
-        // If device time < creation, it definitely < expiresAt. So it is valid.
       }
 
       if (currentTime > tokenData.expiresAt) {
