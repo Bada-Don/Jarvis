@@ -10,8 +10,15 @@ class APIService {
   initPyWebView() {
     // Create a promise that resolves when PyWebView is ready
     this.readyPromise = new Promise((resolve) => {
+      // Helper function to check if API methods are actually available
+      const isApiReady = () => {
+        return window.pywebview?.api && 
+               typeof window.pywebview.api.get_settings === 'function' &&
+               typeof window.pywebview.api.is_first_run === 'function';
+      };
+
       // Check if already available
-      if (typeof window !== 'undefined' && window.pywebview?.api) {
+      if (typeof window !== 'undefined' && isApiReady()) {
         this.pywebviewReady = true;
         console.log('✓ PyWebView API already available - using Python backend');
         resolve(true);
@@ -21,13 +28,13 @@ class APIService {
       // Listen for pywebviewready event
       if (typeof window !== 'undefined') {
         window.addEventListener('pywebviewready', () => {
-          if (window.pywebview?.api) {
+          if (isApiReady()) {
             this.pywebviewReady = true;
             console.log('✓ PyWebView API ready event received - using Python backend');
             resolve(true);
           } else {
-            console.warn('✗ pywebviewready event fired but API not available');
-            resolve(false);
+            console.warn('✗ pywebviewready event fired but API methods not available yet');
+            // Don't resolve yet, let the polling continue
           }
         });
 
@@ -36,7 +43,7 @@ class APIService {
         const maxAttempts = 50; // 5 seconds
         const checkInterval = setInterval(() => {
           attempts++;
-          if (window.pywebview?.api) {
+          if (isApiReady()) {
             this.pywebviewReady = true;
             console.log(`✓ PyWebView API detected (attempt ${attempts}) - using Python backend`);
             clearInterval(checkInterval);
@@ -275,18 +282,11 @@ class APIService {
       return false; // In development, assume not first run
     }
     
-    // Debug: Check what methods are actually available
-    console.log('Available API methods:', Object.keys(window.pywebview.api));
-    console.log('Checking for is_first_run method:', typeof window.pywebview.api.is_first_run);
-    console.log('Checking for isFirstRun method:', typeof window.pywebview.api.isFirstRun);
-    
     console.log('Calling Python backend: is_first_run()');
     const response = await window.pywebview.api.is_first_run();
-    console.log('is_first_run response:', response);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to check first run status');
     }
-    console.log('is_first_run data:', response.data);
     return response.data;
   }
 

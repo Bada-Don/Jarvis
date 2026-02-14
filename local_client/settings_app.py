@@ -60,11 +60,11 @@ class SettingsAPI:
         # Initialize PackagingService
         self.packaging_service = PackagingService(self.project_root_str)
         
-        # Initialize error handler
-        self.error_handler = None
+        # Initialize error handler (private to avoid pywebview serialization)
+        self._error_handler = None
         if ERROR_HANDLER_AVAILABLE:
-            self.error_handler = ErrorHandler()
-            set_error_handler(self.error_handler)
+            self._error_handler = ErrorHandler()
+            set_error_handler(self._error_handler)
             print("✅ Error handler initialized in Settings API")
         
         # Prompt managers will be created on-demand for each file
@@ -93,12 +93,12 @@ class SettingsAPI:
             }
         except Exception as e:
             # Use error handler if available
-            if self.error_handler:
+            if self._error_handler:
                 error = ConfigurationError(
                     f"Failed to read settings: {str(e)}",
                     details={'type': 'corrupted_config'}
                 )
-                self.error_handler.handle_configuration_error(error)
+                self._error_handler.handle_configuration_error(error)
             
             return {
                 "success": False,
@@ -442,7 +442,8 @@ class SettingsAPI:
         Returns:
             str: Selected file path or empty string if cancelled
         """
-        dialog_type = webview.SAVE_DIALOG if save_mode else webview.OPEN_DIALOG
+        from webview import FileDialog
+        dialog_type = FileDialog.SAVE if save_mode else FileDialog.OPEN
         result = webview.windows[0].create_file_dialog(
             dialog_type,
             directory='',
@@ -460,8 +461,9 @@ class SettingsAPI:
         Returns:
             str: Selected folder path or empty string if cancelled
         """
+        from webview import FileDialog
         result = webview.windows[0].create_file_dialog(
-            webview.FOLDER_DIALOG,
+            FileDialog.FOLDER,
             directory=''
         )
         return result[0] if result else ""

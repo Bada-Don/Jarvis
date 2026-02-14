@@ -61,7 +61,7 @@ class FirebaseService:
                         if project_id:
                             # Try to detect region from credentials or use default
                             # Common regions: us-central1, europe-west1, asia-southeast1
-                            database_url = f"https://{project_id}-default-rtdb.firebaseio.com"
+                            database_url = f"https://{project_id}-default-rtdb.asia-southeast1.firebasedatabase.app"
                             print(f"⚠️  Using default database URL: {database_url}")
                             print(f"   If you get region errors, run: python fix_firebase_region.py")
             
