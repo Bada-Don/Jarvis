@@ -43,7 +43,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
     try {
       const paired = await pairingManager.isPaired();
       setIsPaired(paired);
-      
+
       if (paired) {
         const desktopId = await pairingManager.getPairedDesktopId();
         console.log(`Already paired with desktop: ${desktopId}`);
@@ -55,11 +55,11 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
 
   const handleQRScan = async (token: string) => {
     setIsProcessing(true);
-    
+
     try {
-      const success = await pairingManager.submitPairingToken(token);
-      
-      if (success) {
+      const result = await pairingManager.submitPairingToken(token);
+
+      if (result.success) {
         Alert.alert(
           'Pairing Successful',
           'Your device has been paired with the desktop application.',
@@ -76,7 +76,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
       } else {
         Alert.alert(
           'Pairing Failed',
-          'The pairing code is invalid or has expired. Please try again.',
+          result.message || 'The pairing code is invalid or has expired. Please try again.',
           [
             {
               text: 'OK',
@@ -92,7 +92,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
       console.error('Pairing error:', error);
       Alert.alert(
         'Pairing Error',
-        'An error occurred during pairing. Please try again.',
+        `An error occurred during pairing: ${(error as Error).message}`,
         [
           {
             text: 'OK',
@@ -123,9 +123,9 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
     setIsProcessing(true);
 
     try {
-      const success = await pairingManager.submitPairingToken(manualToken);
+      const result = await pairingManager.submitPairingToken(manualToken);
 
-      if (success) {
+      if (result.success) {
         Alert.alert(
           'Pairing Successful',
           'Your device has been paired with the desktop application.',
@@ -142,7 +142,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
       } else {
         Alert.alert(
           'Pairing Failed',
-          'The pairing code is invalid or has expired. Please try again.'
+          result.message || 'The pairing code is invalid or has expired. Please try again.'
         );
       }
     } catch (error) {
@@ -211,7 +211,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({
       >
         <View style={styles.content}>
           <Text style={styles.title}>Pair Your Device</Text>
-          
+
           {isPaired ? (
             <View style={styles.pairedContainer}>
               <Text style={styles.pairedText}>✓ Device Paired</Text>
