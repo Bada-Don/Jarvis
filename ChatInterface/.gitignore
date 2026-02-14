@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+!assets/*.png
+!assets/adaptive-icon.png
+!assets/icon.png
+!assets/favicon.png
