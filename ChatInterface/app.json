@@ -42,7 +42,8 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR code scanning."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "firebaseApiKey": "AIzaSyBZmxVR5tdvdMg6SarCGsKSfFBgPfNpzjA",
