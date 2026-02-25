@@ -373,8 +373,8 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
         retry_delay = RETRY_DELAY
     except ImportError:
         # Fallback to defaults if config not available
-        MAX_RETRIES = 1
-        enable_verification = True
+        MAX_RETRIES = 0
+        enable_verification = False  # Disabled by default for faster execution
         retry_delay = 2.0
     
     if not TWO_MODEL_PIPELINE_AVAILABLE:
@@ -445,7 +445,7 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
             vision_service = VisionService()
             send_status({
                 'message': 'Vision service ready',
-                'progress': 15,
+                'progress': 23,
                 'status': 'info'
             }, "info")
         except Exception as e:

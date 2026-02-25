@@ -419,7 +419,7 @@ class PlanExecutor:
         sequence = plan.get('sequence', [])
         total_steps = len(sequence)
         
-        self._send_status(f"Starting direct automation of {total_steps} steps", "info", progress=0)
+        self._send_status(f"Starting direct automation of {total_steps} steps", "info", progress=25)
         
         # Initialize UIA if needed
         if self._flexisign_uia is None:
@@ -453,7 +453,7 @@ class PlanExecutor:
                     self._send_status(f"Permission denied for step {step_order}, skipping...", "warning")
                     continue
             
-            progress = int(((i + 1) / total_steps) * 90) + 5
+            progress = int(((i + 1) / total_steps) * 65) + 25
             self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
             
             try:
@@ -484,7 +484,7 @@ class PlanExecutor:
                     )
                 continue
         
-        self._send_status("Direct automation complete!", "success", progress=100)
+        self._send_status("Direct automation complete!", "info", progress=95)
         return {"success": True, "aborted": False}
     
     def _execute_vision_plan(self, plan: dict) -> dict:
@@ -501,7 +501,7 @@ class PlanExecutor:
         self._mode = plan.get('mode', 'general')
         
         total_steps = len(sequence)
-        self._send_status(f"Starting execution of {total_steps} steps (mode: {self._mode})", "info", progress=0)
+        self._send_status(f"Starting execution of {total_steps} steps (mode: {self._mode})", "info", progress=25)
         
         # Play start sound
         self._play_sound('start')
@@ -533,7 +533,7 @@ class PlanExecutor:
                     self._send_status(f"Permission denied for step {step_order}, skipping...", "warning")
                     continue
             
-            progress = int(((i + 1) / total_steps) * 85) + 10
+            progress = int(((i + 1) / total_steps) * 65) + 25
             self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
             
             try:
@@ -782,7 +782,7 @@ class PlanExecutor:
                     )
                 continue
         
-        self._send_status("Execution complete!", "success", progress=100)
+        self._send_status("Execution complete!", "info", progress=95)
         
         # Play completion sound
         self._play_sound('complete')
