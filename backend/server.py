@@ -123,8 +123,10 @@ try:
         firebase_enabled = True
         print("✓ Firebase Service initialized successfully", flush=True)
         
-        # Get device ID
+        # Get device ID and set it on firebase_service
         device_id = get_or_create_device_id()
+        firebase_service.set_device_id(device_id)
+        firebase_service.register_device(device_id, device_type="desktop")
         print(f"✓ Backend device ID: {device_id}", flush=True)
     else:
         print(f"⚠ Firebase credentials not found at: {firebase_creds_path}", flush=True)
@@ -161,7 +163,23 @@ def send_command_dual(command_payload):
     
     # Send via Firebase if enabled
     if firebase_enabled and firebase_service and firebase_service.device_id:
-        firebase_service.send_command(firebase_service.device_id, command_payload)
+        # Get paired mobile device ID from config
+        try:
+            from pathlib import Path
+            import json
+            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+            if device_config_path.exists():
+                with open(device_config_path, 'r') as f:
+                    config = json.load(f)
+                    paired_mobile_id = config.get('paired_device_id')
+                    if paired_mobile_id:
+                        # Send command to paired mobile device
+                        firebase_service.send_command(paired_mobile_id, command_payload)
+                        print(f"📤 Firebase command sent to mobile: {paired_mobile_id}", flush=True)
+                    else:
+                        print(f"⚠️ No paired mobile device ID found", flush=True)
+        except Exception as e:
+            print(f"⚠️ Error sending Firebase command: {e}", flush=True)
 
 
 def send_status_dual(status_data):
@@ -247,9 +265,12 @@ def process_instruction():
     text = data.get('text', '')
     image_data = data.get('image', None)
     
-    print(f"Received instruction: {text}")
+    print(f"📥 Received instruction: {text[:200]}{'...' if len(text) > 200 else ''}", flush=True)
+    if image_data:
+        print(f"📷 Image data included: {len(image_data)} bytes", flush=True)
     
     if planner_service is None:
+        print("✗ Planner service not available", flush=True)
         return jsonify({
             "status": "error",
             "response": "Planner service not available. Check GEMINI_API_KEY."
@@ -296,8 +317,10 @@ def process_instruction():
         })
         
     except ValueError as e:
+        import traceback
         error_msg = f"Failed to generate plan: {e}"
-        print(f"✗ {error_msg}")
+        print(f"✗ {error_msg}", flush=True)
+        print(f"✗ Traceback:\n{traceback.format_exc()}", flush=True)
         send_status_dual({
             'message': error_msg,
             'status': 'error',
@@ -305,12 +328,16 @@ def process_instruction():
         })
         return jsonify({
             "status": "error",
-            "response": "Sorry, I couldn't understand that command. Please try again."
+            "response": "Sorry, I couldn't understand that command. Please try again.",
+            "error_type": "ValueError"
         }), 500
         
     except Exception as e:
+        import traceback
         error_msg = f"Error processing request: {e}"
-        print(f"✗ {error_msg}")
+        print(f"✗ {error_msg}", flush=True)
+        print(f"✗ Full traceback:\n{traceback.format_exc()}", flush=True)
+        print(f"✗ Request data: text='{text[:100]}...' (truncated)", flush=True)
         send_status_dual({
             'message': 'An error occurred while processing your request.',
             'status': 'error',
@@ -318,7 +345,8 @@ def process_instruction():
         })
         return jsonify({
             "status": "error",
-            "response": "An error occurred. Please try again."
+            "response": "An error occurred. Please try again.",
+            "error_type": type(e).__name__
         }), 500
 
 

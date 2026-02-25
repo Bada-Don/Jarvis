@@ -75,6 +75,11 @@ export default function ChatScreen() {
                         const deviceId = await pairingManager.getDeviceId();
                         
                         if (deviceId) {
+                            // Clean up existing Firebase service if any
+                            if (firebaseServiceRef.current) {
+                                firebaseServiceRef.current.disconnect();
+                            }
+                            
                             // Initialize Firebase service
                             const firebaseService = new FirebaseService(deviceId, desktopId);
                             firebaseServiceRef.current = firebaseService;
@@ -82,7 +87,11 @@ export default function ChatScreen() {
                             // Connect to Firebase
                             await firebaseService.connect();
                             
-                            // Set up status listener
+                            // Clear old status messages to prevent showing stale errors
+                            await firebaseService.clearMessages();
+                            console.log('🧹 Cleared old status messages');
+                            
+                            // Set up status listener (this will remove any existing listener)
                             firebaseService.listenForStatus(handleFirebaseStatus);
                             
                             setUseFirebase(true);
@@ -123,12 +132,6 @@ export default function ChatScreen() {
             }
         }
         
-        // Clear any pending timeout
-        if (clearTimeoutRef.current) {
-            clearTimeout(clearTimeoutRef.current);
-            clearTimeoutRef.current = null;
-        }
-        
         // Determine the final status
         const progressStatus = statusType === 'completion' ? 'success' : statusType === 'error' ? 'error' : 'running';
         
@@ -166,12 +169,18 @@ export default function ChatScreen() {
             ]);
         }
         
-        // Clear progress message ID when complete
-        if (statusType === 'completion' || statusType === 'error') {
+        // Only clear progress message ID when task is truly complete
+        // Don't clear immediately to prevent creating duplicate progress cards
+        if ((statusType === 'completion' || statusType === 'error') && progress >= 100) {
+            // Clear any existing timeout
+            if (clearTimeoutRef.current) {
+                clearTimeout(clearTimeoutRef.current);
+            }
+            // Set a longer delay to ensure no more updates arrive
             clearTimeoutRef.current = setTimeout(() => {
                 progressMessageIdRef.current = null;
                 clearTimeoutRef.current = null;
-            }, 3000);
+            }, 5000); // Increased from 3000 to 5000ms
         }
     };
 
@@ -209,12 +218,6 @@ export default function ChatScreen() {
                 setIsTaskRunning(true);
             } else if (status === 'success' || status === 'error' || progress >= 100) {
                 setIsTaskRunning(false);
-            }
-            
-            // Clear any pending timeout that would reset the progress ID
-            if (clearTimeoutRef.current) {
-                clearTimeout(clearTimeoutRef.current);
-                clearTimeoutRef.current = null;
             }
             
             // Determine the final status
@@ -256,12 +259,18 @@ export default function ChatScreen() {
                 ]);
             }
             
-            // Clear progress message ID when complete (after a delay to allow for final display)
-            if (status === 'success' || status === 'error') {
+            // Only clear progress message ID when task is truly complete
+            // Don't clear immediately to prevent creating duplicate progress cards
+            if ((status === 'success' || status === 'error') && progress >= 100) {
+                // Clear any existing timeout
+                if (clearTimeoutRef.current) {
+                    clearTimeout(clearTimeoutRef.current);
+                }
+                // Set a longer delay to ensure no more updates arrive
                 clearTimeoutRef.current = setTimeout(() => {
                     progressMessageIdRef.current = null;
                     clearTimeoutRef.current = null;
-                }, 3000);
+                }, 5000); // Increased from 3000 to 5000ms
             }
         });
 
@@ -332,6 +341,37 @@ export default function ChatScreen() {
                 content: '🛑 Task aborted by user.',
             },
         ]);
+    };
+
+    const handleUnpair = async () => {
+        try {
+            // Disconnect Firebase
+            if (firebaseServiceRef.current) {
+                firebaseServiceRef.current.disconnect();
+                firebaseServiceRef.current = null;
+            }
+
+            // Unpair device
+            if (pairingManagerRef.current) {
+                await pairingManagerRef.current.unpair();
+            }
+
+            // Reset state
+            setIsPaired(false);
+            setUseFirebase(false);
+            setShowPairingScreen(true);
+
+            Alert.alert(
+                'Device Unpaired',
+                'Your device has been unpaired. You can pair again by scanning a QR code.'
+            );
+        } catch (error) {
+            console.error('❌ Failed to unpair:', error);
+            Alert.alert(
+                'Unpair Failed',
+                'Failed to unpair device. Please try again.'
+            );
+        }
     };
 
     const handleSend = async (text: string, files: any[]) => {
@@ -415,6 +455,7 @@ export default function ChatScreen() {
             <ChatHeader
                 title="Jarvis"
                 subtitle={useFirebase ? 'Online · Firebase' : 'Online · Local'}
+                onUnpair={isPaired ? handleUnpair : undefined}
             />
 
             <View style={styles.contentContainer}>

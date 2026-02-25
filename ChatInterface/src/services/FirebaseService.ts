@@ -284,10 +284,21 @@ export class FirebaseService {
       console.warn('⚠️ Not connected to Firebase. Status updates may be delayed.');
     }
 
+    // Remove existing listener if any to prevent duplicates
+    const existingListener = this.listeners.get('status');
+    if (existingListener) {
+      console.log('⚠️ Removing existing status listener to prevent duplicates');
+      existingListener();
+      this.listeners.delete('status');
+    }
+
     console.log('👂 Listening for status updates...');
 
     // Listen to status updates for this mobile device
     const statusRef = ref(this.database, `messages/${this.deviceId}/status`);
+
+    // Track processed message IDs to prevent duplicates
+    const processedMessageIds = new Set<string>();
 
     const unsubscribe = onValue(statusRef, (snapshot) => {
       const statusData = snapshot.val();
@@ -297,6 +308,14 @@ export class FirebaseService {
         const statusKeys = Object.keys(statusData);
         const latestKey = statusKeys[statusKeys.length - 1];
         const latestStatus = statusData[latestKey];
+
+        // Check if we've already processed this message
+        if (processedMessageIds.has(latestKey)) {
+          return; // Skip duplicate
+        }
+
+        // Mark as processed
+        processedMessageIds.add(latestKey);
 
         console.log('📱 Status update received:', latestStatus);
         callback(latestStatus);
@@ -310,7 +329,16 @@ export class FirebaseService {
               `messages/${this.deviceId}/status/${key}`
             );
             await remove(oldStatusRef);
+            // Remove from processed set
+            processedMessageIds.delete(key);
           });
+        }
+
+        // Limit processed IDs set size to prevent memory leak
+        if (processedMessageIds.size > 50) {
+          const idsArray = Array.from(processedMessageIds);
+          const toRemove = idsArray.slice(0, idsArray.length - 50);
+          toRemove.forEach(id => processedMessageIds.delete(id));
         }
       }
     });
