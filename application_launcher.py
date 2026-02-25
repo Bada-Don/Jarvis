@@ -213,25 +213,53 @@ class ApplicationLauncher:
             env['PYTHONIOENCODING'] = 'utf-8'
             env['PYTHONUTF8'] = '1'
             
-            # Start process
+            # Create log files for stdout and stderr
+            log_dir = Path('data/logs')
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            stdout_log = log_dir / f'{component_id}_stdout_{timestamp}.log'
+            stderr_log = log_dir / f'{component_id}_stderr_{timestamp}.log'
+            
+            stdout_file = open(stdout_log, 'w', encoding='utf-8')
+            stderr_file = open(stderr_log, 'w', encoding='utf-8')
+            
+            self.logger.info(f'   Stdout log: {stdout_log}')
+            self.logger.info(f'   Stderr log: {stderr_log}')
+            
+            # Start process with output redirected to log files
             process = subprocess.Popen(
                 [sys.executable, str(abs_script_path)],
                 cwd=config.working_dir,
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_file,
+                stderr=stderr_file,
                 stdin=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
             )
             
-            # Store process
+            # Store process and file handles
             self.processes[component_id] = process
             self.restart_counts[component_id] = 0
+            
+            # Store file handles for cleanup
+            if not hasattr(self, '_log_files'):
+                self._log_files = {}
+            self._log_files[component_id] = (stdout_file, stderr_file)
             
             # Verify process started
             time.sleep(0.5)
             if process.poll() is not None:
                 self.logger.error(f'{config.name} exited immediately with code {process.returncode}')
+                # Read error from log
+                stderr_file.flush()
+                try:
+                    with open(stderr_log, 'r', encoding='utf-8') as f:
+                        error_output = f.read()
+                        if error_output:
+                            self.logger.error(f'Error output:\n{error_output}')
+                except Exception:
+                    pass
                 return False
             
             self.logger.info(f'✅ {config.name} started (PID: {process.pid})')
@@ -427,6 +455,16 @@ class ApplicationLauncher:
         except Exception as e:
             self.logger.error(f'Error stopping {config.name}: {e}')
         finally:
+            # Close log files
+            if hasattr(self, '_log_files') and component_id in self._log_files:
+                stdout_file, stderr_file = self._log_files[component_id]
+                try:
+                    stdout_file.close()
+                    stderr_file.close()
+                except Exception:
+                    pass
+                del self._log_files[component_id]
+            
             # Remove from processes dict
             if component_id in self.processes:
                 del self.processes[component_id]

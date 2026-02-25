@@ -1005,4 +1005,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 
 ---
 
-**Built with ❤️ by [Your Name]**
+**Built with 🧠 by Harshit Singla**

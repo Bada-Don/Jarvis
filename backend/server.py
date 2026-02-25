@@ -5,6 +5,7 @@ eventlet.monkey_patch()
 import os
 import base64
 import json
+import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
@@ -36,9 +37,75 @@ if not os.path.exists(UPLOAD_FOLDER):
 planner_service = None
 try:
     planner_service = PlannerService()
-    print("✓ Gemini Planner Service initialized successfully")
+    print("✓ Gemini Planner Service initialized successfully", flush=True)
 except ValueError as e:
-    print(f"⚠ Gemini Planner Service not available: {e}")
+    print(f"⚠ Gemini Planner Service not available: {e}", flush=True)
+
+
+def get_or_create_device_id():
+    """
+    Get or create a unique device ID for this backend instance.
+    Reads from canonical data/device_config.json (created by PairingManager).
+    Falls back to data/device_id.txt for backward compatibility.
+    """
+    from pathlib import Path
+    import json
+    
+    # Try canonical device_config.json first (created by PairingManager)
+    device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+    if device_config_path.exists():
+        try:
+            with open(device_config_path, 'r') as f:
+                config = json.load(f)
+                device_id = config.get('device_id')
+                if device_id:
+                    print(f"✓ Using device ID from device_config.json: {device_id}", flush=True)
+                    return device_id
+        except Exception as e:
+            print(f"⚠️ Error reading device_config.json: {e}", flush=True)
+    
+    # Fall back to legacy device_id.txt
+    device_id_path = Path(__file__).parent / 'data' / 'device_id.txt'
+    
+    # Try to load existing device ID
+    if device_id_path.exists():
+        try:
+            with open(device_id_path, 'r') as f:
+                device_id = f.read().strip()
+                if device_id:
+                    print(f"✓ Using device ID from device_id.txt: {device_id}", flush=True)
+                    return device_id
+        except Exception as e:
+            print(f"⚠️ Error reading device ID: {e}", flush=True)
+    
+    # Generate new device ID
+    import uuid
+    device_id = f"desktop_{uuid.uuid4().hex[:16]}"
+    
+    # Save to canonical location (device_config.json)
+    try:
+        device_config_path.parent.mkdir(parents=True, exist_ok=True)
+        config = {
+            'device_id': device_id,
+            'device_type': 'desktop',
+            'created_at': time.time()
+        }
+        with open(device_config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"✓ Generated new device ID and saved to device_config.json: {device_id}", flush=True)
+    except Exception as e:
+        print(f"⚠️ Error saving device_config.json: {e}", flush=True)
+        # Fall back to saving in device_id.txt
+        try:
+            device_id_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(device_id_path, 'w') as f:
+                f.write(device_id)
+            print(f"✓ Saved device ID to device_id.txt: {device_id}", flush=True)
+        except Exception as e:
+            print(f"⚠️ Error saving device ID: {e}", flush=True)
+    
+    return device_id
+
 
 # Initialize Firebase Service (optional)
 firebase_service = None
@@ -46,49 +113,24 @@ firebase_enabled = False
 try:
     from firebase_service import FirebaseService
     
-    # Check for Firebase credentials
-    firebase_creds_path = os.path.join('data', 'firebase-admin-credentials.json')
-    if os.path.exists(firebase_creds_path):
-        firebase_service = FirebaseService(firebase_creds_path)
+    # Check for Firebase credentials (resolve relative to project root)
+    from pathlib import Path
+    firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
+    print(f'🔍 Looking for Firebase credentials at: {firebase_creds_path}', flush=True)
+    
+    if firebase_creds_path.exists():
+        firebase_service = FirebaseService(str(firebase_creds_path))
         firebase_enabled = True
-        print("✓ Firebase Service initialized successfully")
+        print("✓ Firebase Service initialized successfully", flush=True)
+        
+        # Get device ID
+        device_id = get_or_create_device_id()
+        print(f"✓ Backend device ID: {device_id}", flush=True)
     else:
-        print("⚠ Firebase credentials not found, Firebase features disabled")
+        print(f"⚠ Firebase credentials not found at: {firebase_creds_path}", flush=True)
+        print("⚠ Firebase features disabled", flush=True)
 except Exception as e:
-    print(f"⚠ Firebase Service not available: {e}")
-
-
-def get_or_create_device_id():
-    """
-    Get or create a unique device ID for this backend instance.
-    Stored in data/device_id.txt
-    """
-    device_id_path = os.path.join('data', 'device_id.txt')
-    
-    # Try to load existing device ID
-    if os.path.exists(device_id_path):
-        try:
-            with open(device_id_path, 'r') as f:
-                device_id = f.read().strip()
-                if device_id:
-                    return device_id
-        except Exception as e:
-            print(f"⚠️ Error reading device ID: {e}")
-    
-    # Generate new device ID
-    import uuid
-    device_id = f"desktop_{uuid.uuid4().hex[:16]}"
-    
-    # Save device ID
-    try:
-        os.makedirs('data', exist_ok=True)
-        with open(device_id_path, 'w') as f:
-            f.write(device_id)
-        print(f"✓ Generated new device ID: {device_id}")
-    except Exception as e:
-        print(f"⚠️ Error saving device ID: {e}")
-    
-    return device_id
+    print(f"⚠ Firebase Service not available: {e}", flush=True)
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -134,7 +176,24 @@ def send_status_dual(status_data):
     
     # Send via Firebase if enabled
     if firebase_enabled and firebase_service and firebase_service.device_id:
-        firebase_service.send_status(firebase_service.device_id, status_data)
+        # Get paired mobile device ID from config
+        try:
+            import json
+            from pathlib import Path
+            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+            if device_config_path.exists():
+                with open(device_config_path, 'r') as f:
+                    config = json.load(f)
+                    paired_mobile_id = config.get('paired_device_id')
+                    if paired_mobile_id:
+                        firebase_service.send_status(paired_mobile_id, status_data)
+                        print(f"📤 Firebase status sent to mobile: {paired_mobile_id}")
+                    else:
+                        print(f"⚠️ No paired mobile device ID in config")
+            else:
+                print(f"⚠️ device_config.json not found, skipping Firebase status")
+        except Exception as e:
+            print(f"⚠️ Error sending Firebase status: {e}")
 
 
 @app.route('/api/upload', methods=['POST'])
@@ -397,9 +456,9 @@ def handle_abort_task(data):
 
 
 if __name__ == '__main__':
-    print("=" * 50)
-    print("🤖 JARVIS Backend Server Starting...")
-    print("=" * 50)
+    print("=" * 50, flush=True)
+    print("🤖 JARVIS Backend Server Starting...", flush=True)
+    print("=" * 50, flush=True)
     
     socketio.run(
         app, 

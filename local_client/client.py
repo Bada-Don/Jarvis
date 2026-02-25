@@ -13,6 +13,7 @@ import psutil
 import win32gui
 import win32con
 import sys
+import requests
 
 # Import configuration
 try:
@@ -106,64 +107,39 @@ error_handler = None
 
 @sio.event
 def connect():
-    global permission_service, firebase_service, firebase_enabled, error_handler
+    global permission_service, error_handler
     print('✅ Connected to JARVIS Server')
     
-    # Initialize error handler
-    if ERROR_HANDLER_AVAILABLE and error_handler is None:
-        error_handler = ErrorHandler(status_callback=send_status)
-        set_error_handler(error_handler)
-        print('✅ Error handler initialized')
-    
-    # Initialize permission service after connection
-    if PERMISSION_SERVICE_AVAILABLE:
-        permission_service = PermissionService(sio, status_callback=send_status)
-        register_abort_handler(sio)
-        print('✅ Permission service initialized')
-    
-    # Initialize Firebase service if available
-    if FIREBASE_SERVICE_AVAILABLE and not firebase_enabled:
-        try:
-            firebase_creds_path = os.path.join('data', 'firebase-admin-credentials.json')
-            if os.path.exists(firebase_creds_path):
-                firebase_service = FirebaseService(firebase_creds_path)
-                
-                # Get or create device ID
-                device_id = get_or_create_device_id()
-                firebase_service.set_device_id(device_id)
-                firebase_service.register_device(device_id, device_type="desktop")
-                
-                # Start presence tracking
-                firebase_service.start_presence_tracking(device_id)
-                
-                # Listen for commands from Firebase
-                firebase_service.listen_for_commands(device_id, handle_firebase_command)
-                
-                firebase_enabled = True
-                print('✅ Firebase service initialized and listening')
-            else:
-                if error_handler:
-                    error = ConfigurationError(
-                        "Firebase credentials not found",
-                        details={'type': 'missing_firebase', 'path': firebase_creds_path}
-                    )
-                    error_handler.handle_configuration_error(error)
-                else:
-                    print('⚠️ Firebase credentials not found, Firebase features disabled')
-        except Exception as e:
-            if error_handler:
-                error = NetworkError(
-                    f"Firebase initialization failed: {str(e)}",
-                    details={'type': 'firebase_connection'}
-                )
-                error_handler.handle_network_error(error)
-            else:
-                print(f'⚠️ Firebase initialization error: {e}')
+    try:
+        # Initialize error handler
+        if ERROR_HANDLER_AVAILABLE and error_handler is None:
+            error_handler = ErrorHandler(status_callback=send_status)
+            set_error_handler(error_handler)
+            print('✅ Error handler initialized')
+        
+        # Initialize permission service after connection
+        if PERMISSION_SERVICE_AVAILABLE:
+            permission_service = PermissionService(sio, status_callback=send_status)
+            register_abort_handler(sio)
+            print('✅ Permission service initialized')
+        
+        print('✅ Connection setup complete')
+    except Exception as e:
+        print(f'❌ Error in connect handler: {e}')
+        import traceback
+        traceback.print_exc()
 
 
 @sio.event
 def disconnect():
     print('❌ Disconnected from Server')
+
+
+@sio.event
+def connect_error(data):
+    print(f'❌ Connection error: {data}')
+    import traceback
+    traceback.print_exc()
 
 
 @sio.event
@@ -175,16 +151,35 @@ def command(data):
 def get_or_create_device_id():
     """
     Get or create a unique device ID for this client instance.
-    Stored in data/device_id.txt
+    Reads from canonical data/device_config.json (created by PairingManager).
+    Falls back to data/device_id.txt for backward compatibility.
     """
-    device_id_path = os.path.join('data', 'device_id.txt')
+    from pathlib import Path
+    import json
+    
+    # Try canonical device_config.json first (created by PairingManager)
+    device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+    if device_config_path.exists():
+        try:
+            with open(device_config_path, 'r') as f:
+                config = json.load(f)
+                device_id = config.get('device_id')
+                if device_id:
+                    print(f"✓ Using device ID from device_config.json: {device_id}")
+                    return device_id
+        except Exception as e:
+            print(f"⚠️ Error reading device_config.json: {e}")
+    
+    # Fall back to legacy device_id.txt
+    device_id_path = Path(__file__).parent / 'data' / 'device_id.txt'
     
     # Try to load existing device ID
-    if os.path.exists(device_id_path):
+    if device_id_path.exists():
         try:
             with open(device_id_path, 'r') as f:
                 device_id = f.read().strip()
                 if device_id:
+                    print(f"✓ Using device ID from device_id.txt: {device_id}")
                     return device_id
         except Exception as e:
             print(f"⚠️ Error reading device ID: {e}")
@@ -193,14 +188,27 @@ def get_or_create_device_id():
     import uuid
     device_id = f"desktop_{uuid.uuid4().hex[:16]}"
     
-    # Save device ID
+    # Save to canonical location (device_config.json)
     try:
-        os.makedirs('data', exist_ok=True)
-        with open(device_id_path, 'w') as f:
-            f.write(device_id)
-        print(f"✓ Generated new device ID: {device_id}")
+        device_config_path.parent.mkdir(parents=True, exist_ok=True)
+        config = {
+            'device_id': device_id,
+            'device_type': 'desktop',
+            'created_at': time.time()
+        }
+        with open(device_config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"✓ Generated new device ID and saved to device_config.json: {device_id}")
     except Exception as e:
-        print(f"⚠️ Error saving device ID: {e}")
+        print(f"⚠️ Error saving device_config.json: {e}")
+        # Fall back to saving in device_id.txt
+        try:
+            device_id_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(device_id_path, 'w') as f:
+                f.write(device_id)
+            print(f"✓ Saved device ID to device_id.txt: {device_id}")
+        except Exception as e:
+            print(f"⚠️ Error saving device ID: {e}")
     
     return device_id
 
@@ -208,12 +216,53 @@ def get_or_create_device_id():
 def handle_firebase_command(command_data):
     """
     Handle commands received from Firebase.
+    Route raw text commands through the backend planner.
     
     Args:
         command_data: Command data from Firebase
     """
-    print(f'📥 Firebase command received: {command_data.get("action", "unknown")}')
-    execute_command(command_data)
+    import requests
+    
+    # Log the received command
+    command_type = command_data.get('type', 'unknown')
+    command_text = command_data.get('text', '')
+    print(f'📥 Firebase command received: type={command_type}, text={command_text}')
+    
+    # Check if this is a raw text command (from mobile app)
+    if command_type == 'command' and command_text:
+        # Route through backend planner to get proper execution plan
+        try:
+            print(f'🔄 Routing command through backend planner: {command_text}')
+            
+            # Send to backend's /api/process endpoint
+            response = requests.post(
+                f'{SERVER_URL}/api/process',
+                json={'text': command_text},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                print('✅ Command routed to backend successfully')
+                # Backend will send the execution plan via WebSocket/Firebase
+                # with proper action: "execute_plan" structure
+            else:
+                error_msg = f'Backend returned error: {response.status_code}'
+                print(f'❌ {error_msg}')
+                send_status(error_msg, "error")
+                
+        except Exception as e:
+            error_msg = f'Failed to route command to backend: {e}'
+            print(f'❌ {error_msg}')
+            send_status(error_msg, "error")
+    
+    # If it's already a structured command with action field, execute directly
+    elif command_data.get('action'):
+        print(f'📥 Executing structured command: {command_data.get("action")}')
+        execute_command(command_data)
+    
+    else:
+        print(f'⚠️ Unknown command format: {command_data}')
+        send_status(f"Unknown command format", "error")
 
 
 def send_status(message, status_type="info"):
@@ -243,10 +292,33 @@ def send_status(message, status_type="info"):
         
         # Send via Firebase if enabled
         if firebase_enabled and firebase_service and firebase_service.device_id:
-            # For Firebase, we need to send to the paired mobile device
-            # For now, we'll send to the same device ID (will be updated with pairing)
-            firebase_service.send_status(firebase_service.device_id, 
-                                        message if isinstance(message, dict) else {'message': message, 'type': status_type})
+            # Get paired mobile device ID from config
+            try:
+                from config import FIREBASE_PAIRED_DEVICE_ID
+                paired_mobile_id = FIREBASE_PAIRED_DEVICE_ID
+            except ImportError:
+                paired_mobile_id = None
+            
+            # If no paired device in config, try reading from device_config.json
+            if not paired_mobile_id:
+                try:
+                    from pathlib import Path
+                    import json
+                    device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+                    if device_config_path.exists():
+                        with open(device_config_path, 'r') as f:
+                            config = json.load(f)
+                            paired_mobile_id = config.get('paired_device_id')
+                except Exception as e:
+                    print(f"⚠️ Error reading paired device ID: {e}")
+            
+            # Send status to paired mobile device (not desktop's own ID)
+            if paired_mobile_id:
+                firebase_service.send_status(paired_mobile_id, 
+                                            message if isinstance(message, dict) else {'message': message, 'type': status_type})
+                print(f"📤 Firebase status sent to mobile: {paired_mobile_id}")
+            else:
+                print(f"⚠️ No paired mobile device ID found, skipping Firebase status")
             
     except Exception as e:
         print(f"Failed to send status: {e}")
@@ -528,6 +600,8 @@ def execute_flexisign_legacy(command_data):
 
 
 def main():
+    global firebase_service, firebase_enabled
+    
     print("=" * 50)
     print("🤖 JARVIS Local Client Starting...")
     print("=" * 50)
@@ -538,40 +612,115 @@ def main():
     print(f"Permission Service: {'✅' if PERMISSION_SERVICE_AVAILABLE else '❌'}")
     print(f"Firebase Service: {'✅' if FIREBASE_SERVICE_AVAILABLE else '❌'}")
     print(f"Error Handler: {'✅' if ERROR_HANDLER_AVAILABLE else '❌'}")
+    
+    # Show device ID info
+    try:
+        device_id = get_or_create_device_id()
+        print(f"Device ID: {device_id}")
+    except Exception as e:
+        print(f"⚠️ Could not get device ID: {e}")
+        device_id = None
+    
+    # Show paired device info
+    try:
+        from config import FIREBASE_PAIRED, FIREBASE_PAIRED_DEVICE_ID
+        if FIREBASE_PAIRED and FIREBASE_PAIRED_DEVICE_ID:
+            print(f"Paired with mobile: {FIREBASE_PAIRED_DEVICE_ID}")
+        else:
+            print("Not paired with mobile device")
+    except ImportError:
+        print("Pairing info not available")
+    
     print("=" * 50)
     
-    try:
-        sio.connect(SERVER_URL)
-        sio.wait()
-    except KeyboardInterrupt:
-        print("\n👋 Shutting down...")
-        
-        # Cleanup Firebase
-        if firebase_enabled and firebase_service:
-            firebase_service.close()
-        
-        sio.disconnect()
-    except Exception as e:
-        print(f"\n❌ Connection failed: {e}")
-        
-        # Use error handler if available
-        if ERROR_HANDLER_AVAILABLE:
-            error_handler = get_error_handler()
-            error = NetworkError(
-                f"Failed to connect to server: {str(e)}",
-                details={'type': 'api_unreachable', 'server_url': SERVER_URL}
-            )
-            error_handler.handle_network_error(error)
-        else:
-            print("Retrying in 5 seconds...")
-            time.sleep(5)
-        
-        sio.disconnect()
-    except Exception as e:
-        print(f"Connection failed: {e}")
-        print("Retrying in 5 seconds...")
-        time.sleep(5)
-        main()
+    # Initialize Firebase BEFORE connecting to SocketIO
+    if FIREBASE_SERVICE_AVAILABLE and device_id:
+        try:
+            from pathlib import Path
+            firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
+            print(f'🔍 Looking for Firebase credentials at: {firebase_creds_path}')
+            
+            if firebase_creds_path.exists():
+                print('🔥 Initializing Firebase service...')
+                firebase_service = FirebaseService(str(firebase_creds_path))
+                
+                firebase_service.set_device_id(device_id)
+                firebase_service.register_device(device_id, device_type="desktop")
+                
+                # Start presence tracking (guarded for compatibility)
+                if hasattr(firebase_service, 'start_presence_tracking'):
+                    firebase_service.start_presence_tracking(device_id)
+                else:
+                    print('⚠️ start_presence_tracking not available, skipping')
+                
+                # Listen for commands from Firebase
+                firebase_service.listen_for_commands(device_id, handle_firebase_command)
+                
+                firebase_enabled = True
+                print('✅ Firebase service initialized and listening')
+                print(f'   Device ID: {device_id}')
+                
+                # Log paired device info
+                try:
+                    from config import FIREBASE_PAIRED_DEVICE_ID
+                    if FIREBASE_PAIRED_DEVICE_ID:
+                        print(f'   Paired with mobile: {FIREBASE_PAIRED_DEVICE_ID}')
+                except ImportError:
+                    pass
+            else:
+                print(f'⚠️ Firebase credentials not found at: {firebase_creds_path}')
+                print('⚠️ Firebase features disabled')
+        except Exception as e:
+            print(f'❌ Firebase initialization error: {e}')
+            import traceback
+            traceback.print_exc()
+    
+    print("=" * 50)
+    print("🔌 Connecting to backend server...")
+    
+    max_retries = 5
+    retry_delay = 3
+    connected = False
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"🔌 Connection attempt {attempt}/{max_retries}...")
+            sio.connect(SERVER_URL, wait_timeout=10)
+            print("✅ Connected to backend server")
+            connected = True
+            sio.wait()
+            break
+        except KeyboardInterrupt:
+            print("\n👋 Shutting down...")
+            
+            # Cleanup Firebase
+            if firebase_enabled and firebase_service:
+                firebase_service.close()
+            
+            if sio.connected:
+                sio.disconnect()
+            return
+        except Exception as e:
+            print(f"❌ Connection attempt {attempt} failed: {e}")
+            
+            if sio.connected:
+                sio.disconnect()
+            
+            if attempt < max_retries:
+                print(f"   Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                print(f"❌ All {max_retries} connection attempts failed.")
+                
+                # Use error handler if available
+                if ERROR_HANDLER_AVAILABLE:
+                    err_handler = get_error_handler()
+                    if err_handler:
+                        error = NetworkError(
+                            f"Failed to connect to server after {max_retries} attempts: {str(e)}",
+                            details={'type': 'api_unreachable', 'server_url': SERVER_URL}
+                        )
+                        err_handler.handle_network_error(error)
 
 
 if __name__ == '__main__':

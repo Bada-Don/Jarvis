@@ -1,0 +1,55 @@
+2026-02-25 17:46:53 - WARNING - [network] - Failed to connect to server: One or more namespaces failed to connect:  | Details: {"type": "api_unreachable", "server_url": "http://localhost:5000"}
+2026-02-25 17:46:53 - DEBUG - [network] - Full error details: {
+  "timestamp": "2026-02-25T17:46:53.737381",
+  "category": "network",
+  "severity": "warning",
+  "message": "Failed to connect to server: One or more namespaces failed to connect: ",
+  "details": {
+    "type": "api_unreachable",
+    "server_url": "http://localhost:5000"
+  }
+}
+2026-02-25 17:55:16 - WARNING - [network] - Failed to connect to server: One or more namespaces failed to connect:  | Details: {"type": "api_unreachable", "server_url": "http://localhost:5000"}
+2026-02-25 17:55:16 - DEBUG - [network] - Full error details: {
+  "timestamp": "2026-02-25T17:55:16.832257",
+  "category": "network",
+  "severity": "warning",
+  "message": "Failed to connect to server: One or more namespaces failed to connect: ",
+  "details": {
+    "type": "api_unreachable",
+    "server_url": "http://localhost:5000"
+  }
+}
+2026-02-25 17:59:05 - WARNING - [network] - Failed to connect to server: One or more namespaces failed to connect:  | Details: {"type": "api_unreachable", "server_url": "http://localhost:5000"}
+2026-02-25 17:59:05 - DEBUG - [network] - Full error details: {
+  "timestamp": "2026-02-25T17:59:05.767566",
+  "category": "network",
+  "severity": "warning",
+  "message": "Failed to connect to server: One or more namespaces failed to connect: ",
+  "details": {
+    "type": "api_unreachable",
+    "server_url": "http://localhost:5000"
+  }
+}
+2026-02-25 18:05:56 - WARNING - [network] - Failed to connect to server: One or more namespaces failed to connect:  | Details: {"type": "api_unreachable", "server_url": "http://localhost:5000"}
+2026-02-25 18:05:56 - DEBUG - [network] - Full error details: {
+  "timestamp": "2026-02-25T18:05:56.407810",
+  "category": "network",
+  "severity": "warning",
+  "message": "Failed to connect to server: One or more namespaces failed to connect: ",
+  "details": {
+    "type": "api_unreachable",
+    "server_url": "http://localhost:5000"
+  }
+}
+2026-02-25 18:07:24 - WARNING - [network] - Failed to connect to server: One or more namespaces failed to connect:  | Details: {"type": "api_unreachable", "server_url": "http://localhost:5000"}
+2026-02-25 18:07:24 - DEBUG - [network] - Full error details: {
+  "timestamp": "2026-02-25T18:07:24.535573",
+  "category": "network",
+  "severity": "warning",
+  "message": "Failed to connect to server: One or more namespaces failed to connect: ",
+  "details": {
+    "type": "api_unreachable",
+    "server_url": "http://localhost:5000"
+  }
+}
