@@ -121,19 +121,19 @@ export default function ChatScreen() {
         // Extract progress info
         const progress = status.progress;
         const message = status.message;
-        const statusType = status.type;
+        const statusType = status.status || status.type;
         
         // Update task running state
         if (progress !== undefined) {
-            if (progress > 0 && progress < 100 && statusType !== 'completion' && statusType !== 'error') {
+            if (progress > 0 && progress < 100 && statusType !== 'success' && statusType !== 'error') {
                 setIsTaskRunning(true);
-            } else if (statusType === 'completion' || statusType === 'error' || progress >= 100) {
+            } else if (statusType === 'success' || statusType === 'error' || progress >= 100) {
                 setIsTaskRunning(false);
             }
         }
         
         // Determine the final status
-        const progressStatus = statusType === 'completion' ? 'success' : statusType === 'error' ? 'error' : 'running';
+        const progressStatus = statusType === 'success' ? 'success' : statusType === 'error' ? 'error' : 'running';
         
         // Check if we have an existing progress message to update
         if (progressMessageIdRef.current) {
@@ -171,7 +171,7 @@ export default function ChatScreen() {
         
         // Only clear progress message ID when task is truly complete
         // Don't clear immediately to prevent creating duplicate progress cards
-        if ((statusType === 'completion' || statusType === 'error') && progress >= 100) {
+        if ((statusType === 'success' || statusType === 'error') && progress >= 100) {
             // Clear any existing timeout
             if (clearTimeoutRef.current) {
                 clearTimeout(clearTimeoutRef.current);

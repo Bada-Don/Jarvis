@@ -142,10 +142,10 @@ export class FirebaseService {
    */
   private _setupConnectionMonitoring(): void {
     const connectedRef = ref(this.database, '.info/connected');
-    
+
     const unsubscribe = onValue(connectedRef, (snapshot) => {
       const connected = snapshot.val();
-      
+
       if (connected) {
         console.log('✅ Firebase connection established');
         this.isConnected = true;
@@ -168,7 +168,7 @@ export class FirebaseService {
     if (!this.deviceId) return;
 
     const deviceRef = ref(this.database, `devices/${this.deviceId}`);
-    
+
     onDisconnect(deviceRef).update({
       lastSeen: serverTimestamp(),
       online: false,
@@ -214,7 +214,7 @@ export class FirebaseService {
 
     try {
       const deviceRef = ref(this.database, `devices/${this.deviceId}`);
-      
+
       await update(deviceRef, {
         lastSeen: serverTimestamp(),
         online: true,
@@ -304,24 +304,27 @@ export class FirebaseService {
       const statusData = snapshot.val();
 
       if (statusData) {
-        // Get the latest status message
+        // Sort keys by timestamp chronologically
         const statusKeys = Object.keys(statusData);
-        const latestKey = statusKeys[statusKeys.length - 1];
-        const latestStatus = statusData[latestKey];
+        const sortedKeys = statusKeys.sort((a, b) => {
+          return (statusData[a].timestamp || 0) - (statusData[b].timestamp || 0);
+        });
 
-        // Check if we've already processed this message
-        if (processedMessageIds.has(latestKey)) {
-          return; // Skip duplicate
+        let hasNewMessages = false;
+
+        // Process all NEW messages in chronological order
+        for (const key of sortedKeys) {
+          if (!processedMessageIds.has(key)) {
+            processedMessageIds.add(key);
+            const status = statusData[key];
+            console.log('📱 Status update received:', status);
+            callback(status);
+            hasNewMessages = true;
+          }
         }
 
-        // Mark as processed
-        processedMessageIds.add(latestKey);
-
-        console.log('📱 Status update received:', latestStatus);
-        callback(latestStatus);
-
-        // Clean up old status messages (keep only last 10)
-        if (statusKeys.length > 10) {
+        // Only clean up if we got new messages
+        if (hasNewMessages && statusKeys.length > 10) {
           const oldKeys = statusKeys.slice(0, statusKeys.length - 10);
           oldKeys.forEach(async (key) => {
             const oldStatusRef = ref(
