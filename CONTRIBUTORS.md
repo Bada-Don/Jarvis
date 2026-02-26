@@ -4,7 +4,7 @@ Thank you to everyone who has contributed to making JARVIS better!
 
 ## Project Creator & Maintainer
 
-- **Harshit Ashwani** ([@Bada-Don](https://github.com/Bada-Don))
+- **Harshit Singla** ([@Bada-Don](https://github.com/Bada-Don))
   - Project creator and primary maintainer
   - Architecture design and implementation
   - Multi-plane execution system
