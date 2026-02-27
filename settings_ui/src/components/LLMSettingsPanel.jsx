@@ -84,7 +84,7 @@ export default function LLMSettingsPanel({
                     />
                 )}
 
-                {showGeminiKey && (settings?.provider === 'gemini') && (
+                {showGeminiKey && (
                     <FormField
                         label="Gemini API Key"
                         value={settings?.gemini_api_key}
@@ -93,17 +93,17 @@ export default function LLMSettingsPanel({
                         validation={[
                             {
                                 type: 'required',
-                                message: 'Gemini API Key is required when using Gemini provider',
+                                message: 'Gemini API Key is required',
                             },
                         ]}
-                        helpText="Your Google Gemini API Key"
+                        helpText="Your Google Gemini API Key (Recommended)"
                         placeholder="AIza..."
                         onReset={() => onReset('gemini_api_key')}
                         highlight={searchQuery}
                     />
                 )}
 
-                {showOpenAiKey && (settings?.provider === 'openai') && (
+                {showOpenAiKey && settings?.provider === 'openai' && (
                     <FormField
                         label="OpenAI API Key"
                         value={settings?.openai_api_key}
@@ -115,26 +115,11 @@ export default function LLMSettingsPanel({
                                 message: 'OpenAI API Key is required when using OpenAI provider',
                             },
                         ]}
-                        helpText="Your OpenAI API Key (sk-...)"
+                        helpText="Your OpenAI API Key (Legacy Support)"
                         placeholder="sk-..."
                         onReset={() => onReset('openai_api_key')}
                         highlight={searchQuery}
                     />
-                )}
-
-                {showOpenAiKey && (settings?.provider !== 'openai') && (
-                    <div className="opacity-50 pointer-events-none">
-                        <FormField
-                            label="OpenAI API Key"
-                            value={settings?.openai_api_key}
-                            type="password"
-                            onChange={() => { }}
-                            helpText="Switch provider to OpenAI to configure this key."
-                            placeholder="sk-..."
-                            disabled={true}
-                            highlight={searchQuery}
-                        />
-                    </div>
                 )}
             </div>
 

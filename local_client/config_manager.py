@@ -31,8 +31,8 @@ SETTINGS_SCHEMA = {
     },
     "llm": {
         "provider": {"type": "choice", "label": "LLM Provider", "choices": ["gemini", "openai"], "default": "gemini"},
-        "gemini_api_key": {"type": "string", "label": "Gemini API Key", "default": "", "secret": True},
-        "openai_api_key": {"type": "string", "label": "OpenAI API Key", "default": "", "secret": True},
+        "gemini_api_key": {"type": "string", "label": "Gemini API Key (Primary)", "default": "", "secret": True},
+        "openai_api_key": {"type": "string", "label": "OpenAI API Key (Secondary)", "default": "", "secret": True},
     },
     "paths": {
         "desktop": {"type": "path", "label": "Desktop Path", "default": ""},

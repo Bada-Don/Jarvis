@@ -703,6 +703,7 @@ class PlannerService:
                     'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
                 }
                 self.llm_provider = getattr(user_config, 'LLM_PROVIDER', 'gemini')
+                self.gemini_key = getattr(user_config, 'GEMINI_API_KEY', '')
                 self.openai_key = getattr(user_config, 'OPENAI_API_KEY', '')
             except Exception as e:
                 print(f"Warning: Could not load config, using defaults: {e}")
@@ -714,10 +715,12 @@ class PlannerService:
                     'STICKERS_PATH': r'D:\Stickers\New Briefcase',
                 }
                 self.llm_provider = 'gemini'
+                self.gemini_key = ''
                 self.openai_key = ''
         
         # Ensure LLM provider settings are available
         self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
+        self.gemini_key = config.get('GEMINI_API_KEY', getattr(self, 'gemini_key', ''))
         self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
 
         self.config = config
@@ -738,9 +741,9 @@ class PlannerService:
              self.provider = OpenAIProvider(api_key=api_key)
         else:
              # Default to Gemini
-             api_key = str_api_key_override or os.getenv('GEMINI_API_KEY')
+             api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')
              if not api_key:
-                 raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
+                 raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY in config or env.")
              self.provider = GeminiProvider(api_key=api_key)
         
         print(f"Initialized Planner with {self.llm_provider} provider")

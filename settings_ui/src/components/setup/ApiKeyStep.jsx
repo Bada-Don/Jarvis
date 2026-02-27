@@ -89,7 +89,7 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
       // Note: We're doing basic validation only since actual API testing
       // requires making real API calls which may fail due to network issues
       // The keys will be validated when actually used
-      
+
       // Basic format validation for Gemini
       if (apiKeys.gemini) {
         if (apiKeys.gemini.length < 20) {
@@ -98,12 +98,12 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
           setValidating(false);
           return;
         }
-        
+
         // Check if it looks like a valid Gemini key (starts with expected prefix)
         if (!apiKeys.gemini.startsWith('AIza')) {
-          setErrors((prev) => ({ 
-            ...prev, 
-            gemini: 'Gemini API keys typically start with "AIza". Please verify your key.' 
+          setErrors((prev) => ({
+            ...prev,
+            gemini: 'Gemini API keys typically start with "AIza". Please verify your key.'
           }));
           onValidationChange(false);
           setValidating(false);
@@ -119,12 +119,12 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
           setValidating(false);
           return;
         }
-        
+
         // Check if it looks like a valid OpenAI key (starts with expected prefix)
         if (!apiKeys.openai.startsWith('sk-')) {
-          setErrors((prev) => ({ 
-            ...prev, 
-            openai: 'OpenAI API keys typically start with "sk-". Please verify your key.' 
+          setErrors((prev) => ({
+            ...prev,
+            openai: 'OpenAI API keys typically start with "sk-". Please verify your key.'
           }));
           onValidationChange(false);
           setValidating(false);
@@ -135,7 +135,7 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
       // Basic validations passed
       setValidationSuccess(true);
       onValidationChange(true);
-      
+
       // Show success message
       setErrors({
         gemini: null,
@@ -163,10 +163,9 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
         <div className="flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-900 dark:text-blue-100">
-            <p className="font-medium mb-1">API Keys Required</p>
+            <p className="font-medium mb-1">Gemini API Key Required</p>
             <p className="text-blue-700 dark:text-blue-300">
-              JARVIS requires at least a Gemini API key to function. You can add an OpenAI key
-              optionally for additional capabilities.
+              JARVIS uses Google Gemini as its default intelligence provider. Please provide your Gemini API key to continue.
             </p>
           </div>
         </div>
@@ -183,11 +182,10 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
             value={apiKeys.gemini}
             onChange={handleGeminiChange}
             placeholder="Enter your Gemini API key"
-            className={`w-full px-4 py-3 pr-12 rounded-lg border ${
-              hasGeminiError
+            className={`w-full px-4 py-3 pr-12 rounded-lg border ${hasGeminiError
                 ? 'border-red-500 focus:ring-red-500'
                 : 'border-neutral-300 dark:border-neutral-700 focus:ring-primary'
-            } bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 transition-colors`}
+              } bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 transition-colors`}
           />
           <button
             type="button"
@@ -206,7 +204,7 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
         <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
           Get your API key from{' '}
           <a
-            href="https://makersuite.google.com/app/apikey"
+            href="https://aistudio.google.com/app/apikey"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
@@ -217,60 +215,57 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
       </div>
 
       {/* OpenAI API Key */}
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-          OpenAI API Key <span className="text-neutral-400 text-xs">(Optional)</span>
-        </label>
-        <div className="relative">
-          <input
-            type={showOpenAI ? 'text' : 'password'}
-            value={apiKeys.openai}
-            onChange={handleOpenAIChange}
-            placeholder="Enter your OpenAI API key (optional)"
-            className={`w-full px-4 py-3 pr-12 rounded-lg border ${
-              hasOpenAIError
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-neutral-300 dark:border-neutral-700 focus:ring-primary'
-            } bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 transition-colors`}
-          />
-          <button
-            type="button"
-            onClick={() => setShowOpenAI(!showOpenAI)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-          >
-            {showOpenAI ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </button>
-        </div>
-        {hasOpenAIError && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400">
-            <AlertCircle className="w-4 h-4" />
-            <span>{errors.openai}</span>
+      <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <details className="group">
+          <summary className="flex items-center justify-between cursor-pointer list-none">
+            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 group-open:text-neutral-900 dark:group-open:text-neutral-100 transition-colors">
+              Advanced: Use OpenAI (Optional)
+            </span>
+            <span className="text-xs text-neutral-400 transition-transform group-open:rotate-180">▼</span>
+          </summary>
+          <div className="mt-4 space-y-4">
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              OpenAI API Key
+            </label>
+            <div className="relative">
+              <input
+                type={showOpenAI ? 'text' : 'password'}
+                value={apiKeys.openai}
+                onChange={handleOpenAIChange}
+                placeholder="Enter your OpenAI API key (optional)"
+                className={`w-full px-4 py-3 pr-12 rounded-lg border ${hasOpenAIError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-neutral-300 dark:border-neutral-700 focus:ring-primary'
+                  } bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 transition-colors`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowOpenAI(!showOpenAI)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+              >
+                {showOpenAI ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {hasOpenAIError && (
+              <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>{errors.openai}</span>
+              </div>
+            )}
           </div>
-        )}
-        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Get your API key from{' '}
-          <a
-            href="https://platform.openai.com/api-keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            OpenAI Platform
-          </a>
-        </p>
+        </details>
       </div>
 
       {/* Test Connection Button */}
       <button
         onClick={handleTestConnection}
         disabled={validating || !apiKeys.gemini}
-        className={`w-full px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-          validationSuccess
+        className={`w-full px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${validationSuccess
             ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/50'
             : validating || !apiKeys.gemini
-            ? 'bg-neutral-300 dark:bg-neutral-700 text-neutral-500 cursor-not-allowed'
-            : 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30'
-        }`}
+              ? 'bg-neutral-300 dark:bg-neutral-700 text-neutral-500 cursor-not-allowed'
+              : 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30'
+          }`}
       >
         {validating ? (
           <>
@@ -289,7 +284,7 @@ export default function ApiKeyStep({ apiKeys, onChange, onValidationChange }) {
           </>
         )}
       </button>
-      
+
       {/* Success Message */}
       {validationSuccess && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 animate-fade-in">
