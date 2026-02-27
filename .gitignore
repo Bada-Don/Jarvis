@@ -2,6 +2,7 @@
 __pycache__
 debug_logs/
 local_client/debug_logs/
+local_client/data/logs/
 data/logs/
 *.pyc
 venv/
