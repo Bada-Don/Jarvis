@@ -48,8 +48,9 @@ EXECUTION PRIORITY RULES (STRICT ORDER):
 1. **Command-line operations FIRST**: If a task can be done via command prompt/PowerShell (creating folders, files, moving files), ALWAYS use commands
 2. **Direct filesystem operations SECOND**: If a direct filesystem operation exists (open_file, open_folder, save_file), it MUST be used
 3. **AI-Powered Editing THIRD**: For complex modifications to Text, Word (.docx), or Excel (.xlsx) files where the user describes CHANGES in natural language
-4. **Keyboard shortcuts FOURTH**: Only when behavior is deterministic and application-specific
-5. **UI-based navigation LAST RESORT**: Right-click menus, visual clicks are ONLY allowed when no other method works
+4. **Background Email FOURTH**: For sending emails in the background without UI interaction
+5. **Keyboard shortcuts FIFTH**: Only when behavior is deterministic and application-specific
+6. **UI-based navigation LAST RESORT**: Right-click menus, visual clicks are ONLY allowed when no other method works
 
 CRITICAL: Creating folders/files via right-click is FORBIDDEN when commands can do it. Commands are faster, more reliable, and don't depend on UI element detection.
 
@@ -72,7 +73,7 @@ Return a valid JSON object with a "sequence" array containing ordered steps.
 
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", or "ai_edit_word"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", or "send_email"
 - "desc": brief description of the action
 
 For keyboard steps, include:
@@ -100,6 +101,13 @@ For visual_click steps (SLOW - use only when text is not available), include:
   - For icons: "icon_chrome", "icon_folder", "taskbar_chrome"
   - Gmail's “Compose” button MUST always be clicked using visual_click.
     Use the exact identifier: button_Compose.
+
+For send_email steps (BACKGROUND - no UI), include:
+- "recipient_email": email address of the recipient
+- "subject": subject line of the email
+- "body": body text of the email (supports UTF-8)
+- "attachment_filepaths": (optional) list of absolute paths to local files (e.g. ["C:\\Users\\user\\Desktop\\report.pdf"])
+- Use this for: "Send an email to...", "Email the report to...", "Forward this file to..."
 
 ## Common Patterns:
 
@@ -194,6 +202,22 @@ Example: After creating "AI Lab" folder with files, add: `explorer "%USERPROFILE
     {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Send message"}}
   ],
   "expected_final_state": "WhatsApp showing chat with Harshit with 'Hello!' message sent"
+}}
+
+## Example - Send a background email with attachment:
+{{
+  "sequence": [
+    {{
+      "order": 1, 
+      "type": "send_email", 
+      "recipient_email": "example@gmail.com", 
+      "subject": "Monthly Report", 
+      "body": "Hi, please find the attached report.",
+      "attachment_filepaths": ["{DESKTOP_PATH}\\report.pdf"],
+      "desc": "Send report via background email"
+    }}
+  ],
+  "expected_final_state": "Email sent in background to example@gmail.com with report.pdf attachment"
 }}
 
 ## Example - Click on icon without text (SLOW - only when necessary):
@@ -893,7 +917,8 @@ class PlannerService:
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'append_file', 'create_directory',
             'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
-            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word'
+            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word',
+            'send_email'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -1010,3 +1035,12 @@ class PlannerService:
                     raise ValueError(f"delete_lines step {i+1} missing 'path' field")
                 if 'start_line' not in step:
                     raise ValueError(f"delete_lines step {i+1} missing 'start_line' field")
+
+            # Validate send_email step type
+            if step_type == 'send_email':
+                if 'recipient_email' not in step:
+                    raise ValueError(f"send_email step {i+1} missing 'recipient_email' field")
+                if 'subject' not in step:
+                    raise ValueError(f"send_email step {i+1} missing 'subject' field")
+                if 'body' not in step:
+                    raise ValueError(f"send_email step {i+1} missing 'body' field")

@@ -155,6 +155,18 @@ except ImportError:
     AI_EDITOR_ENGINE_AVAILABLE = False
     print("⚠️ Warning: ai_editor_engine not available")
 
+# Email service import
+try:
+    import sys
+    backend_path = Path(__file__).parent.parent / "backend"
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    from email_service import send_email_tool
+    EMAIL_SERVICE_AVAILABLE = True
+except ImportError:
+    EMAIL_SERVICE_AVAILABLE = False
+    print("⚠️ Warning: email_service not available")
+
 
 class PlanExecutor:
     """
@@ -794,6 +806,14 @@ class PlanExecutor:
                         get_debug_logger().log_step_execution(
                             step_order, "delete_lines",
                             f"path='{step.get('path', '')}' start={step.get('start_line')} end={step.get('end_line')} success={result} desc='{step_desc}'"
+                        )
+                
+                elif step_type == 'send_email':
+                    result = self._execute_send_email_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "send_email",
+                            f"to='{step.get('recipient_email', '')}' subject='{step.get('subject', '')}' success={result} desc='{step_desc}'"
                         )
                 
                 else:
@@ -2658,6 +2678,50 @@ Output the complete modified file content (no explanations, no markdown, just th
             
         except Exception as e:
             self._send_status(f"delete_lines: error - {str(e)}", "error")
+            return False
+
+    def _execute_send_email_step(self, step: dict) -> bool:
+        """
+        Execute a send_email step using the background email service.
+        
+        Args:
+            step: Step dict with 'recipient_email', 'subject', 'body', 
+                  and optional 'attachment_filepaths' (list of strings)
+        
+        Returns:
+            bool: True if email was sent successfully
+        """
+        if not EMAIL_SERVICE_AVAILABLE:
+            self._send_status("Email service not available", "error")
+            return False
+            
+        recipient = step.get('recipient_email')
+        subject = step.get('subject')
+        body = step.get('body')
+        attachments = step.get('attachment_filepaths', [])
+        
+        if not all([recipient, subject, body]):
+            self._send_status("send_email: missing required parameters (recipient, subject, or body)", "warning")
+            return False
+            
+        self._send_status(f"Sending email to {recipient}...", "info")
+        
+        try:
+            success, message = send_email_tool(
+                recipient_email=recipient,
+                subject=subject,
+                body=body,
+                attachment_filepaths=attachments
+            )
+            
+            if success:
+                self._send_status(f"✓ {message}", "success")
+                return True
+            else:
+                self._send_status(f"✗ Failed to send email: {message}", "error")
+                return False
+        except Exception as e:
+            self._send_status(f"✗ Email service error: {str(e)}", "error")
             return False
 
 
