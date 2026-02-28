@@ -19,6 +19,9 @@ CRITICAL_OPERATIONS = {
     'uninstall_app': 'Uninstall Application',
     'clear_data': 'Clear Data',
     'overwrite_file': 'Overwrite File',
+    'ai_edit_text': 'AI File Edit (Text)',
+    'ai_edit_excel': 'AI File Edit (Excel)',
+    'ai_edit_word': 'AI File Edit (Word)',
 }
 
 # Keywords that indicate critical operations in step descriptions

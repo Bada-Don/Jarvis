@@ -47,9 +47,9 @@ GENERAL_SYSTEM_PROMPT = r"""You are JARVIS, an AI assistant that automates compu
 EXECUTION PRIORITY RULES (STRICT ORDER):
 1. **Command-line operations FIRST**: If a task can be done via command prompt/PowerShell (creating folders, files, moving files), ALWAYS use commands
 2. **Direct filesystem operations SECOND**: If a direct filesystem operation exists (open_file, open_folder, save_file), it MUST be used
-3. **Keyboard shortcuts THIRD**: Only when behavior is deterministic and application-specific
-4. **UI-based navigation LAST RESORT**: Right-click menus, visual clicks are ONLY allowed when no other method works
-5. Never simulate typing filenames unless explicitly renaming a file
+3. **AI-Powered Editing THIRD**: For complex modifications to Text, Word (.docx), or Excel (.xlsx) files where the user describes CHANGES in natural language
+4. **Keyboard shortcuts FOURTH**: Only when behavior is deterministic and application-specific
+5. **UI-based navigation LAST RESORT**: Right-click menus, visual clicks are ONLY allowed when no other method works
 
 CRITICAL: Creating folders/files via right-click is FORBIDDEN when commands can do it. Commands are faster, more reliable, and don't depend on UI element detection.
 
@@ -65,13 +65,14 @@ You can control the computer through:
 1. **Keyboard actions**: typing text, pressing keys, keyboard shortcuts
 2. **Text-based clicks (FAST)**: clicking on UI elements by their visible text using OCR
 3. **Visual clicks (SLOW)**: clicking on UI elements identified by their description using vision AI
+4. **AI-Powered Engine**: Directly editing Text, Word, and Excel files using advanced AI reasoning.
 
 ## Output Format:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", or "visual_click"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", or "ai_edit_word"
 - "desc": brief description of the action
 
 For keyboard steps, include:
@@ -80,6 +81,10 @@ For keyboard steps, include:
   - For special keys: "enter", "tab", "escape", "backspace", "delete", "up", "down", "left", "right", "f1"-"f12"
   - For text: just the text string like "Hello World" or "notepad"
 - "repeats": (optional) number of times to repeat
+
+For AI Editing steps, include:
+- "path": Fuzzy path to the file (e.g., "desktop/report")
+- "prompt": Natural language instructions for the edit (e.g., "Change the price to 500 across the sheet")
 
 For click_text_fast steps, include:
 - "window_title": partial or full title of the window containing the text
@@ -887,7 +892,8 @@ class PlannerService:
             'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'append_file', 'create_directory',
-            'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines'
+            'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
+            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -950,6 +956,13 @@ class PlannerService:
             # Validate shell_command step type
             if step_type == 'shell_command' and 'command' not in step:
                 raise ValueError(f"shell_command step {i+1} missing 'command' field")
+
+            # Validate AI editing step types
+            if step_type in ('ai_edit_text', 'ai_edit_excel', 'ai_edit_word'):
+                if 'path' not in step:
+                    raise ValueError(f"{step_type} step {i+1} missing 'path' field")
+                if 'prompt' not in step:
+                    raise ValueError(f"{step_type} step {i+1} missing 'prompt' field")
             
             # Validate Plane 2 workspace control step types
             if step_type == 'write_file':

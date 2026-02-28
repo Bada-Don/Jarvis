@@ -143,6 +143,18 @@ except ImportError:
     FILE_EDITOR_AVAILABLE = False
     print("⚠️ Warning: file_editor not available")
 
+# AI Editor Engine import
+try:
+    import sys
+    backend_path = Path(__file__).parent.parent / "backend"
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    from ai_editor_engine import AIEditorEngine
+    AI_EDITOR_ENGINE_AVAILABLE = True
+except ImportError:
+    AI_EDITOR_ENGINE_AVAILABLE = False
+    print("⚠️ Warning: ai_editor_engine not available")
+
 
 class PlanExecutor:
     """
@@ -278,6 +290,14 @@ class PlanExecutor:
         # Track last app launch for readiness detection
         self._last_launched_app: Optional[str] = None
         self._last_launch_step_index: int = -1
+        
+        # Initialize AI Editor Engine
+        self._ai_editor_engine: Optional['AIEditorEngine'] = None
+        if AI_EDITOR_ENGINE_AVAILABLE:
+            try:
+                self._ai_editor_engine = AIEditorEngine()
+            except Exception as e:
+                print(f"⚠️ Warning: Could not initialize AIEditorEngine: {e}")
     
     def _send_status(self, message: str, status_type: str = "info", progress: int = None):
         """Send status update via callback."""
@@ -602,8 +622,13 @@ class PlanExecutor:
                             f"path='{step.get('path', '')}' success={result.success} desc='{step_desc}'"
                         )
                 
+                elif step_type == 'ai_edit_text':
+                    self._execute_ai_edit_text_step(step)
+                elif step_type == 'ai_edit_excel':
+                    self._execute_ai_edit_excel_step(step)
+                elif step_type == 'ai_edit_word':
+                    self._execute_ai_edit_word_step(step)
 
-                
                 elif step_type == 'open_file':
                     result = self._execute_open_file_step(step)
                     if DEBUG_LOGGER_AVAILABLE:
@@ -1603,6 +1628,143 @@ class PlanExecutor:
             self._send_status(f"navigate_explorer failed: {result.error_message}", "warning")
         
         return result
+    
+    def _execute_ai_edit_text_step(self, step: dict) -> bool:
+        """Execute AI-powered text editing."""
+        if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
+            self._send_status("AIEditorEngine not available", "error")
+            return False
+        
+        path_query = step.get('path', '')
+        prompt = step.get('prompt', '')
+        
+        # Resolve path using path_resolver
+        resolve_result = self._path_resolver.resolve(path_query)
+        if not resolve_result.success:
+            self._send_status(f"Could not resolve path: {path_query}", "error")
+            return False
+        
+        file_path = resolve_result.resolved_path
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            self._send_status(f"AI is proposing changes to {os.path.basename(file_path)}...", "info")
+            edits = self._ai_editor_engine.get_text_edits(content, prompt)
+            new_content = self._ai_editor_engine.apply_text_edits(content, edits.edits)
+            
+            diff = self._ai_editor_engine.generate_text_diff(content, new_content, os.path.basename(file_path))
+            
+            if self._permission_service:
+                self._send_status("Waiting for mobile confirmation...", "info")
+                if not self._permission_service.request_permission(
+                    "AI Text Edit", 
+                    f"File: {file_path}\n\nProposed Changes:\n{diff}"
+                ):
+                    self._send_status("✗ AI edit denied by user", "warning")
+                    return False
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+                
+            self._send_status(f"✓ AI edits applied to {os.path.basename(file_path)}", "success")
+            return True
+        except Exception as e:
+            self._send_status(f"AI text edit error: {e}", "error")
+            return False
+
+    def _execute_ai_edit_excel_step(self, step: dict) -> bool:
+        """Execute AI-powered Excel editing."""
+        if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
+            self._send_status("AIEditorEngine not available", "error")
+            return False
+        
+        path_query = step.get('path', '')
+        prompt = step.get('prompt', '')
+        
+        resolve_result = self._path_resolver.resolve(path_query)
+        if not resolve_result.success:
+            self._send_status(f"Could not resolve path: {path_query}", "error")
+            return False
+        
+        file_path = resolve_result.resolved_path
+        
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            context = self._ai_editor_engine.extract_excel_context(wb)
+            
+            self._send_status(f"AI is proposing changes to spreadsheet {os.path.basename(file_path)}...", "info")
+            edits = self._ai_editor_engine.get_excel_edits(context, prompt)
+            
+            # Create a preview of changes
+            dummy_wb = openpyxl.load_workbook(file_path)
+            diff_records = self._ai_editor_engine.apply_excel_edits(dummy_wb, edits.commands)
+            diff_summary = self._ai_editor_engine.generate_excel_diff_summary(diff_records)
+            
+            if self._permission_service:
+                self._send_status("Waiting for mobile confirmation...", "info")
+                if not self._permission_service.request_permission(
+                    "AI Excel Edit", 
+                    f"File: {file_path}\n\nProposed Changes:\n{diff_summary}"
+                ):
+                    self._send_status("✗ AI edit denied by user", "warning")
+                    return False
+            
+            # Apply to real workbook
+            self._ai_editor_engine.apply_excel_edits(wb, edits.commands)
+            wb.save(file_path)
+                
+            self._send_status(f"✓ AI edits applied to {os.path.basename(file_path)}", "success")
+            return True
+        except Exception as e:
+            self._send_status(f"AI excel edit error: {e}", "error")
+            return False
+
+    def _execute_ai_edit_word_step(self, step: dict) -> bool:
+        """Execute AI-powered Word document editing."""
+        if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
+            self._send_status("AIEditorEngine not available", "error")
+            return False
+        
+        path_query = step.get('path', '')
+        prompt = step.get('prompt', '')
+        
+        resolve_result = self._path_resolver.resolve(path_query)
+        if not resolve_result.success:
+            self._send_status(f"Could not resolve path: {path_query}", "error")
+            return False
+        
+        file_path = resolve_result.resolved_path
+        
+        try:
+            import docx
+            doc = docx.Document(file_path)
+            context = self._ai_editor_engine.extract_word_context(doc)
+            
+            self._send_status(f"AI is proposing changes to document {os.path.basename(file_path)}...", "info")
+            edits = self._ai_editor_engine.get_word_edits(context, prompt)
+            
+            # Request permission
+            if self._permission_service:
+                diff_text = "\n".join([f"Replace '{e.search_text}' with '{e.replace_text}'" for e in edits.edits])
+                self._send_status("Waiting for mobile confirmation...", "info")
+                if not self._permission_service.request_permission(
+                    "AI Word Edit", 
+                    f"File: {file_path}\n\nProposed Changes:\n{diff_text}"
+                ):
+                    self._send_status("✗ AI edit denied by user", "warning")
+                    return False
+            
+            self._ai_editor_engine.apply_word_edits(doc, edits.edits)
+            doc.save(file_path)
+                
+            self._send_status(f"✓ AI edits applied to {os.path.basename(file_path)}", "success")
+            return True
+        except Exception as e:
+            self._send_status(f"AI word edit error: {e}", "error")
+            return False
     
     def _execute_click_text_step(self, step: dict) -> 'ClickResult':
         """

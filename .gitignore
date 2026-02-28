@@ -21,6 +21,7 @@ self-operating-computer-main/
 .vscode/
 .idea/
 .kiro/
+.expo/
 
 # Build artifacts
 *.egg-info/
