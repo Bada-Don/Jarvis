@@ -9,7 +9,7 @@ This demonstrates the "Killer Combo" workflow for file operations:
 """
 
 import json
-from planner_service import PlannerService
+from newPlanner_service import PlannerService
 
 def test_killer_combo_workflow():
     """Test the Killer Combo workflow for creating and editing a file."""

@@ -56,3 +56,6 @@ openai>=1.40.0
 pydantic>=2.0.0
 python-docx>=1.1.0
 openpyxl>=3.1.0
+
+# AWS SDK for Bedrock
+boto3

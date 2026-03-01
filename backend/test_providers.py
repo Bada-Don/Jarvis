@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from llm_provider import GeminiProvider, OpenAIProvider
-from planner_service import PlannerService
+from llm_provider import GeminiProvider, OpenAIProvider, AWSBedrockProvider
+from newPlanner_service import PlannerService
 
 class TestLLMProviders(unittest.TestCase):
     def setUp(self):
@@ -53,8 +53,24 @@ class TestLLMProviders(unittest.TestCase):
         # Verify
         self.assertEqual(response, '{"sequence": []}')
         mock_openai.return_value.chat.completions.create.assert_called_once()
+        
+    @patch('llm_provider.boto3.client')
+    @patch('llm_provider.BOTO3_AVAILABLE', True) # Force available
+    def test_aws_bedrock_provider(self, mock_boto3):
+        # Setup mock
+        mock_response = MagicMock()
+        mock_response.get.return_value.read.return_value = '{"content": [{"text": "{\\"sequence\\": []}"}]}'
+        mock_boto3.return_value.invoke_model.return_value = mock_response
+        
+        # Test
+        provider = AWSBedrockProvider()
+        response = provider.generate_content("system", "user")
+        
+        # Verify
+        self.assertEqual(response, '{"sequence": []}')
+        mock_boto3.return_value.invoke_model.assert_called_once()
 
-    @patch('planner_service.GeminiProvider')
+    @patch('newPlanner_service.GeminiProvider')
     def test_planner_service_default(self, mock_gemini):
         # Configure mock
         mock_gemini.return_value.generate_content.return_value = '{"sequence": []}'
@@ -73,7 +89,7 @@ class TestLLMProviders(unittest.TestCase):
         # Verify provider was initialized
         self.assertTrue(isinstance(service.provider, MagicMock)) # Since we mocked GeminiProvider class
         
-    @patch('planner_service.OpenAIProvider')
+    @patch('newPlanner_service.OpenAIProvider')
     def test_planner_service_openai(self, mock_openai):
         # Test OpenAI init
         config = {

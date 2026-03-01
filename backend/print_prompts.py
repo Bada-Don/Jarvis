@@ -11,8 +11,9 @@ if sys.stdout.encoding != 'utf-8':
 # Add local_client to path for config import
 sys.path.insert(0, str(Path(__file__).parent.parent / "local_client"))
 
-from planner_service import GENERAL_SYSTEM_PROMPT, FLEXISIGN_SYSTEM_PROMPT
+from newPlanner_service import PlannerService
 
+# 1. Dynamically load paths from config (Best of previous version)
 try:
     import config as user_config
     cfg = {
@@ -22,16 +23,29 @@ try:
         'DOWNLOADS_PATH': getattr(user_config, 'DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
         'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
     }
-except Exception as e:
-    print(f"Could not load config: {e}")
-    sys.exit(1)
+except ImportError as e:
+    print(f"Warning: Could not load config.py ({e}). Using dummy fallback paths.\n")
+    cfg = {
+        'WINDOWS_USERNAME': 'user',
+        'DESKTOP_PATH': r'C:\Users\user\Desktop',
+        'DOCUMENTS_PATH': r'C:\Users\user\Documents',
+        'DOWNLOADS_PATH': r'C:\Users\user\Downloads',
+        'STICKERS_PATH': r'D:\Stickers\New Briefcase',
+    }
+
+# 2. Initialize Planner with the dynamic config (Best of new version)
+planner = PlannerService(config=cfg)
 
 print("=" * 80)
 print("GENERAL SYSTEM PROMPT")
 print("=" * 80)
-print(GENERAL_SYSTEM_PROMPT.format(**cfg))
+# Assemble a prompt with all general modules
+general_route = {"mode": "general", "modules":["ui_os", "email", "shell", "file_editing", "file_navigation"]}
+print(planner.build_prompt(general_route))
 
 print("\n" + "=" * 80)
 print("FLEXISIGN SYSTEM PROMPT")
 print("=" * 80)
-print(FLEXISIGN_SYSTEM_PROMPT.format(**cfg))
+# Assemble FlexiSIGN prompt
+flexi_route = {"mode": "flexisign", "modules": ["flexisign"]}
+print(planner.build_prompt(flexi_route))
