@@ -57,7 +57,7 @@ You can control the computer through:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": (the required action type)
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", or "send_email"
 - "desc": brief description of the action
 """
 
@@ -296,9 +296,44 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 """
 
 MODULE_FILE_EDITING = r"""
-For AI Editing steps, include:
-- "path": Fuzzy path to the file (e.g., "desktop/report")
-- "prompt": Natural language instructions for the edit (e.g., "Change the price to 500 across the sheet")
+## AI-POWERED FILE EDITING (RECOMMENDED FOR WORD/EXCEL/TEXT FILES):
+
+For editing Word (.docx), Excel (.xlsx), or Text (.txt) files with natural language instructions:
+
+**REQUIRED FIELDS:**
+- "type": Must be "ai_edit_word" (for .docx), "ai_edit_excel" (for .xlsx), or "ai_edit_text" (for .txt)
+- "path": Fuzzy path to the file (e.g., "desktop/report" or "desktop/input")
+- "prompt": Natural language instructions describing what to change (e.g., "Replace Harshit with Ayushi")
+- "desc": Brief description of the action
+
+**CRITICAL: Both "path" and "prompt" are REQUIRED. DO NOT omit either field.**
+
+**Example - Edit Word document:**
+{{
+  "order": 1,
+  "type": "ai_edit_word",
+  "path": "desktop/input",
+  "prompt": "Replace the name Harshit Singla with Ayushi and replace the phone number with 9872113958",
+  "desc": "Update name and phone in Word document"
+}}
+
+**Example - Edit Excel spreadsheet:**
+{{
+  "order": 1,
+  "type": "ai_edit_excel",
+  "path": "desktop/sales_data",
+  "prompt": "Add a Commission column that calculates 5% of Sales",
+  "desc": "Add commission calculations"
+}}
+
+**Example - Edit text file:**
+{{
+  "order": 1,
+  "type": "ai_edit_text",
+  "path": "desktop/notes",
+  "prompt": "Organize into sections: Attendees, Discussion, Action Items",
+  "desc": "Restructure meeting notes"
+}}
 
 ## PLANE 2: CODE WORKSPACE CONTROL (RECOMMENDED FOR CODE FILES):
 For creating/editing code files and structured content, use these direct file operations. They are MUCH faster and more reliable than UI-based editing.
@@ -755,9 +790,11 @@ Available Modules:
 - "ui_os": Opening apps, typing, web browsing, clicking buttons (keyboard, click_text_fast, visual_click).
 - "email": Sending background emails (send_email).
 - "shell": Command prompt operations, creating folders, basic file creation (shell_command).
-- "file_editing": Reading, writing, or editing code/text files directly without UI (write_file, replace_in_file, modify_lines).
+- "file_editing": AI-powered editing of Word (.docx), Excel (.xlsx), or Text (.txt) files, AND direct code/text file operations (ai_edit_word, ai_edit_excel, ai_edit_text, write_file, replace_in_file, modify_lines). REQUIRED when user asks to edit, modify, or change content in documents.
 - "file_navigation": Opening files/folders directly by path or saving files (open_file, open_folder, save_file).
 - "flexisign": ONLY if command involves number plates, flexisign, govt plates, or bike/car plates.
+
+CRITICAL: If user asks to edit/modify/change content in a Word, Excel, or Text file, you MUST include "file_editing" module.
 
 Return ONLY a JSON object exactly like this (no markdown):
 {
@@ -834,6 +871,7 @@ Return ONLY a JSON object exactly like this (no markdown):
                 system_prompt=system_prompt,
                 user_prompt=user_command
             )
+            print(f"DEBUG: RAW AI RESPONSE:\n{response_text}\n--- END RAW ---")
             
             response_text = response_text.strip()
             

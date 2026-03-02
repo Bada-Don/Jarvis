@@ -86,6 +86,7 @@ For keyboard steps, include:
 For AI Editing steps, include:
 - "path": Fuzzy path to the file (e.g., "desktop/report")
 - "prompt": Natural language instructions for the edit (e.g., "Change the price to 500 across the sheet")
+- CRITICAL: Both "path" and "prompt" fields are REQUIRED for ai_edit_text, ai_edit_excel, and ai_edit_word steps
 
 For click_text_fast steps, include:
 - "window_title": partial or full title of the window containing the text
@@ -227,6 +228,48 @@ Example: After creating "AI Lab" folder with files, add: `explorer "%USERPROFILE
     {{"order": 2, "type": "visual_click", "target_name": "dropdown_options", "desc": "Open dropdown menu"}}
   ],
   "expected_final_state": "Form submitted with dropdown menu expanded showing options"
+}}
+
+## Example - Edit Word document using AI (RECOMMENDED for complex document edits):
+{{
+  "sequence": [
+    {{
+      "order": 1,
+      "type": "ai_edit_word",
+      "path": "desktop/report",
+      "prompt": "Change all instances of 'Q1 2024' to 'Q2 2024' and update the conclusion paragraph to reflect improved performance",
+      "desc": "Update quarterly report with AI assistance"
+    }}
+  ],
+  "expected_final_state": "Word document updated with Q2 2024 references and revised conclusion"
+}}
+
+## Example - Edit Excel spreadsheet using AI (RECOMMENDED for complex spreadsheet edits):
+{{
+  "sequence": [
+    {{
+      "order": 1,
+      "type": "ai_edit_excel",
+      "path": "desktop/sales_data",
+      "prompt": "Add a new column called 'Commission' that calculates 5% of the Sales column, and highlight all rows where sales exceed $10,000",
+      "desc": "Add commission calculations and highlight high sales"
+    }}
+  ],
+  "expected_final_state": "Excel spreadsheet with new Commission column and highlighted high-value sales"
+}}
+
+## Example - Edit text file using AI (RECOMMENDED for complex text edits):
+{{
+  "sequence": [
+    {{
+      "order": 1,
+      "type": "ai_edit_text",
+      "path": "desktop/notes",
+      "prompt": "Organize the meeting notes into sections: Attendees, Discussion Points, Action Items, and Next Steps",
+      "desc": "Restructure meeting notes with AI"
+    }}
+  ],
+  "expected_final_state": "Text file reorganized with clear sections and formatted content"
 }}
 
 ## Shell Command Operations (HYBRID CLI APPROACH - PREFERRED):
