@@ -87,7 +87,7 @@ class OpenAIProvider(LLMProvider):
 class AWSBedrockProvider(LLMProvider):
     """Amazon Bedrock implementation of LLMProvider for Anthropic Claude models."""
     
-    def __init__(self, region_name: str = "us-east-1", model_id: str = "anthropic.claude-3-5-haiku-20241022-v1:0"):
+    def __init__(self, region_name: str = "us-east-1", model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"):
         if not BOTO3_AVAILABLE:
              raise ImportError("boto3 package is not installed. Run 'pip install boto3'")
         
@@ -101,6 +101,9 @@ class AWSBedrockProvider(LLMProvider):
             raise RuntimeError(f"Failed to initialize AWS Bedrock client: {e}")
             
         self.model_id = model_id
+        print(f"✅ AWS Bedrock Provider initialized")
+        print(f"   Region: {region_name}")
+        print(f"   Model: {model_id}")
 
     def generate_content(self, system_prompt: str, user_prompt: str) -> str:
         # Bedrock requires a specific payload format for Claude 3/3.5/4.5

@@ -1,0 +1,373 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'JARVIS AWS-Native Infrastructure - One-Click Deployment'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type (t3.micro is Free Tier eligible)
+  
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH access (optional but recommended)
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair
+  
+  AllowedSSHCIDR:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR block allowed to SSH to the instance (default allows all)
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid CIDR range (e.g., 0.0.0.0/0)
+
+Resources:
+  # ==================== VPC and Networking ====================
+  
+  JarvisVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: JarvisVPC
+  
+  JarvisInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: JarvisIGW
+  
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref JarvisVPC
+      InternetGatewayId: !Ref JarvisInternetGateway
+  
+  JarvisPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref JarvisVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: JarvisPublicSubnet
+  
+  JarvisRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref JarvisVPC
+      Tags:
+        - Key: Name
+          Value: JarvisRouteTable
+  
+  JarvisPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref JarvisRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref JarvisInternetGateway
+  
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref JarvisPublicSubnet
+      RouteTableId: !Ref JarvisRouteTable
+  
+  # ==================== Security Groups ====================
+  
+  JarvisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: JarvisSecurityGroup
+      GroupDescription: Security group for JARVIS EC2 relay server
+      VpcId: !Ref JarvisVPC
+      SecurityGroupIngress:
+        # SSH access
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedSSHCIDR
+          Description: SSH access
+        # Flask backend (HTTP)
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+          Description: Flask backend API
+        # HTTP (optional for future web UI)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP access
+        # HTTPS (optional for future web UI)
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: JarvisSecurityGroup
+  
+  # ==================== IAM Roles ====================
+  
+  JarvisEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: JarvisEC2Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: JarvisBedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/*'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+        - PolicyName: JarvisDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !GetAtt JarvisStateTable.Arn
+        - PolicyName: JarvisS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt JarvisAssetsBucket.Arn
+                  - !Sub '${JarvisAssetsBucket.Arn}/*'
+      Tags:
+        - Key: Name
+          Value: JarvisEC2Role
+  
+  JarvisInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: JarvisInstanceProfile
+      Roles:
+        - !Ref JarvisEC2Role
+  
+  # ==================== DynamoDB Table ====================
+  
+  JarvisStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: JarvisState
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Name
+          Value: JarvisStateTable
+  
+  # ==================== S3 Bucket ====================
+  
+  JarvisAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'jarvis-automation-assets-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldScreenshots
+            Status: Enabled
+            ExpirationInDays: 1
+            Prefix: screenshots/
+      Tags:
+        - Key: Name
+          Value: JarvisAssetsBucket
+  
+  # ==================== EC2 Instance ====================
+  
+  JarvisEC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - JarvisStateTable
+      - JarvisAssetsBucket
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref JarvisInstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref JarvisSecurityGroup
+          SubnetId: !Ref JarvisPublicSubnet
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          
+          # Update system
+          yum update -y
+          
+          # Install Python 3.11 and development tools
+          yum install -y python3.11 python3.11-pip git
+          
+          # Install system dependencies for JARVIS
+          yum install -y gcc gcc-c++ make
+          
+          # Create jarvis user
+          useradd -m -s /bin/bash jarvis
+          
+          # Create application directory
+          mkdir -p /opt/jarvis
+          cd /opt/jarvis
+          
+          # Create Python virtual environment
+          python3.11 -m venv venv
+          source venv/bin/activate
+          
+          # Install Flask and basic dependencies
+          pip install --upgrade pip
+          pip install flask flask-cors flask-socketio python-socketio eventlet
+          pip install boto3 python-dotenv
+          
+          # Create .env file with AWS configuration
+          cat > /opt/jarvis/.env << 'EOF'
+          LLM_PROVIDER=aws_bedrock
+          AWS_REGION=${AWS::Region}
+          AWS_BEDROCK_PLANNER_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+          AWS_BEDROCK_VISION_MODEL=us.anthropic.claude-sonnet-4-6
+          AWS_DYNAMODB_TABLE_NAME=JarvisState
+          AWS_S3_BUCKET_NAME=jarvis-automation-assets-${AWS::AccountId}
+          FIREBASE_ENABLED=false
+          EOF
+          
+          # Create placeholder server.py (to be replaced with actual code)
+          cat > /opt/jarvis/server.py << 'EOF'
+          from flask import Flask, jsonify
+          app = Flask(__name__)
+          
+          @app.route('/health')
+          def health():
+              return jsonify({"status": "healthy", "message": "JARVIS EC2 Relay is running"})
+          
+          if __name__ == '__main__':
+              app.run(host='0.0.0.0', port=5000)
+          EOF
+          
+          # Set ownership
+          chown -R jarvis:jarvis /opt/jarvis
+          
+          # Create systemd service
+          cat > /etc/systemd/system/jarvis.service << 'EOF'
+          [Unit]
+          Description=JARVIS Backend Server
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=jarvis
+          WorkingDirectory=/opt/jarvis
+          Environment="PATH=/opt/jarvis/venv/bin"
+          ExecStart=/opt/jarvis/venv/bin/python /opt/jarvis/server.py
+          Restart=always
+          RestartSec=10
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Enable and start service
+          systemctl daemon-reload
+          systemctl enable jarvis
+          systemctl start jarvis
+          
+          # Signal completion
+          echo "JARVIS EC2 setup complete!"
+      Tags:
+        - Key: Name
+          Value: JarvisEC2Relay
+
+Outputs:
+  EC2PublicIP:
+    Description: Public IP address of the JARVIS EC2 relay server
+    Value: !GetAtt JarvisEC2Instance.PublicIp
+    Export:
+      Name: JarvisEC2PublicIP
+  
+  EC2PublicDNS:
+    Description: Public DNS name of the JARVIS EC2 relay server
+    Value: !GetAtt JarvisEC2Instance.PublicDnsName
+    Export:
+      Name: JarvisEC2PublicDNS
+  
+  BackendURL:
+    Description: JARVIS Backend API URL
+    Value: !Sub 'http://${JarvisEC2Instance.PublicIp}:5000'
+    Export:
+      Name: JarvisBackendURL
+  
+  DynamoDBTableName:
+    Description: DynamoDB table name for JARVIS state
+    Value: !Ref JarvisStateTable
+    Export:
+      Name: JarvisDynamoDBTable
+  
+  S3BucketName:
+    Description: S3 bucket name for JARVIS assets
+    Value: !Ref JarvisAssetsBucket
+    Export:
+      Name: JarvisS3Bucket
+  
+  SSHCommand:
+    Description: SSH command to connect to the EC2 instance
+    Value: !Sub 'ssh -i ${KeyPairName}.pem ec2-user@${JarvisEC2Instance.PublicIp}'

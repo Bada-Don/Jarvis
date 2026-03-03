@@ -1,7 +1,7 @@
 """
 Planner Service for Two-Model Pipeline
 
-This module provides the PlannerService class that uses an LLM (Gemini or OpenAI)
+This module provides the PlannerService class that uses an LLM (Gemini, OpenAI, or AWS Bedrock)
 to convert natural language commands into structured execution plans.
 Supports both FlexiSIGN-specific tasks and general computer automation.
 """
@@ -9,7 +9,7 @@ Supports both FlexiSIGN-specific tasks and general computer automation.
 import os
 import json
 from dotenv import load_dotenv
-from llm_provider import GeminiProvider, OpenAIProvider
+from llm_provider import GeminiProvider, OpenAIProvider, AWSBedrockProvider
 
 # Load environment variables from .env file
 load_dotenv()
@@ -794,6 +794,8 @@ class PlannerService:
         self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
         self.gemini_key = config.get('GEMINI_API_KEY', getattr(self, 'gemini_key', ''))
         self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
+        self.aws_region = config.get('AWS_REGION', getattr(self, 'aws_region', 'us-east-1'))
+        self.aws_bedrock_model = config.get('AWS_BEDROCK_PLANNER_MODEL', getattr(self, 'aws_bedrock_model', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'))
 
         self.config = config
         
@@ -811,6 +813,11 @@ class PlannerService:
              if not api_key:
                  raise ValueError("OpenAI API key not configured. Set OPENAI_API_KEY in config or env.")
              self.provider = OpenAIProvider(api_key=api_key)
+        elif self.llm_provider == 'aws_bedrock':
+             # AWS Bedrock uses boto3 credentials (env vars, ~/.aws/credentials, or IAM role)
+             region = self.aws_region or os.getenv('AWS_REGION', 'us-east-1')
+             model_id = self.aws_bedrock_model or os.getenv('AWS_BEDROCK_PLANNER_MODEL', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+             self.provider = AWSBedrockProvider(region_name=region, model_id=model_id)
         else:
              # Default to Gemini
              api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')

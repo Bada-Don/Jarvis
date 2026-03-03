@@ -107,32 +107,72 @@ def get_or_create_device_id():
     return device_id
 
 
-# Initialize Firebase Service (optional)
+# Initialize Firebase Service (optional - legacy)
 firebase_service = None
 firebase_enabled = False
 try:
     from firebase_service import FirebaseService
+    from dotenv import load_dotenv
+    load_dotenv()
     
-    # Check for Firebase credentials (resolve relative to project root)
-    from pathlib import Path
-    firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
-    print(f'🔍 Looking for Firebase credentials at: {firebase_creds_path}', flush=True)
+    # Check if Firebase is enabled in environment
+    firebase_enabled_env = os.getenv('FIREBASE_ENABLED', 'false').lower() == 'true'
     
-    if firebase_creds_path.exists():
-        firebase_service = FirebaseService(str(firebase_creds_path))
-        firebase_enabled = True
-        print("✓ Firebase Service initialized successfully", flush=True)
+    if firebase_enabled_env:
+        # Check for Firebase credentials (resolve relative to project root)
+        from pathlib import Path
+        firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
+        print(f'🔍 Looking for Firebase credentials at: {firebase_creds_path}', flush=True)
         
-        # Get device ID and set it on firebase_service
-        device_id = get_or_create_device_id()
-        firebase_service.set_device_id(device_id)
-        firebase_service.register_device(device_id, device_type="desktop")
-        print(f"✓ Backend device ID: {device_id}", flush=True)
+        if firebase_creds_path.exists():
+            firebase_service = FirebaseService(str(firebase_creds_path))
+            firebase_enabled = True
+            print("✓ Firebase Service initialized successfully", flush=True)
+            
+            # Get device ID and set it on firebase_service
+            device_id = get_or_create_device_id()
+            firebase_service.set_device_id(device_id)
+            firebase_service.register_device(device_id, device_type="desktop")
+            print(f"✓ Backend device ID: {device_id}", flush=True)
+        else:
+            print(f"⚠ Firebase credentials not found at: {firebase_creds_path}", flush=True)
+            print("⚠ Firebase features disabled", flush=True)
     else:
-        print(f"⚠ Firebase credentials not found at: {firebase_creds_path}", flush=True)
-        print("⚠ Firebase features disabled", flush=True)
+        print("⚠ Firebase disabled in environment (FIREBASE_ENABLED=false)", flush=True)
 except Exception as e:
     print(f"⚠ Firebase Service not available: {e}", flush=True)
+
+
+# Initialize AWS Service Hub (primary)
+aws_service = None
+aws_enabled = False
+try:
+    from aws_service_hub import AWSServiceHub
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    # Get AWS configuration from environment
+    aws_region = os.getenv('AWS_REGION', 'us-east-1')
+    dynamodb_table = os.getenv('AWS_DYNAMODB_TABLE_NAME', 'JarvisState')
+    s3_bucket = os.getenv('AWS_S3_BUCKET_NAME', 'jarvis-automation-assets')
+    
+    aws_service = AWSServiceHub(
+        region_name=aws_region,
+        dynamodb_table_name=dynamodb_table,
+        s3_bucket_name=s3_bucket
+    )
+    aws_enabled = True
+    print("✓ AWS Service Hub initialized successfully", flush=True)
+    
+    # Get device ID and register with AWS
+    device_id = get_or_create_device_id()
+    aws_service.set_device_id(device_id)
+    aws_service.register_device(device_id, device_type="desktop")
+    print(f"✓ Backend device ID: {device_id}", flush=True)
+    
+except Exception as e:
+    print(f"⚠ AWS Service Hub not available: {e}", flush=True)
+    print("⚠ AWS features disabled - falling back to Firebase if available", flush=True)
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -153,27 +193,45 @@ def chat():
 
 def send_command_dual(command_payload):
     """
-    Send command via both WebSocket (for backward compatibility) and Firebase.
-    
+    Send command via both WebSocket and AWS/Firebase.
+
     Args:
         command_payload: Command data to send
     """
     # Send via WebSocket (existing behavior)
     socketio.emit('command', command_payload)
-    
-    # Send via Firebase if enabled
-    if firebase_enabled and firebase_service and firebase_service.device_id:
-        # Get paired mobile device ID from config
+
+    # Send via AWS if enabled (primary)
+    if aws_enabled and aws_service and aws_service.device_id:
         try:
-            from pathlib import Path
             import json
+            from pathlib import Path
             device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
             if device_config_path.exists():
                 with open(device_config_path, 'r') as f:
                     config = json.load(f)
                     paired_mobile_id = config.get('paired_device_id')
                     if paired_mobile_id:
-                        # Send command to paired mobile device
+                        aws_service.send_command(paired_mobile_id, command_payload)
+                        print(f"📤 AWS command sent to mobile: {paired_mobile_id}", flush=True)
+                    else:
+                        print(f"⚠️ No paired mobile device ID in config", flush=True)
+            else:
+                print(f"⚠️ device_config.json not found, skipping AWS command", flush=True)
+        except Exception as e:
+            print(f"⚠️ Error sending AWS command: {e}", flush=True)
+
+    # Fallback to Firebase if AWS not available
+    elif firebase_enabled and firebase_service and firebase_service.device_id:
+        try:
+            import json
+            from pathlib import Path
+            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+            if device_config_path.exists():
+                with open(device_config_path, 'r') as f:
+                    config = json.load(f)
+                    paired_mobile_id = config.get('paired_device_id')
+                    if paired_mobile_id:
                         firebase_service.send_command(paired_mobile_id, command_payload)
                         print(f"📤 Firebase command sent to mobile: {paired_mobile_id}", flush=True)
                     else:
@@ -182,9 +240,10 @@ def send_command_dual(command_payload):
             print(f"⚠️ Error sending Firebase command: {e}", flush=True)
 
 
+
 def send_status_dual(status_data):
     """
-    Send status update via both WebSocket and Firebase.
+    Send status update via both WebSocket and AWS/Firebase.
     
     Args:
         status_data: Status data to send
@@ -192,9 +251,37 @@ def send_status_dual(status_data):
     # Send via WebSocket (existing behavior)
     socketio.emit('jarvis_status', status_data)
     
-    # Send via Firebase if enabled
-    if firebase_enabled and firebase_service and firebase_service.device_id:
-        # Get paired mobile device ID from config
+    # Send via AWS if enabled (primary)
+    if aws_enabled and aws_service and aws_service.device_id:
+        try:
+            import json
+            from pathlib import Path
+            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+            if device_config_path.exists():
+                with open(device_config_path, 'r') as f:
+                    config = json.load(f)
+                    paired_mobile_id = config.get('paired_device_id')
+                    if paired_mobile_id:
+                        aws_service.send_status(paired_mobile_id, status_data)
+                        print(f"📤 AWS status sent to mobile: {paired_mobile_id}", flush=True)
+                        
+                        # Save to task history if this is a task completion
+                        if status_data.get('status') in ['completed', 'error']:
+                            task_id = status_data.get('task_id', f"task_{int(time.time())}")
+                            aws_service.save_task_history(
+                                aws_service.device_id,
+                                task_id,
+                                status_data
+                            )
+                    else:
+                        print(f"⚠️ No paired mobile device ID in config", flush=True)
+            else:
+                print(f"⚠️ device_config.json not found, skipping AWS status", flush=True)
+        except Exception as e:
+            print(f"⚠️ Error sending AWS status: {e}", flush=True)
+    
+    # Fallback to Firebase if AWS not available
+    elif firebase_enabled and firebase_service and firebase_service.device_id:
         try:
             import json
             from pathlib import Path

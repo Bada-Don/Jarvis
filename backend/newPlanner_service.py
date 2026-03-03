@@ -759,16 +759,18 @@ class PlannerService:
         self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
         self.gemini_key = config.get('GEMINI_API_KEY', getattr(self, 'gemini_key', ''))
         self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
+        self.aws_region = config.get('AWS_REGION', getattr(self, 'aws_region', 'us-east-1'))
+        self.aws_bedrock_model = config.get('AWS_BEDROCK_PLANNER_MODEL', getattr(self, 'aws_bedrock_model', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'))
         self.config = config
         
         self.init_provider(api_key)
 
     def init_provider(self, str_api_key_override=None):
-        if self.llm_provider == 'bedrock' or self.llm_provider == 'aws':
-             # Bedrock uses local AWS credentials/IAM roles, so no API key is passed here
-             self.provider = AWSBedrockProvider(
-                 region_name=os.getenv("AWS_REGION", "us-east-1")
-             )
+        if self.llm_provider == 'bedrock' or self.llm_provider == 'aws' or self.llm_provider == 'aws_bedrock':
+             # AWS Bedrock uses boto3 credentials (env vars, ~/.aws/credentials, or IAM role)
+             region = self.aws_region or os.getenv('AWS_REGION', 'us-east-1')
+             model_id = self.aws_bedrock_model or os.getenv('AWS_BEDROCK_PLANNER_MODEL', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+             self.provider = AWSBedrockProvider(region_name=region, model_id=model_id)
         elif self.llm_provider == 'openai':
              api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
              if not api_key: raise ValueError("OpenAI API key not configured.")
