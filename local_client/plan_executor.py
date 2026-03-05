@@ -20,18 +20,22 @@ pyautogui.PAUSE = 0.05  # Minimal pause, we handle timing ourselves
 # Audio feedback
 try:
     from pygame import mixer
-    mixer.init()
-    AUDIO_AVAILABLE = True
-    
-    # Get paths to audio files
-    ASSETS_DIR = Path(__file__).parent / "assets"
-    START_SOUND = str(ASSETS_DIR / "Start.mp3")
-    COMPLETE_SOUND = str(ASSETS_DIR / "Complete.mp3")
-    
-    # Verify files exist
-    if not os.path.exists(START_SOUND) or not os.path.exists(COMPLETE_SOUND):
-        print("⚠️ Warning: Audio files not found in assets folder")
+    try:
+        mixer.init()
+        AUDIO_AVAILABLE = True
+        
+        # Get paths to audio files
+        ASSETS_DIR = Path(__file__).parent / "assets"
+        START_SOUND = str(ASSETS_DIR / "Start.mp3")
+        COMPLETE_SOUND = str(ASSETS_DIR / "Complete.mp3")
+        
+        # Verify files exist
+        if not os.path.exists(START_SOUND) or not os.path.exists(COMPLETE_SOUND):
+            print("⚠️ Warning: Audio files not found in assets folder")
+            AUDIO_AVAILABLE = False
+    except Exception as e:
         AUDIO_AVAILABLE = False
+        print(f"⚠️ Warning: pygame audio initialization failed ({e}). Audio feedback disabled.")
 except ImportError:
     AUDIO_AVAILABLE = False
     print("⚠️ Warning: pygame not available for audio feedback. Install with: pip install pygame")

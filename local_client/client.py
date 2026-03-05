@@ -4,6 +4,13 @@ Connects to the backend server and executes automation commands on the local mac
 Supports both general computer automation and FlexiSIGN-specific tasks.
 """
 
+# Load environment variables first (before any other imports that use them)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load from local_client/.env
+except ImportError:
+    pass  # python-dotenv not installed, will use system environment variables
+
 import socketio
 import pyautogui
 import time
