@@ -577,6 +577,130 @@ This enables rapid diagnosis of:
 - **Vision Pipeline Failures**: FastSAM detection, Vision Mapper misidentification
 - **Verification Failures**: Expected vs actual state mismatch
 
+---
+
+## Security & Guardrails
+
+JARVIS implements multiple layers of security to protect your system from unintended actions and AI hallucinations.
+
+### Human-in-the-Loop (HITL) Protection
+
+**All destructive or file-modifying actions require explicit UI-based User Approval (Human-in-the-Loop) to prevent AI hallucinations from damaging the host OS.**
+
+This includes:
+- **File Deletion**: Deleting files or folders
+- **File Modification**: Editing existing files (Word, Excel, Text, Code)
+- **System Commands**: Commands that modify system state
+- **Overwrite Operations**: Replacing existing file content
+- **Directory Removal**: Removing folders and their contents
+
+### Permission System
+
+```mermaid
+flowchart LR
+    A[AI Generates Plan] --> B{Contains Destructive Action?}
+    B -->|Yes| C[Pause Execution]
+    C --> D[Show Approval Dialog]
+    D --> E{User Approves?}
+    E -->|Yes| F[Execute Action]
+    E -->|No| G[Abort Execution]
+    B -->|No| H[Execute Directly]
+    F --> I[Continue Plan]
+    G --> J[Report Cancellation]
+    H --> I
+```
+
+### Protected Operations
+
+| Operation Type | Requires Approval | Example |
+|----------------|-------------------|---------|
+| **File Creation** | ❌ No | Creating new files, folders |
+| **File Reading** | ❌ No | Reading file contents |
+| **File Writing (New)** | ❌ No | Writing to new files |
+| **File Editing** | ✅ Yes | AI-powered edits to existing files |
+| **File Deletion** | ✅ Yes | Deleting files or folders |
+| **File Overwrite** | ✅ Yes | Replacing existing file content |
+| **Shell Commands** | ⚠️ Selective | Destructive commands require approval |
+| **Email Sending** | ✅ Yes | Sending emails with attachments |
+| **UI Automation** | ❌ No | Clicking, typing (user-visible) |
+
+### AI Edit Approval Workflow
+
+When JARVIS performs AI-powered file editing:
+
+1. **Analysis**: AI analyzes the file and generates edit commands
+2. **Diff Generation**: Shows exactly what will change (before/after)
+3. **User Review**: Displays changes in the mobile app
+4. **Approval Required**: User must explicitly approve or reject
+5. **Execution**: Changes applied only after approval
+6. **Rollback Available**: Can undo changes if needed
+
+**Example Approval Dialog:**
+```
+📝 AI Edit Request: report.docx
+
+Changes:
+- Line 5: "Q4 2024" → "Q1 2025"
+- Line 12: "recieve" → "receive"
+- Line 23: Added new paragraph
+
+[Approve] [Reject] [View Full Diff]
+```
+
+### Safety Features
+
+**1. Sandboxed Execution**
+- Commands run in user context (no admin privileges)
+- Cannot modify system files or registry
+- Limited to user-accessible directories
+
+**2. Command Validation**
+- Shell commands validated before execution
+- Dangerous commands (format, del /s, etc.) blocked
+- Path validation prevents directory traversal
+
+**3. Verification System**
+- Post-execution verification checks expected state
+- Automatic retry on failure (max 2 retries)
+- Confidence threshold for success (70%)
+
+**4. Audit Trail**
+- All actions logged in debug_logs/
+- Includes: command, timestamp, result, user approval
+- Task history stored in DynamoDB (last 10 tasks)
+
+**5. Rate Limiting**
+- Prevents rapid-fire destructive actions
+- Cooldown period between sensitive operations
+- Configurable in local_client/config.py
+
+### Configuration
+
+Adjust security settings in `local_client/config.py`:
+
+```python
+# Permission settings
+REQUIRE_APPROVAL_FOR_EDITS = True      # AI file editing approval
+REQUIRE_APPROVAL_FOR_DELETION = True   # File deletion approval
+REQUIRE_APPROVAL_FOR_EMAIL = True      # Email sending approval
+
+# Verification settings
+VERIFICATION_ENABLED = True            # Post-execution verification
+MAX_RETRIES = 2                        # Retry failed operations
+CONFIDENCE_THRESHOLD = 0.7             # Success confidence threshold
+
+# Safety settings
+BLOCK_DANGEROUS_COMMANDS = True        # Block format, del /s, etc.
+SANDBOX_MODE = True                    # Restrict to user directories
+```
+
+### Best Practices
+
+1. **Review AI Edits**: Always review the diff before approving file modifications
+2. **Test Commands**: Test destructive operations on non-critical files first
+3. **Regular Backups**: Maintain backups of important files
+4. **Monitor Logs**: Check debug_logs/ for unexpected behavior
+5. **Update Regularly**: Keep JARVIS updated for latest security patches
 
 ---
 

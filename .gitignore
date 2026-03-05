@@ -67,3 +67,14 @@ data/firebase_config.json
 
 # Config backups
 local_client/config_backups/
+
+# AWS credentials and keys (NEVER commit these!)
+*.pem
+*.key
+jarvis-key.pem
+deployment/*.pem
+deployment/*.key
+
+# AWS config files
+.aws/
+aws-credentials.json

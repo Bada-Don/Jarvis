@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  jarvis-backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: jarvis-backend
+    ports:
+      - "5000:5000"
+    environment:
+      # LLM Provider
+      - LLM_PROVIDER=aws_bedrock
+      
+      # AWS Configuration (use IAM role on EC2 or provide credentials)
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      
+      # AWS Bedrock Models
+      - AWS_BEDROCK_PLANNER_MODEL=${AWS_BEDROCK_PLANNER_MODEL:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
+      - AWS_BEDROCK_VISION_MODEL=${AWS_BEDROCK_VISION_MODEL:-us.anthropic.claude-sonnet-4-6}
+      
+      # AWS Services
+      - AWS_DYNAMODB_TABLE_NAME=${AWS_DYNAMODB_TABLE_NAME:-JarvisState}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME:-jarvis-automation-assets}
+      
+      # Disable Firebase
+      - FIREBASE_ENABLED=false
+    volumes:
+      - jarvis-uploads:/app/uploads
+      - jarvis-logs:/app/logs
+      - jarvis-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - jarvis-network
+
+volumes:
+  jarvis-uploads:
+  jarvis-logs:
+  jarvis-data:
+
+networks:
+  jarvis-network:
+    driver: bridge

@@ -128,7 +128,7 @@ Resources:
   JarvisEC2Role:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: JarvisEC2Role
+      RoleName: !Sub 'JarvisEC2Role-${AWS::StackName}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -183,7 +183,7 @@ Resources:
   JarvisInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: JarvisInstanceProfile
+      InstanceProfileName: !Sub 'JarvisInstanceProfile-${AWS::StackName}'
       Roles:
         - !Ref JarvisEC2Role
   
@@ -192,7 +192,7 @@ Resources:
   JarvisStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: JarvisState
+      TableName: !Sub 'JarvisState-${AWS::StackName}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: PK
@@ -216,7 +216,7 @@ Resources:
   JarvisAssetsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'jarvis-automation-assets-${AWS::AccountId}'
+      BucketName: !Sub 'jarvis-assets-${AWS::AccountId}-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -244,6 +244,12 @@ Resources:
       ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
       KeyName: !Ref KeyPairName
       IamInstanceProfile: !Ref JarvisInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            DeleteOnTermination: true
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeviceIndex: 0

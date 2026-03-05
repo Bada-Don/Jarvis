@@ -192,6 +192,21 @@ except Exception as e:
     print("⚠ AWS features disabled - falling back to Firebase if available", flush=True)
 
 
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for load balancers and monitoring."""
+    health_status = {
+        "status": "healthy",
+        "message": "JARVIS Backend is running",
+        "services": {
+            "planner": planner_service is not None,
+            "aws": aws_enabled,
+            "firebase": firebase_enabled
+        }
+    }
+    return jsonify(health_status), 200
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
