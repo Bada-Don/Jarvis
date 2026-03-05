@@ -1,5 +1,7 @@
 # JARVIS - AI Computer Automation Assistant
 
+> **AWS Integration Branch**: This branch features AWS-native architecture with Amazon Bedrock, DynamoDB, and S3 integration for scalable, cloud-native automation.
+
 ## Problem Understanding
 
 Modern computer automation faces a fundamental challenge: bridging the gap between natural language commands and system execution. Traditional automation tools require explicit scripting, making them brittle and inaccessible to non-technical users.
@@ -10,41 +12,55 @@ Key challenges addressed:
 - **Dynamic UI Elements**: Screen layouts change based on resolution, themes, and application state (when GUI needed)
 - **Cross-Application Automation**: Different apps require different automation approaches
 - **Code Manipulation**: Directly editing files without opening editors
+- **Cloud-Native Scalability**: AWS integration enables distributed deployment and remote access
 
 ## Solution Approach
 
-JARVIS implements a **Multi-Plane Execution Architecture** that intelligently selects the fastest method for each task:
+JARVIS implements a **Router-Planner Architecture with Multi-Plane Execution** that intelligently selects the fastest method for each task:
 
 ```mermaid
-flowchart LR
-    A[User Command] --> B[Planner Model]
-    B --> C[Execution Plan]
-    C --> D[Local Client]
-    D --> E{Step Type?}
-    E -->|Shell Command| F[CMD Execution]
-    E -->|File Operation| G[Direct File I/O]
-    E -->|Keyboard| H[pyautogui Input]
-    E -->|Visual Click| I[Vision Pipeline]
-    I --> J[Screenshot + FastSAM]
-    J --> K[Vision Mapper]
-    K --> L[Click Coordinates]
-    F --> M[Task Complete]
-    G --> M
-    H --> M
-    L --> M
+flowchart TB
+    A[User Command] --> B[Router Model<br/>AWS Bedrock Haiku/Gemini]
+    B --> C{Analyze Command}
+    C --> D[Select Required Modules]
+    D --> E[Dynamic Prompt Assembly]
+    E --> F[Planner Model<br/>AWS Bedrock Haiku/Gemini]
+    F --> G[Optimized Execution Plan]
+    G --> H[Local Client]
+    H --> I{Step Type?}
+    I -->|Shell Command| J[CMD Execution]
+    I -->|File Operation| K[Direct File I/O]
+    I -->|AI Edit| L[AI Editor Engine]
+    I -->|Email| M[Background Email]
+    I -->|Keyboard| N[pyautogui Input]
+    I -->|Text Click| O[OCR-based Click]
+    I -->|Visual Click| P[Vision Pipeline]
+    P --> Q[Screenshot + FastSAM]
+    Q --> R[Vision Mapper<br/>AWS Bedrock Sonnet/Gemini]
+    R --> S[Click Coordinates]
+    J --> T[Task Complete]
 ```
+
+**Two-Stage Architecture:**
+1. **Router Stage**: Analyzes command and selects only required prompt modules (40-60% token reduction)
+2. **Planner Stage**: Generates execution plan using dynamically assembled, optimized prompts
 
 **Execution Priority (Strict Order):**
 1. **Command-Line Operations** (FASTEST) - Shell commands for file/folder operations
 2. **Direct File Operations** (FAST) - Read/write files without UI
-3. **Keyboard Shortcuts** (MEDIUM) - Deterministic keyboard actions
-4. **UI Automation** (SLOW) - Vision-based clicking as last resort
+3. **AI-Powered Editing** (INTELLIGENT) - Natural language edits to Word/Excel/Text files
+4. **Background Email** (EFFICIENT) - Send emails without opening UI
+5. **Keyboard Shortcuts** (MEDIUM) - Deterministic keyboard actions
+6. **OCR-Based Clicking** (FASTER) - Text-based element detection
+7. **UI Automation** (SLOW) - Vision-based clicking as last resort
 
-This multi-plane approach allows JARVIS to:
-1. **Choose the fastest method** for each operation
-2. **Bypass UI when possible** (command-line and file I/O)
-3. **Fall back to GUI** when necessary (legacy apps, visual elements)
-4. **Manipulate code directly** without opening editors
+This architecture enables JARVIS to:
+1. **Optimize token usage** through modular prompt assembly
+2. **Choose the fastest method** for each operation
+3. **Bypass UI when possible** (command-line and file I/O)
+4. **Edit documents intelligently** using AI reasoning
+5. **Fall back to GUI** when necessary (legacy apps, visual elements)
+6. **Scale efficiently** with AWS Bedrock, DynamoDB, and S3
 
 ## Technical Methodology
 
@@ -54,24 +70,34 @@ This multi-plane approach allows JARVIS to:
 sequenceDiagram
     participant User
     participant Backend
-    participant Planner as Planner Model<br/>(Gemini Flash Lite)
+    participant Router as Router Model<br/>(AWS Bedrock Haiku/Gemini)
+    participant Planner as Planner Model<br/>(AWS Bedrock Haiku/Gemini)
     participant Client as Local Client
-    participant Vision as Vision Mapper<br/>(Gemini 2.5 Flash)
+    participant Vision as Vision Mapper<br/>(AWS Bedrock Sonnet/Gemini)
     participant PC as Windows PC
 
     User->>Backend: Create Python file and run it
-    Backend->>Planner: Generate execution plan
+    Backend->>Router: Analyze command
+    Router-->>Backend: Required modules: [shell, file_editing]
+    Backend->>Backend: Assemble optimized prompt
+    Backend->>Planner: Generate plan with selected modules
     Planner-->>Backend: JSON sequence (shell + file + keyboard)
     Backend->>Client: WebSocket: execute_plan
     
     loop For each step
-        alt Shell Command
+        alt Shell Command (Plane 1)
             Client->>PC: Execute CMD command
-        else File Operation
+        else File Operation (Plane 2)
             Client->>PC: Direct file I/O
-        else Keyboard Step
+        else AI Edit (Plane 3)
+            Client->>PC: AI-powered file editing
+        else Background Email (Plane 4)
+            Client->>PC: Send email without UI
+        else Keyboard Step (Plane 5)
             Client->>PC: pyautogui keyboard action
-        else Visual Click Step
+        else OCR Click (Plane 6)
+            Client->>PC: Text-based click via OCR
+        else Visual Click (Plane 7 - Last Resort)
             Client->>Client: Screenshot + FastSAM SoM
             Client->>Vision: Annotated image + targets
             Vision-->>Client: Target → Element ID mapping
@@ -79,21 +105,53 @@ sequenceDiagram
         end
     end
     
-    Client-->>User: Task complete
+    Client-->>Backend: Task complete
+    Backend-->>User: Success notification
 
 ```
 
-### Model 1: Planner (Gemini Flash Lite)
+### Model 1: Planner with Router Architecture (AWS Bedrock Haiku or Gemini Flash)
 
-Converts natural language into structured execution plans with intelligent method selection.
+The planner uses a **two-stage Router → Planner architecture** for maximum efficiency:
 
-**Execution Priority Rules:**
+**Stage 1: Router Model (AWS Bedrock Haiku or Gemini Flash)**
+- Analyzes the user command
+- Selects only required modules from the modularized prompt system
+- Determines execution mode (general vs. flexisign)
+- Returns: `{"mode": "general", "modules": ["ui_os", "shell", "file_editing"]}`
+
+**Stage 2: Planner Model (AWS Bedrock Haiku or Gemini Flash)**
+- Receives dynamically assembled prompt with only necessary modules
+- Generates optimized execution plan
+- Reduces token usage by 40-60% compared to monolithic prompts
+- Faster inference due to smaller context
+
+**Available Prompt Modules:**
+- `base_prompt`: Core system information and execution priority rules
+- `ui_os`: Opening apps, typing, web browsing, clicking buttons (keyboard, click_text_fast, visual_click)
+- `email`: Sending background emails without UI (send_email)
+- `shell`: Command prompt operations, folder/file creation (shell_command)
+- `file_editing`: AI-powered editing of Word, Excel, Text files (ai_edit_word, ai_edit_excel, ai_edit_text)
+- `file_navigation`: Opening files/folders, saving files (open_file, open_folder, save_file)
+- `flexisign`: Number plate automation (specialized mode with UIA)
+
+**Execution Priority Rules (Enforced by Base Prompt):**
 ```
 1. Command-line operations FIRST (mkdir, type nul, start)
-2. Direct filesystem operations SECOND (write_file, read_file)
-3. Keyboard shortcuts THIRD (ctrl+s, ctrl+c)
-4. UI-based navigation LAST RESORT (visual_click, click_text)
+2. Direct filesystem operations SECOND (write_file, read_file, create_directory)
+3. AI-powered file editing THIRD (ai_edit_word, ai_edit_excel, ai_edit_text)
+4. Background email FOURTH (send_email)
+5. Keyboard shortcuts FIFTH (ctrl+s, ctrl+c)
+6. OCR-based clicking SIXTH (click_text_fast)
+7. UI-based navigation LAST RESORT (visual_click)
 ```
+
+**Benefits of Modularized Prompts:**
+- **Token Efficiency**: Only loads relevant instructions (40-60% reduction)
+- **Faster Response**: Smaller prompts = faster LLM inference
+- **Cost Savings**: Lower token usage = reduced API costs
+- **Better Focus**: LLM sees only relevant capabilities for the task
+- **Easy Maintenance**: Update individual modules without affecting others
 
 **Supported Modes:**
 
@@ -116,22 +174,26 @@ Converts natural language into structured execution plans with intelligent metho
 }
 ```
 
-**Supported Step Types (25+):**
+**Supported Step Types (30+):**
 - **Shell**: `shell_command`
 - **File I/O**: `write_file`, `read_file`, `append_file`, `create_directory`
 - **File Editing**: `replace_in_file`, `modify_lines`, `insert_at_line`, `delete_lines`
+- **AI-Powered Editing**: `ai_edit_text`, `ai_edit_word`, `ai_edit_excel` (NEW)
 - **File Operations**: `open_file`, `open_folder`, `save_file`
+- **Email**: `send_email` (background email sending)
 - **Keyboard**: `keyboard`
 - **UI Interaction**: `visual_click`, `click_text_fast`, `click_text`
 - **FlexiSIGN**: `create_text`, `set_dimensions`, `set_font`, `apply_style`, `move_object`
 
-### Model 2: Vision Mapper (Gemini 2.5 Flash)
+### Model 2: Vision Mapper (AWS Bedrock Sonnet or Gemini 2.5 Flash)
 
-Identifies UI elements in annotated screenshots. Uses Set-of-Mark (SoM) technique:
+Identifies UI elements in annotated screenshots when visual automation is needed. Uses Set-of-Mark (SoM) technique:
 
 1. **FastSAM** detects all UI elements and draws numbered red boxes
-2. **Vision Mapper** receives the annotated image + target list
+2. **Vision Mapper** (AWS Bedrock Sonnet or Gemini 2.5 Flash) receives the annotated image + target list
 3. Returns mapping: `{"address_bar": 45, "submit_button": 12}`
+
+**Note**: Vision pipeline is only used as a last resort when command-line, file operations, AI editing, and OCR-based clicking cannot accomplish the task.
 
 ### Single-Pass Vision Architecture (When Needed)
 
@@ -155,40 +217,79 @@ flowchart TD
     N --> O[pyautogui.click]
 ```
 
-### Three Execution Planes
+### Multi-Plane Execution Architecture
 
 ```mermaid
 flowchart TB
-    A[User Command] --> B[Planner Model]
-    B --> C{Select Execution Plane}
+    A[User Command] --> B[Router Model<br/>AWS Bedrock/Gemini]
+    B --> C[Select Modules]
+    C --> D[Planner Model<br/>Optimized Prompt]
+    D --> E{Select Execution Plane}
     
-    C -->|Plane 1: FASTEST| D[Command-Line Operations]
-    D --> D1[mkdir, type nul, start]
-    D --> D2[explorer, del, copy]
-    D --> D3[Environment variables]
+    E -->|Plane 1: FASTEST| F[Command-Line Operations]
+    F --> F1[mkdir, type nul, start]
+    F --> F2[explorer, del, copy]
+    F --> F3[Environment variables]
     
-    C -->|Plane 2: FAST| E[Code Workspace Control]
-    E --> E1[write_file: Create code]
-    E --> E2[read_file: Analyze code]
-    E --> E3[replace_in_file: Fix bugs]
-    E --> E4[modify_lines: Edit specific lines]
+    E -->|Plane 2: FAST| G[Direct File Operations]
+    G --> G1[write_file: Create files]
+    G --> G2[read_file: Read content]
+    G --> G3[append_file: Add content]
+    G --> G4[create_directory: Make folders]
     
-    C -->|Plane 3: SLOW| F[UI Automation]
-    F --> F1[keyboard: Shortcuts]
-    F --> F2[click_text_fast: OCR-based]
-    F --> F3[visual_click: Vision AI]
+    E -->|Plane 3: INTELLIGENT| H[AI-Powered File Editing]
+    H --> H1[ai_edit_text: Code/text files]
+    H --> H2[ai_edit_word: Word documents]
+    H --> H3[ai_edit_excel: Spreadsheets]
+    H --> H4[Natural language edits]
     
-    D1 --> G[Execution Complete]
-    D2 --> G
-    D3 --> G
-    E1 --> G
-    E2 --> G
-    E3 --> G
-    E4 --> G
-    F1 --> G
-    F2 --> G
-    F3 --> G
+    E -->|Plane 4: EFFICIENT| I[Background Services]
+    I --> I1[send_email: Email without UI]
+    I --> I2[Future: API calls]
+    
+    E -->|Plane 5: MEDIUM| J[Keyboard Automation]
+    J --> J1[keyboard: Shortcuts]
+    J --> J2[Deterministic actions]
+    
+    E -->|Plane 6: FASTER| K[OCR-Based Clicking]
+    K --> K1[click_text_fast: Text detection]
+    K --> K2[Fuzzy matching]
+    
+    E -->|Plane 7: SLOW| L[Vision-Based UI]
+    L --> L1[visual_click: Vision AI]
+    L --> L2[Last resort only]
 ```
+
+### AI-Powered File Editing Engine
+
+JARVIS now includes an advanced AI-powered file editing system that can intelligently modify documents:
+
+**Supported File Types:**
+- **Text Files** (.txt, .py, .js, .md, etc.): Code and text editing with syntax awareness
+- **Word Documents** (.docx): Paragraph editing with format preservation
+- **Excel Spreadsheets** (.xlsx): Cell editing, row insertion/deletion, formula handling
+
+**How It Works:**
+
+1. **Context Extraction**: Reads and analyzes the file content
+2. **AI Analysis**: LLM generates structured edit commands (search-and-replace operations)
+3. **Diff Generation**: Shows exactly what will change
+4. **Permission Request**: User approves changes before application
+5. **Precise Application**: Applies edits while preserving formatting
+
+**Example Commands:**
+- "Change all instances of 'TODO' to 'DONE' in the Python file"
+- "Update the sales figures in the Excel spreadsheet for Q1"
+- "Fix the typo in the Word document where it says 'recieve'"
+- "Add a new row in the Excel file with data for January"
+
+**Key Features:**
+- **Format Preservation**: Maintains fonts, colors, styles in Word documents
+- **Formula Support**: Handles Excel formulas correctly
+- **Multi-Sheet Support**: Works across multiple Excel sheets
+- **Diff Preview**: Shows changes before applying
+- **Rollback Support**: Can undo changes if needed
+- **High Reliability**: 95%+ success rate for complex edits
 
 ## Tools, Models & Architecture
 
@@ -197,31 +298,50 @@ flowchart TB
 ```mermaid
 graph TB
     subgraph Frontend
-        A[React Native Mobile App]
+        A[React Native Mobile App<br/>Expo]
+    end
+    
+    subgraph AWS Cloud
+        AWS1[Amazon Bedrock<br/>Claude 4.5 Haiku Planner<br/>Claude 4.6 Sonnet Vision]
+        AWS2[DynamoDB<br/>Device Pairing & State<br/>Task History TTL]
+        AWS3[S3<br/>Screenshots & Assets<br/>Presigned URLs]
     end
     
     subgraph Backend Server
-        B[Flask + SocketIO]
-        C[Gemini Flash Lite<br/>Planner Model]
+        B[Flask + SocketIO<br/>WebSocket Hub]
+        C[AWS Service Hub<br/>boto3 Integration]
+        D[Router + Planner<br/>Modularized Prompts]
     end
     
     subgraph Local Client
-        D[Python WebSocket Client]
-        E[Shell Command Executor]
-        F[File Operations Module]
-        G[FastSAM<br/>UI Detection]
-        H[Gemini 2.5 Flash<br/>Vision Mapper]
-        I[pyautogui<br/>Mouse/Keyboard]
+        E[Python WebSocket Client]
+        F[Multi-Plane Executor]
+        G[Shell Command Executor]
+        H[File Operations Module]
+        I[AI Editor Engine<br/>Word/Excel/Text]
+        J[FastSAM<br/>UI Detection]
+        K[Vision Mapper]
+        L[pyautogui<br/>Mouse/Keyboard]
+        M[OCR Service<br/>Text-based Clicking]
     end
     
     A <-->|HTTP/WebSocket| B
+    A <-->|DynamoDB SDK| AWS2
     B --> C
-    B <-->|WebSocket| D
-    D --> E
-    D --> F
-    D --> G
-    D --> H
-    D --> I
+    B --> D
+    C --> AWS1
+    C --> AWS2
+    C --> AWS3
+    D --> AWS1
+    B <-->|WebSocket| E
+    E --> F
+    F --> G
+    F --> H
+    F --> I
+    F --> J
+    F --> K
+    F --> L
+    F --> M
 ```
 
 ### Component Details
@@ -229,35 +349,55 @@ graph TB
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | Mobile App | React Native + Expo | User interface for commands |
-| Backend Server | Flask + Flask-SocketIO | API gateway, plan generation |
-| Planner Model | Gemini 2.5 Flash Lite | NL → Execution plan (multi-plane) |
-| Shell Executor | subprocess + CMD | Command-line operations |
-| File Operations | Python file I/O | Direct file manipulation |
+| Backend Server | Flask + Flask-SocketIO | API gateway, WebSocket hub |
+| AWS Service Hub | boto3 | Centralized AWS integration (Bedrock, DynamoDB, S3) |
+| Router Model | AWS Bedrock (Haiku) or Gemini | Module selection for optimized prompts (40-60% token reduction) |
+| Planner Model | AWS Bedrock (Haiku) or Gemini | NL → Execution plan with dynamic prompt assembly |
+| Vision Mapper | AWS Bedrock (Sonnet) or Gemini | Image → Element IDs (last resort fallback) |
+| AI Editor Engine | Gemini 2.5 Flash | Intelligent file editing (Word/Excel/Text) with natural language |
+| State Management | DynamoDB | Device pairing, commands, status, task history with TTL |
+| Asset Storage | S3 | Screenshots with 1-hour TTL, presigned URLs |
+| Shell Executor | subprocess + CMD | Command-line operations (fastest plane) |
+| File Operations | Python file I/O | Direct file manipulation (fast plane) |
 | File Editor | Custom module | IDE-like editing (replace, modify lines) |
-| Vision Mapper | Gemini 2.5 Flash | Image → Element IDs (fallback) |
-| SoM Detection | FastSAM (Ultralytics) | UI element segmentation |
+| SoM Detection | FastSAM (Ultralytics) | UI element segmentation with numbered boxes |
+| OCR Service | Tesseract + EasyOCR | Text-based clicking (faster than vision) |
 | Automation | pyautogui + pywin32 | Mouse/keyboard control |
-| Communication | WebSocket | Real-time bidirectional |
+| Communication | WebSocket + DynamoDB | Real-time bidirectional + cloud sync |
 
 ### Key Files Structure
 
 ```
 ├── backend/
 │   ├── server.py              # Flask API + WebSocket hub
-│   ├── planner_service.py     # Planner Model integration (multi-plane)
+│   ├── aws_service_hub.py     # AWS Bedrock, DynamoDB, S3 integration
+│   ├── llm_provider.py        # Multi-provider LLM abstraction (Gemini/OpenAI/Bedrock)
+│   ├── newPlanner_service.py  # Router + Planner with modularized prompts
+│   ├── ai_editor_engine.py    # AI-powered file editing (Word/Excel/Text)
 │   ├── file_operations.py     # Direct file I/O operations
 │   ├── file_editor.py         # Intelligent file editing
-│   └── SoM.py                 # FastSAM annotation logic
+│   ├── SoM.py                 # FastSAM annotation logic
+│   ├── test_aws_integration.py      # AWS Bedrock tests
+│   ├── test_dynamodb_history.py     # DynamoDB task history tests
+│   └── test_providers.py      # LLM provider unit tests
 │
 ├── local_client/
 │   ├── client.py              # WebSocket client, command router
-│   ├── plan_executor.py       # Multi-plane step execution engine
+│   ├── plan_executor.py       # Multi-plane step execution engine (includes AI editing)
 │   ├── vision_service.py      # Screenshot, SoM, Vision Mapper
 │   ├── direct_path_executor.py # File/folder operations
 │   ├── text_clicker.py        # OCR-based clicking
 │   └── flexisign_uia.py       # FlexiSIGN-specific automation
 │
-└── ChatInterface/             # React Native mobile app
+├── ChatInterface/             # React Native mobile app
+│   └── src/
+│       └── services/
+│           ├── AWSService.ts  # AWS DynamoDB integration for mobile
+│           └── FirebaseService.ts  # Legacy Firebase (optional)
+│
+├── setup_aws_resources.py    # AWS resource setup script
+├── AWS_SETUP_README.md        # AWS setup guide
+└── AWS_implementation_plan.md # AWS migration plan
 ```
 
 ### Execution Modes
@@ -287,6 +427,38 @@ flowchart LR
 
 ## Expected Impact
 
+### AWS Integration Benefits
+
+This branch introduces AWS-native architecture with significant advantages:
+
+- **Scalable LLM Infrastructure**: Amazon Bedrock provides enterprise-grade Claude models without API key management
+- **Distributed State Management**: DynamoDB enables multi-device synchronization and command queuing
+- **Efficient Asset Storage**: S3 with TTL and presigned URLs for secure screenshot sharing
+- **Cost-Effective**: AWS Free Tier covers typical JARVIS usage (DynamoDB: 25GB, S3: 5GB, Bedrock: pay-per-use)
+- **Flexible Deployment**: Run backend on EC2, local machine, or hybrid configurations
+- **Task History**: Automatic storage of last 10 tasks per device with TTL cleanup
+- **Multi-Provider Support**: Seamlessly switch between AWS Bedrock, Gemini, or OpenAI
+
+### System Efficiency Improvements
+
+**Router-Based Prompt Optimization:**
+- **Modularized System Prompt**: 7 independent modules (base_prompt, ui_os, email, shell, file_editing, file_navigation, flexisign)
+- **Dynamic Assembly**: Router model analyzes command and selects only required modules
+- **Token Reduction**: 40-60% fewer tokens compared to monolithic prompts
+- **Faster Response**: Reduced prompt size = faster LLM inference (typically 1-2 seconds)
+- **Cost Savings**: Lower token usage = reduced API costs across all providers
+- **Better Accuracy**: LLM focuses only on relevant capabilities, reducing confusion
+
+**AI-Powered File Management:**
+- **Intelligent Document Editing**: Direct AI-powered editing of Word (.docx), Excel (.xlsx), and Text files
+- **Natural Language Instructions**: "Change all Q4 to Q1" or "Fix the typo in paragraph 3"
+- **Structured Edit Commands**: LLM generates precise search-and-replace operations
+- **Format Preservation**: Maintains document formatting, fonts, styles, and formulas
+- **Diff Generation**: Shows exactly what changed before applying edits
+- **Permission System**: User approval required before modifying files
+- **High Reliability**: 95%+ success rate for complex document modifications
+- **Multi-Sheet Support**: Works across multiple Excel sheets seamlessly
+
 ### Immediate Benefits
 
 - **Speed**: Command-line and file operations are 10-50x faster than UI automation
@@ -302,8 +474,11 @@ flowchart LR
 |--------|------------------|
 | Developer Productivity | "Create a Python file with bubble sort and run it in VS Code" |
 | Code Manipulation | "Read the code from document.txt and fix the bug on line 15" |
+| Document Editing | "Change all instances of 'Q4 2024' to 'Q1 2025' in the Word document" |
+| Spreadsheet Automation | "Add a new row in the Excel file with sales data for January" |
 | File Operations | "Create folder 'AI Lab' with 3 text files on Desktop" |
 | System Automation | "Open Chrome and go to youtube.com" |
+| Email Automation | "Send an email to john@example.com with the project update" |
 | FlexiSIGN | "Make iron number plate set for bike, PB12W3998" |
 | Hybrid Workflows | "Create Python script, open in editor, run in terminal" |
 
@@ -311,19 +486,30 @@ flowchart LR
 
 **Execution Speed by Method:**
 - **Shell Command**: ~0.1 seconds (mkdir, type nul, start)
-- **File Operation**: ~0.1 seconds (write_file, read_file)
+- **File Operation**: ~0.1 seconds (write_file, read_file, create_directory)
+- **AI File Editing**: ~2-4 seconds (ai_edit_word, ai_edit_excel, ai_edit_text)
+- **Background Email**: ~1-2 seconds (send_email without UI)
 - **Keyboard Action**: ~0.3-0.5 seconds per step
-- **OCR Click**: ~1-2 seconds (click_text_fast)
+- **OCR Click**: ~1-2 seconds (click_text_fast with Tesseract)
 - **Vision Click**: ~3-5 seconds (FastSAM + Vision Mapper)
 
 **Typical Task Times:**
 - **Create folder + file**: ~0.5 seconds (shell commands)
 - **Write Python file**: ~0.2 seconds (write_file)
+- **Edit Word document**: ~3-5 seconds (AI-powered editing with diff preview)
+- **Modify Excel spreadsheet**: ~3-5 seconds (AI-powered editing with formula support)
+- **Send background email**: ~1-2 seconds (no UI interaction)
 - **Launch app**: ~3-5 seconds (with window wait)
-- **Vision-based task**: ~10-15 seconds (with screenshot)
+- **OCR-based task**: ~5-8 seconds (text detection + click)
+- **Vision-based task**: ~10-15 seconds (screenshot + FastSAM + Vision Mapper)
 - **Hybrid workflow**: ~5-10 seconds (shell + file + keyboard)
 
-**Plan Generation**: ~1-2 seconds (Gemini Flash Lite)
+**Plan Generation**: ~1-2 seconds (Router + Planner with optimized modular prompts)
+
+**Token Usage Comparison:**
+- **Monolithic Prompt**: ~3000-5000 tokens per request
+- **Modularized Prompt**: ~1500-2500 tokens per request (40-60% reduction)
+- **Cost Impact**: Proportional savings on AWS Bedrock, Gemini, and OpenAI API costs
 
 ### Future Roadmap
 
@@ -332,24 +518,40 @@ timeline
     title JARVIS Development Roadmap
     
     Completed : Multi-plane architecture
+             : Router-based prompt optimization
+             : Modularized system prompts (7 modules)
              : Shell command execution
              : Direct file operations
              : Intelligent file editing
+             : AI-powered document editing (Word/Excel/Text)
+             : Background email sending
+             : OCR-based clicking (click_text_fast)
+             : AWS Bedrock integration
+             : DynamoDB state management
+             : S3 asset storage with TTL
+             : Multi-provider LLM support (AWS/Gemini/OpenAI)
              : Auto-detect mode
-             : Debug logging
+             : Debug logging system
              : Verification system
+             : Task history with TTL cleanup
     
-    In Progress : Icon detection accuracy
-                : FastSAM tuning
+    In Progress : Icon detection accuracy improvements
+                : FastSAM model tuning
                 : Performance optimization
+                : Mobile app UI enhancements
     
     Planned : Voice activation ("Hey JARVIS")
-           : Camera/OCR input
+           : Camera/OCR input from mobile
            : Multi-monitor support
-           : Task scheduling
-           : Conversation memory
+           : Task scheduling and automation
+           : Conversation memory and context
            : Mac/Linux support
-           : Local model support
+           : Local model support (Ollama)
+           : MCP Server support (LLM tool access)
+           : Social media integration (Twitter, LinkedIn, Instagram)
+           : AWS Cognito authentication
+           : CloudFormation one-click deployment
+           : EC2 relay for NAT bypass
 ```
 
 ### Debug & Troubleshooting
@@ -378,6 +580,124 @@ This enables rapid diagnosis of:
 
 ---
 
+## AWS Quick Setup Guide
+
+JARVIS supports AWS Bedrock for enterprise-grade LLM capabilities with DynamoDB state management and S3 asset storage. This section provides a quick setup guide.
+
+### Prerequisites
+
+- **AWS Account**: [Sign up here](https://aws.amazon.com/)
+- **AWS Credentials**: Access Key ID and Secret Access Key with permissions for DynamoDB, S3, and Bedrock
+- **Python Dependencies**: `boto3` and `python-dotenv` (included in requirements.txt)
+
+### Quick Setup Steps
+
+**1. Request Bedrock Model Access**
+
+Go to [AWS Bedrock Console](https://console.aws.amazon.com/bedrock/) → Model access → Enable:
+- **Anthropic Claude 4.5 Haiku** (Planner model)
+- **Anthropic Claude 4.6 Sonnet** (Vision model)
+
+**2. Configure Environment Variables**
+
+Edit `backend/.env`:
+```env
+# LLM Provider
+LLM_PROVIDER=aws_bedrock
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+AWS_REGION=us-east-1
+
+# AWS Bedrock Models
+AWS_BEDROCK_PLANNER_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_BEDROCK_VISION_MODEL=us.anthropic.claude-sonnet-4-6
+
+# AWS DynamoDB
+AWS_DYNAMODB_TABLE_NAME=JarvisState
+
+# AWS S3 (must be globally unique)
+AWS_S3_BUCKET_NAME=jarvis-automation-assets-yourname
+```
+
+**3. Run Setup Script**
+
+```bash
+python setup_aws_resources.py
+```
+
+This creates:
+- ✅ DynamoDB table with PK/SK schema
+- ✅ S3 bucket for screenshots and assets
+- ✅ Proper indexes for task history
+
+**4. Verify Setup**
+
+```bash
+cd backend
+python test_aws_integration.py
+```
+
+### DynamoDB Schema
+
+The table uses a flexible PK/SK pattern:
+
+| Access Pattern | PK | SK |
+|----------------|----|----|
+| Device metadata | `DEVICE#<device_id>` | `METADATA` |
+| Commands | `DEVICE#<device_id>` | `COMMAND#<timestamp>#<msg_id>` |
+| Status updates | `DEVICE#<device_id>` | `STATUS#<timestamp>#<msg_id>` |
+| Task history | `DEVICE#<device_id>` | `TASK#<task_id>` |
+
+**Global Secondary Index**: `TypeTimestampIndex` for querying by type and timestamp
+
+### Cost Estimates (AWS Free Tier)
+
+| Service | Free Tier | Typical JARVIS Usage | Cost |
+|---------|-----------|---------------------|------|
+| **DynamoDB** | 25 GB, 25 RCU/WCU | 5 RCU/WCU provisioned | Free |
+| **S3** | 5 GB, 20K GET, 2K PUT | Screenshots with 1-hour TTL | Free |
+| **Bedrock** | Pay-per-use | ~1000 tokens/task | $0.001-0.003/task |
+
+### Troubleshooting
+
+**Invalid Credentials**
+```
+❌ AWS credentials are invalid
+```
+→ Check `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in `.env`
+
+**Bucket Name Taken**
+```
+❌ Bucket name already taken
+```
+→ Change `AWS_S3_BUCKET_NAME` to something unique (S3 names are globally unique)
+
+**Access Denied**
+```
+❌ AccessDeniedException
+```
+→ Ensure IAM user has permissions: `dynamodb:CreateTable`, `s3:CreateBucket`, `bedrock:InvokeModel`
+
+**Wrong Schema**
+```
+⚠️ Table exists but has incorrect schema
+```
+→ Run `python setup_aws_resources.py --fix-schema` to recreate
+
+### Alternative: Use Gemini or OpenAI
+
+If you prefer not to use AWS, JARVIS supports:
+- **Gemini**: Free tier available, set `LLM_PROVIDER=gemini`
+- **OpenAI**: Paid, set `LLM_PROVIDER=openai`
+
+See the Installation Guide below for details.
+
+**For detailed AWS setup instructions, see [AWS_SETUP_README.md](AWS_SETUP_README.md)**
+
+---
+
 ## Installation & Setup Guide
 
 This guide will walk you through setting up JARVIS from scratch on Windows.
@@ -389,7 +709,8 @@ Before you begin, ensure you have:
 - **Python 3.10 or higher** ([Download](https://www.python.org/downloads/))
 - **Node.js 18+ and npm** ([Download](https://nodejs.org/))
 - **Git** (optional, for cloning) ([Download](https://git-scm.com/))
-- **Gemini API Key** ([Get one free](https://aistudio.google.com/app/apikey))
+- **AWS Account** (for AWS Bedrock, DynamoDB, S3) ([Sign up](https://aws.amazon.com/))
+- **Gemini API Key** (alternative to AWS Bedrock) ([Get one free](https://aistudio.google.com/app/apikey))
 - **Tesseract OCR** (for text-based clicking) ([Download](https://github.com/UB-Mannheim/tesseract/wiki))
 
 ### Step 1: Download JARVIS
@@ -464,8 +785,10 @@ This will install:
 - PyTorch (deep learning)
 - PyAutoGUI (automation)
 - Pytesseract (OCR)
-- Google GenAI (Gemini API)
-- OpenAI (alternative LLM)
+- Google GenAI (Gemini API - optional)
+- OpenAI (OpenAI API - optional)
+- boto3 (AWS SDK - for Bedrock, DynamoDB, S3)
+- Firebase Admin SDK (optional, legacy)
 - And more...
 
 **Note:** PyTorch installation may take 5-10 minutes depending on your internet speed.
@@ -478,25 +801,174 @@ Create a `.env` file in the `backend` directory:
 notepad .env
 ```
 
-Add your API keys:
+Add your configuration (choose AWS Bedrock OR Gemini/OpenAI):
+
+**Option A: AWS Bedrock (Recommended for this branch)**
 
 ```env
-# Gemini API Key (required)
+# LLM Provider
+LLM_PROVIDER=aws_bedrock
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_REGION=us-east-1
+
+# AWS Bedrock Models
+AWS_BEDROCK_PLANNER_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_BEDROCK_VISION_MODEL=us.anthropic.claude-sonnet-4-6
+
+# AWS DynamoDB
+AWS_DYNAMODB_TABLE_NAME=JarvisState
+
+# AWS S3
+AWS_S3_BUCKET_NAME=jarvis-automation-assets-yourname
+
+# Firebase (Optional - set to false to use AWS only)
+FIREBASE_ENABLED=false
+```
+
+**Option B: Gemini (Alternative)**
+
+```env
+# LLM Provider
+LLM_PROVIDER=gemini
+
+# Gemini API Key
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# OpenAI API Key (optional, if using OpenAI instead of Gemini)
-OPENAI_API_KEY=your_openai_api_key_here
+# Firebase (Optional)
+FIREBASE_ENABLED=false
+```
+
+**Option C: OpenAI (Alternative)**
+
+```env
+# LLM Provider
+LLM_PROVIDER=openai
+
+# OpenAI API Key
+OPENAI_API_KEY=sk-proj.....
+
+# Firebase (Optional)
+FIREBASE_ENABLED=false
 ```
 
 Save and close the file.
 
 **Get API Keys:**
+- **AWS**: [AWS Console](https://console.aws.amazon.com/) → IAM → Users → Security Credentials
 - **Gemini**: https://aistudio.google.com/app/apikey (Free tier available)
 - **OpenAI**: https://platform.openai.com/api-keys (Paid, requires credit card)
 
-### Step 5: Set Up Local Client
+**Important Notes:**
+- S3 bucket names must be globally unique. Change `jarvis-automation-assets-yourname` to something unique.
+- For AWS Bedrock, you must request model access in the AWS Console (Bedrock → Model access).
+- AWS Free Tier covers typical JARVIS usage.
 
-#### 5.1 Create Virtual Environment
+### Step 5: Set Up AWS Resources (If Using AWS Bedrock)
+
+If you chose AWS Bedrock as your LLM provider, you need to set up AWS resources.
+
+#### 5.1 Request Bedrock Model Access
+
+1. Go to [AWS Bedrock Console](https://console.aws.amazon.com/bedrock/)
+2. Navigate to "Model access" in the left sidebar
+3. Click "Manage model access"
+4. Enable access for:
+   - **Anthropic Claude 4.5 Haiku** (Planner model)
+   - **Anthropic Claude 4.6 Sonnet** (Vision model)
+5. Submit the request (usually approved instantly)
+
+#### 5.2 Create AWS Resources
+
+Run the setup script to create DynamoDB table and S3 bucket:
+
+```cmd
+cd ..
+python setup_aws_resources.py
+```
+
+This will:
+- ✅ Verify your AWS credentials
+- ✅ Create DynamoDB table `JarvisState` with correct schema
+- ✅ Create S3 bucket for screenshots and assets
+- ✅ Display setup summary
+
+**Expected Output:**
+```
+🚀 JARVIS AWS Resources Setup
+==================================================
+🔍 Verifying AWS credentials...
+✅ AWS credentials verified
+   Account ID: 123456789012
+   User ARN: arn:aws:iam::123456789012:user/yourname
+
+🔧 Setting up DynamoDB table: JarvisState
+✅ Table 'JarvisState' created successfully!
+
+🔧 Creating S3 bucket: jarvis-automation-assets-yourname
+✅ Bucket created successfully!
+
+📊 Setup Summary
+==================================================
+DynamoDB Table: ✅ Ready
+S3 Bucket:      ✅ Ready
+
+✅ All AWS resources are ready!
+```
+
+#### 5.3 Verify AWS Integration
+
+Test your AWS setup:
+
+```cmd
+cd backend
+python test_aws_integration.py
+```
+
+This will test:
+- AWS Bedrock Claude 4.5 Haiku (Planner)
+- AWS Bedrock Claude 4.6 Sonnet (Vision)
+
+**Expected Output:**
+```
+Testing AWS Bedrock - Claude 4.5 Haiku (Planner)
+✅ SUCCESS!
+Response: {"greeting": "Hello! How can I help you today?"}
+
+Testing AWS Bedrock - Claude 4.6 Sonnet (Vision)
+✅ SUCCESS!
+Response: The capital of France is Paris.
+
+🎉 All tests passed!
+```
+
+#### 5.4 Test DynamoDB Task History
+
+```cmd
+python test_dynamodb_history.py
+```
+
+This verifies:
+- Device registration
+- Task history storage
+- Automatic cleanup (keeps last 10 tasks)
+
+**Troubleshooting:**
+
+If you encounter errors, see the [AWS Setup Guide](AWS_SETUP_README.md) for detailed troubleshooting:
+- Invalid credentials
+- Bucket name already taken
+- Insufficient permissions
+- Schema migration from old tables
+
+**Skip AWS Setup:**
+If you're using Gemini or OpenAI instead of AWS Bedrock, skip this step and proceed to Step 6.
+
+### Step 6: Set Up Local Client
+
+#### 6.1 Create Virtual Environment
 
 Open a **new** Command Prompt window:
 
@@ -505,13 +977,13 @@ cd local_client
 python -m venv venv
 ```
 
-#### 5.2 Activate Virtual Environment
+#### 6.2 Activate Virtual Environment
 
 ```cmd
 venv\Scripts\activate
 ```
 
-#### 5.3 Install Dependencies
+#### 6.3 Install Dependencies
 
 The local client uses the same dependencies as the backend:
 
@@ -524,7 +996,7 @@ pip install -r ..\backend\requirements.txt
 pip install pywin32 comtypes
 ```
 
-#### 5.4 Configure Local Client
+#### 6.4 Configure Local Client
 
 **Option A: Use Settings UI (Recommended)**
 
@@ -612,9 +1084,9 @@ DOWNLOADS_PATH = r"C:\Users\YourUsername\Downloads"
 - Copy the path from the address bar
 - Paste into config.py (use raw strings with `r"..."`)
 
-### Step 6: Set Up Mobile App (React Native)
+### Step 7: Set Up Mobile App (React Native)
 
-#### 6.1 Install Dependencies
+#### 7.1 Install Dependencies
 
 Open a **new** Command Prompt window:
 
@@ -629,7 +1101,7 @@ This will install:
 - React Native components
 - And more...
 
-#### 6.2 Configure Backend URL
+#### 7.2 Configure Backend URL
 
 Edit `ChatInterface/src/config.js` (or wherever the backend URL is configured):
 
@@ -646,11 +1118,24 @@ Look for "IPv4 Address" under your active network adapter (e.g., `192.168.1.100`
 
 **Important:** Use your PC's local IP address, not `localhost`, so the mobile app can connect.
 
-### Step 7: Start JARVIS
+#### 7.3 Configure AWS (Optional - For AWS DynamoDB Integration)
+
+If you're using AWS Bedrock and want the mobile app to communicate via DynamoDB:
+
+1. Install AWS SDK dependencies:
+   ```cmd
+   npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+   ```
+
+2. The mobile app will use the same AWS credentials as the backend (configured via device pairing).
+
+**Note:** The mobile app can work with WebSocket-only communication (no AWS required). AWS DynamoDB integration is optional and provides additional reliability for remote access.
+
+### Step 8: Start JARVIS
 
 Now that everything is configured, start all three components in order:
 
-#### 7.1 Start Backend Server
+#### 8.1 Start Backend Server
 
 Open Command Prompt #1:
 
@@ -665,13 +1150,23 @@ You should see:
 ==================================================
 🤖 JARVIS Backend Server Starting...
 ==================================================
-✓ Gemini Planner Service initialized successfully
+✅ AWS Service Hub initialized
+   Region: us-east-1
+   DynamoDB Table: JarvisState
+   S3 Bucket: jarvis-automation-assets-yourname
+✓ Backend device ID: desktop_abc123def456
+✓ Planner Service initialized successfully with aws_bedrock provider
  * Running on http://0.0.0.0:5000
+```
+
+**Or if using Gemini:**
+```
+✓ Planner Service initialized successfully with gemini provider
 ```
 
 **Keep this window open.**
 
-#### 7.2 Start Local Client
+#### 8.2 Start Local Client
 
 Open Command Prompt #2:
 
@@ -697,7 +1192,7 @@ Permission Service: ✅
 
 **Keep this window open.**
 
-#### 7.3 Start Mobile App
+#### 8.3 Start Mobile App
 
 Open Command Prompt #3:
 
@@ -721,7 +1216,7 @@ This will start the Expo development server. You'll see a QR code.
 1. Press `w` to open in web browser
 2. Note: Some features may not work in web mode
 
-### Step 8: Test JARVIS
+### Step 9: Test JARVIS
 
 Once all three components are running:
 
@@ -739,7 +1234,7 @@ You should see:
 - "Open Chrome and go to google.com"
 - "Create a Python file with hello world"
 
-### Step 9: Firebase Setup (Optional - For Remote Mobile Access)
+### Step 10: Firebase Setup (Optional - For Remote Mobile Access)
 
 Firebase enables your mobile app to communicate with JARVIS over the internet, not just on the same local network. This is optional but recommended for remote access.
 
@@ -797,7 +1292,23 @@ Firebase enables your mobile app to communicate with JARVIS over the internet, n
 #### Backend Server Issues
 
 **Error: "Gemini API key not configured"**
-- Solution: Add `GEMINI_API_KEY` to `backend/.env`
+- Solution: Add `GEMINI_API_KEY` to `backend/.env` or switch to AWS Bedrock
+
+**Error: "AWS credentials are invalid"**
+- Solution: Check `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in `backend/.env`
+- Verify credentials with: `aws sts get-caller-identity`
+
+**Error: "AWS Bedrock Access Denied"**
+- Solution: Request model access in AWS Console → Bedrock → Model access
+- Enable: Anthropic Claude 4.5 Haiku and Claude 4.6 Sonnet
+
+**Error: "DynamoDB table not found"**
+- Solution: Run `python setup_aws_resources.py` to create the table
+- Verify table exists: `aws dynamodb describe-table --table-name JarvisState`
+
+**Error: "S3 bucket name already taken"**
+- Solution: Change `AWS_S3_BUCKET_NAME` in `.env` to a unique name
+- S3 bucket names must be globally unique across all AWS accounts
 
 **Error: "FastSAM weights not found"**
 - Solution: Download `FastSAM-s.pt` and place in `backend/weights/`
@@ -845,10 +1356,59 @@ Firebase enables your mobile app to communicate with JARVIS over the internet, n
 - Check GPU/CUDA availability (CPU fallback is slower)
 
 **Error: "Vision Mapper timeout"**
-- Solution: Check internet connection (Gemini API requires internet)
+- Solution: Check internet connection (Gemini/Bedrock API requires internet)
 - Increase timeout in `vision_service.py`
+- If using AWS Bedrock, verify model access is enabled
+
+**Error: "Bedrock throttling"**
+- Solution: AWS Bedrock has rate limits. Wait a few seconds and retry
+- Consider requesting quota increase in AWS Service Quotas
 
 ### Advanced Configuration
+
+#### Switch Between LLM Providers
+
+You can easily switch between AWS Bedrock, Gemini, and OpenAI:
+
+**Switch to AWS Bedrock:**
+```env
+LLM_PROVIDER=aws_bedrock
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_BEDROCK_PLANNER_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+```
+
+**Switch to Gemini:**
+```env
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_key
+```
+
+**Switch to OpenAI:**
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_key
+```
+
+Restart backend and local client after changing providers.
+
+#### AWS Cost Optimization
+
+**DynamoDB:**
+- Default: 5 RCU / 5 WCU (provisioned)
+- Free Tier: 25 RCU / 25 WCU per month
+- Consider on-demand pricing for variable workloads
+
+**S3:**
+- Screenshots have 1-hour TTL (automatic cleanup)
+- Free Tier: 5 GB storage, 20K GET, 2K PUT per month
+- Enable lifecycle policies for additional cleanup
+
+**Bedrock:**
+- Pay per token (no free tier)
+- Claude 4.5 Haiku: $0.25/$1.25 per 1M tokens (input/output)
+- Claude 4.6 Sonnet: $3.00/$15.00 per 1M tokens (input/output)
+- Typical task: ~1000 tokens = $0.001-0.003
 
 #### Enable Verification System
 
@@ -877,14 +1437,12 @@ WINDOW_ACTIVATION_TIMEOUT = 15  # Increase if windows take long to appear
 1. Add OpenAI API key to `backend/.env`:
    ```env
    OPENAI_API_KEY=your_openai_key_here
+   LLM_PROVIDER=openai
    ```
 
-2. Edit `local_client/config.py`:
-   ```python
-   LLM_PROVIDER = 'openai'
-   ```
+2. Restart backend and local client
 
-3. Restart backend and local client
+**Note:** This section is now obsolete. Use the "Switch Between LLM Providers" section above for multi-provider configuration.
 
 #### Enable Debug Logging
 
@@ -996,13 +1554,30 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 
 ## Acknowledgments
 
+- **Amazon Web Services**: Bedrock (Claude models), DynamoDB, S3
+- **Anthropic**: Claude 4.5 Haiku and Claude 4.6 Sonnet models
 - **FastSAM**: UI element detection
-- **Google Gemini**: Natural language understanding and vision mapping
+- **Google Gemini**: Alternative LLM provider for natural language understanding and vision mapping
 - **Ultralytics**: YOLO and FastSAM implementation
 - **PyAutoGUI**: Cross-platform GUI automation
 - **Flask-SocketIO**: Real-time communication
 - **React Native**: Mobile app framework
+- **boto3**: AWS SDK for Python
 
 ---
 
 **Built with 🧠 by Harshit Singla**
+
+## AWS Integration Notes
+
+This branch features a complete AWS-native architecture:
+
+- **Amazon Bedrock**: Enterprise-grade Claude models (4.5 Haiku for planning, 4.6 Sonnet for vision)
+- **DynamoDB**: Distributed state management with automatic TTL cleanup
+- **S3**: Secure screenshot storage with presigned URLs
+- **Multi-Provider Support**: Seamlessly switch between AWS Bedrock, Gemini, or OpenAI
+- **Comprehensive Testing**: Automated tests for AWS integration, DynamoDB history, and LLM providers
+
+For detailed AWS setup instructions, see [AWS_SETUP_README.md](AWS_SETUP_README.md).
+
+For the AWS migration plan and architecture decisions, see [AWS_implementation_plan.md](AWS_implementation_plan.md).

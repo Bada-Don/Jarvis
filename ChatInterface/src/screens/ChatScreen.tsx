@@ -16,6 +16,7 @@ import {
     PermissionRequest,
 } from '../services/api';
 import { FirebaseService } from '../services/FirebaseService';
+import { AWSService } from '../services/AWSService';
 import { PairingManager } from '../services/PairingManager';
 import { isFirebaseConfigured } from '../config/firebase';
 
@@ -35,10 +36,10 @@ export default function ChatScreen() {
     const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
     const [showPairingScreen, setShowPairingScreen] = useState(false);
     const [isPaired, setIsPaired] = useState(false);
-    const [useFirebase, setUseFirebase] = useState(false);
+    const [useAWS, setUseAWS] = useState(true); // Always use AWS in this branch
     
-    // Firebase and Pairing services
-    const firebaseServiceRef = useRef<FirebaseService | null>(null);
+    // AWS and Pairing services
+    const awsServiceRef = useRef<AWSService | null>(null);
     const pairingManagerRef = useRef<PairingManager | null>(null);
     
     // Use ref to track progress message ID to avoid re-creating the effect
@@ -47,76 +48,87 @@ export default function ChatScreen() {
 
     // Initialize Firebase and Pairing on mount
     useEffect(() => {
-        initializeServices();
+        // Prevent double initialization in React StrictMode (development)
+        let initialized = false;
+        
+        const init = async () => {
+            if (initialized) return;
+            initialized = true;
+            await initializeServices();
+        };
+        
+        init();
+        
+        // Cleanup function
+        return () => {
+            initialized = false;
+        };
     }, []);
 
     const initializeServices = async () => {
         try {
-            // Check if Firebase is configured
-            const firebaseConfigured = isFirebaseConfigured();
+            console.log('☁️ AWS-only mode, initializing services...');
             
-            if (firebaseConfigured) {
-                console.log('🔥 Firebase is configured, initializing services...');
+            // Initialize PairingManager
+            const pairingManager = new PairingManager();
+            pairingManagerRef.current = pairingManager;
+            
+            // Check if already paired
+            const paired = await pairingManager.isPaired();
+            setIsPaired(paired);
+            
+            if (paired) {
+                // Get paired desktop ID
+                const desktopId = await pairingManager.getPairedDesktopId();
                 
-                // Initialize PairingManager
-                const pairingManager = new PairingManager();
-                pairingManagerRef.current = pairingManager;
-                
-                // Check if already paired
-                const paired = await pairingManager.isPaired();
-                setIsPaired(paired);
-                
-                if (paired) {
-                    // Get paired desktop ID
-                    const desktopId = await pairingManager.getPairedDesktopId();
+                if (desktopId) {
+                    // Get device ID
+                    const deviceId = await pairingManager.getDeviceId();
                     
-                    if (desktopId) {
-                        // Get device ID
-                        const deviceId = await pairingManager.getDeviceId();
-                        
-                        if (deviceId) {
-                            // Clean up existing Firebase service if any
-                            if (firebaseServiceRef.current) {
-                                firebaseServiceRef.current.disconnect();
-                            }
-                            
-                            // Initialize Firebase service
-                            const firebaseService = new FirebaseService(deviceId, desktopId);
-                            firebaseServiceRef.current = firebaseService;
-                            
-                            // Connect to Firebase
-                            await firebaseService.connect();
-                            
-                            // Clear old status messages to prevent showing stale errors
-                            await firebaseService.clearMessages();
-                            console.log('🧹 Cleared old status messages');
-                            
-                            // Set up status listener (this will remove any existing listener)
-                            firebaseService.listenForStatus(handleFirebaseStatus);
-                            
-                            setUseFirebase(true);
-                            console.log('✅ Firebase messaging enabled');
+                    if (deviceId) {
+                        // Clean up existing AWS service if any
+                        if (awsServiceRef.current) {
+                            awsServiceRef.current.disconnect();
                         }
+                        
+                        // Initialize AWS service
+                        const awsService = new AWSService(deviceId, desktopId, {
+                            region: process.env.EXPO_PUBLIC_AWS_REGION || 'us-east-1',
+                            accessKeyId: process.env.EXPO_PUBLIC_AWS_ACCESS_KEY_ID,
+                            secretAccessKey: process.env.EXPO_PUBLIC_AWS_SECRET_ACCESS_KEY,
+                            tableName: process.env.EXPO_PUBLIC_AWS_DYNAMODB_TABLE_NAME || 'JarvisState',
+                        });
+                        awsServiceRef.current = awsService;
+                        
+                        // Connect to AWS
+                        await awsService.connect();
+                        
+                        // Clear old status messages to prevent showing stale errors
+                        await awsService.clearMessages();
+                        console.log('🧹 Cleared old status messages');
+                        
+                        // Set up status listener
+                        awsService.listenForStatus(handleAWSStatus);
+                        
+                        setUseAWS(true);
+                        // Don't log here - already logged in listenForStatus
                     }
-                } else {
-                    console.log('⚠️ Device not paired. Showing pairing screen...');
-                    setShowPairingScreen(true);
                 }
             } else {
-                console.log('⚠️ Firebase not configured. Using WebSocket only.');
-                setUseFirebase(false);
+                console.log('⚠️ Device not paired. Showing pairing screen...');
+                setShowPairingScreen(true);
             }
         } catch (error) {
             console.error('❌ Failed to initialize services:', error);
             Alert.alert(
                 'Initialization Error',
-                'Failed to initialize Firebase services. Using local connection only.'
+                'Failed to initialize AWS services. Please check your configuration.'
             );
         }
     };
 
-    const handleFirebaseStatus = (status: any) => {
-        console.log('📱 Firebase status update:', status);
+    const handleAWSStatus = (status: any) => {
+        // Don't log here - already logged in AWSService
         
         // Extract progress info
         const progress = status.progress;
@@ -180,14 +192,14 @@ export default function ChatScreen() {
             clearTimeoutRef.current = setTimeout(() => {
                 progressMessageIdRef.current = null;
                 clearTimeoutRef.current = null;
-            }, 5000); // Increased from 3000 to 5000ms
+            }, 10000); // Increased to 10 seconds to prevent premature clearing
         }
     };
 
     // Connect to WebSocket status updates (fallback)
     useEffect(() => {
-        if (useFirebase) {
-            // Skip WebSocket if using Firebase
+        if (useAWS) {
+            // Skip WebSocket if using AWS
             return;
         }
         
@@ -270,7 +282,7 @@ export default function ChatScreen() {
                 clearTimeoutRef.current = setTimeout(() => {
                     progressMessageIdRef.current = null;
                     clearTimeoutRef.current = null;
-                }, 5000); // Increased from 3000 to 5000ms
+                }, 10000); // Increased to 10 seconds to prevent premature clearing
             }
         });
 
@@ -281,7 +293,7 @@ export default function ChatScreen() {
                 clearTimeout(clearTimeoutRef.current);
             }
         };
-    }, [useFirebase]);
+    }, [useAWS]);
 
     // Connect to permission requests
     useEffect(() => {
@@ -292,11 +304,11 @@ export default function ChatScreen() {
         return cleanup;
     }, []);
 
-    // Cleanup Firebase on unmount
+    // Cleanup AWS on unmount
     useEffect(() => {
         return () => {
-            if (firebaseServiceRef.current) {
-                firebaseServiceRef.current.disconnect();
+            if (awsServiceRef.current) {
+                awsServiceRef.current.disconnect();
             }
         };
     }, []);
@@ -345,10 +357,10 @@ export default function ChatScreen() {
 
     const handleUnpair = async () => {
         try {
-            // Disconnect Firebase
-            if (firebaseServiceRef.current) {
-                firebaseServiceRef.current.disconnect();
-                firebaseServiceRef.current = null;
+            // Disconnect AWS
+            if (awsServiceRef.current) {
+                awsServiceRef.current.disconnect();
+                awsServiceRef.current = null;
             }
 
             // Unpair device
@@ -358,7 +370,7 @@ export default function ChatScreen() {
 
             // Reset state
             setIsPaired(false);
-            setUseFirebase(false);
+            setUseAWS(false);
             setShowPairingScreen(true);
 
             Alert.alert(
@@ -400,12 +412,12 @@ export default function ChatScreen() {
                 await uploadFile(file.uri, file.name, file.type);
             }
 
-            // Send message via Firebase or WebSocket
+            // Send message via AWS or WebSocket
             if (text) {
-                if (useFirebase && firebaseServiceRef.current) {
-                    // Send via Firebase
-                    await firebaseServiceRef.current.sendCommand(text);
-                    console.log('✅ Command sent via Firebase');
+                if (useAWS && awsServiceRef.current) {
+                    // Send via AWS
+                    await awsServiceRef.current.sendCommand(text);
+                    console.log('✅ Command sent via AWS');
                 } else {
                     // Send via WebSocket
                     await sendMessage(text);
@@ -413,7 +425,7 @@ export default function ChatScreen() {
                 }
             }
 
-            // Progress updates will come via Firebase or WebSocket
+            // Progress updates will come via AWS or WebSocket
         } catch (error) {
             console.error('Error in handleSend:', error);
             setMessages((prev) => [
@@ -438,7 +450,7 @@ export default function ChatScreen() {
                 onCancel={() => {
                     setShowPairingScreen(false);
                     // Continue with WebSocket only
-                    setUseFirebase(false);
+                    setUseAWS(false);
                 }}
             />
         );
@@ -454,7 +466,7 @@ export default function ChatScreen() {
 
             <ChatHeader
                 title="Jarvis"
-                subtitle={useFirebase ? 'Online · Firebase' : 'Online · Local'}
+                subtitle={useAWS ? 'Online · AWS' : 'Online · Local'}
                 onUnpair={isPaired ? handleUnpair : undefined}
             />
 

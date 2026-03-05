@@ -424,6 +424,61 @@ class AWSServiceHub:
             print(f"❌ Failed to send command: {e}")
             return None
     
+    def poll_commands(self, device_id: str, last_timestamp: int = 0) -> List[Dict[str, Any]]:
+        """
+        Poll for new commands for this device.
+        
+        Args:
+            device_id: Device identifier to poll commands for
+            last_timestamp: Only return commands newer than this timestamp
+        
+        Returns:
+            List of command dictionaries
+        """
+        try:
+            # Query for unprocessed commands
+            response = self.table.query(
+                KeyConditionExpression='PK = :pk AND SK > :sk',
+                FilterExpression='#processed = :false',
+                ExpressionAttributeNames={
+                    '#processed': 'processed'
+                },
+                ExpressionAttributeValues={
+                    ':pk': f'DEVICE#{device_id}',
+                    ':sk': f'COMMAND#{last_timestamp}',
+                    ':false': False
+                },
+                ScanIndexForward=True,  # Sort ascending (oldest first)
+                Limit=50
+            )
+            
+            commands = response.get('Items', [])
+            
+            # Mark commands as processed
+            for command in commands:
+                try:
+                    self.table.update_item(
+                        Key={
+                            'PK': command['PK'],
+                            'SK': command['SK']
+                        },
+                        UpdateExpression='SET #processed = :true',
+                        ExpressionAttributeNames={
+                            '#processed': 'processed'
+                        },
+                        ExpressionAttributeValues={
+                            ':true': True
+                        }
+                    )
+                except Exception as e:
+                    print(f"⚠️ Failed to mark command as processed: {e}")
+            
+            return commands
+            
+        except ClientError as e:
+            print(f"❌ Failed to poll commands: {e}")
+            return []
+    
     def get_recent_status(self, device_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get recent status updates for a device.

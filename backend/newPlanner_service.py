@@ -726,41 +726,23 @@ You MUST include an "expected_final_state" field describing what the screen shou
 
 class PlannerService:
     def __init__(self, api_key: str = None, config: dict = None):
+        # SECURITY: Load all config from environment variables (.env), NOT from config.py
         if config is None:
-            try:
-                import sys
-                from pathlib import Path
-                local_client_path = Path(__file__).parent.parent / "local_client"
-                if str(local_client_path) not in sys.path:
-                    sys.path.insert(0, str(local_client_path))
-                import config as user_config
-                
-                config = {
-                    'WINDOWS_USERNAME': getattr(user_config, 'WINDOWS_USERNAME', 'user'),
-                    'DESKTOP_PATH': getattr(user_config, 'DESKTOP_PATH', r'C:\Users\user\Desktop'),
-                    'DOCUMENTS_PATH': getattr(user_config, 'DOCUMENTS_PATH', r'C:\Users\user\Documents'),
-                    'DOWNLOADS_PATH': getattr(user_config, 'DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
-                    'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
-                }
-                self.llm_provider = getattr(user_config, 'LLM_PROVIDER', 'gemini')
-                self.gemini_key = getattr(user_config, 'GEMINI_API_KEY', '')
-                self.openai_key = getattr(user_config, 'OPENAI_API_KEY', '')
-            except Exception as e:
-                print(f"Warning: Could not load config, using defaults: {e}")
-                config = {
-                    'WINDOWS_USERNAME': 'user', 'DESKTOP_PATH': r'C:\Users\user\Desktop',
-                    'DOCUMENTS_PATH': r'C:\Users\user\Documents', 'DOWNLOADS_PATH': r'C:\Users\user\Downloads',
-                    'STICKERS_PATH': r'D:\Stickers\New Briefcase'
-                }
-                self.llm_provider = 'gemini'
-                self.gemini_key = ''
-                self.openai_key = ''
+            # Load from environment variables only
+            config = {
+                'WINDOWS_USERNAME': os.getenv('WINDOWS_USERNAME', os.getenv('USERNAME', 'user')),
+                'DESKTOP_PATH': os.getenv('DESKTOP_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Desktop"),
+                'DOCUMENTS_PATH': os.getenv('DOCUMENTS_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Documents"),
+                'DOWNLOADS_PATH': os.getenv('DOWNLOADS_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Downloads"),
+                'STICKERS_PATH': os.getenv('STICKERS_PATH', r'D:\Stickers\New Briefcase'),
+            }
         
-        self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
-        self.gemini_key = config.get('GEMINI_API_KEY', getattr(self, 'gemini_key', ''))
-        self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
-        self.aws_region = config.get('AWS_REGION', getattr(self, 'aws_region', 'us-east-1'))
-        self.aws_bedrock_model = config.get('AWS_BEDROCK_PLANNER_MODEL', getattr(self, 'aws_bedrock_model', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'))
+        # Load credentials and provider settings from config (which comes from .env)
+        self.llm_provider = config.get('LLM_PROVIDER', os.getenv('LLM_PROVIDER', 'gemini'))
+        self.gemini_key = config.get('GEMINI_API_KEY', os.getenv('GEMINI_API_KEY', ''))
+        self.openai_key = config.get('OPENAI_API_KEY', os.getenv('OPENAI_API_KEY', ''))
+        self.aws_region = config.get('AWS_REGION', os.getenv('AWS_REGION', 'us-east-1'))
+        self.aws_bedrock_model = config.get('AWS_BEDROCK_PLANNER_MODEL', os.getenv('AWS_BEDROCK_PLANNER_MODEL', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'))
         self.config = config
         
         self.init_provider(api_key)

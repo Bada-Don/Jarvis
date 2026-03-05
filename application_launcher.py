@@ -10,6 +10,7 @@ import time
 import logging
 import signal
 import psutil
+import threading
 from pathlib import Path
 from typing import Dict, Optional
 from dataclasses import dataclass
@@ -64,6 +65,8 @@ class ApplicationLauncher:
         self.last_restart_time: Dict[str, datetime] = {}
         self.running = False
         self.shutdown_requested = False
+        self._log_files = {}
+        self._log_threads = {}
         
         # Setup logging
         self._setup_logging(log_level)
@@ -148,6 +151,54 @@ class ApplicationLauncher:
         self.shutdown_requested = True
         self.shutdown()
     
+    def _stream_output(self, component_id: str, stream, stream_type: str, log_file) -> None:
+        """
+        Stream output from subprocess to both console and log file.
+        
+        Args:
+            component_id: Component identifier
+            stream: Subprocess stream (stdout or stderr)
+            stream_type: Type of stream ('stdout' or 'stderr')
+            log_file: File handle to write logs to
+        """
+        config = self.components[component_id]
+        
+        # Color codes for different components (if terminal supports it)
+        colors = {
+            'backend': '\033[94m',      # Blue
+            'local_client': '\033[92m', # Green
+            'settings_ui': '\033[93m',  # Yellow
+        }
+        reset_color = '\033[0m'
+        
+        color = colors.get(component_id, '')
+        prefix = f"{color}[{config.name}]{reset_color} "
+        
+        try:
+            for line in iter(stream.readline, b''):
+                if not line:
+                    break
+                
+                try:
+                    decoded_line = line.decode('utf-8', errors='replace').rstrip()
+                except Exception:
+                    decoded_line = str(line).rstrip()
+                
+                if decoded_line:
+                    # Write to log file
+                    log_file.write(decoded_line + '\n')
+                    log_file.flush()
+                    
+                    # Also log to console with component prefix
+                    if stream_type == 'stderr':
+                        self.logger.warning(f"{prefix}{decoded_line}")
+                    else:
+                        self.logger.info(f"{prefix}{decoded_line}")
+        except Exception as e:
+            self.logger.error(f"Error streaming {stream_type} for {config.name}: {e}")
+        finally:
+            stream.close()
+    
     def start(self) -> bool:
         """
         Start all JARVIS components in the correct order.
@@ -227,13 +278,13 @@ class ApplicationLauncher:
             self.logger.info(f'   Stdout log: {stdout_log}')
             self.logger.info(f'   Stderr log: {stderr_log}')
             
-            # Start process with output redirected to log files
+            # Start process with PIPE for real-time output streaming
             process = subprocess.Popen(
                 [sys.executable, str(abs_script_path)],
                 cwd=config.working_dir,
                 env=env,
-                stdout=stdout_file,
-                stderr=stderr_file,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 stdin=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
             )
@@ -243,23 +294,34 @@ class ApplicationLauncher:
             self.restart_counts[component_id] = 0
             
             # Store file handles for cleanup
-            if not hasattr(self, '_log_files'):
-                self._log_files = {}
             self._log_files[component_id] = (stdout_file, stderr_file)
+            
+            # Start threads to stream output in real-time
+            stdout_thread = threading.Thread(
+                target=self._stream_output,
+                args=(component_id, process.stdout, 'stdout', stdout_file),
+                daemon=True,
+                name=f'{component_id}_stdout'
+            )
+            stderr_thread = threading.Thread(
+                target=self._stream_output,
+                args=(component_id, process.stderr, 'stderr', stderr_file),
+                daemon=True,
+                name=f'{component_id}_stderr'
+            )
+            
+            stdout_thread.start()
+            stderr_thread.start()
+            
+            # Store thread references
+            self._log_threads[component_id] = (stdout_thread, stderr_thread)
             
             # Verify process started
             time.sleep(0.5)
             if process.poll() is not None:
                 self.logger.error(f'{config.name} exited immediately with code {process.returncode}')
-                # Read error from log
-                stderr_file.flush()
-                try:
-                    with open(stderr_log, 'r', encoding='utf-8') as f:
-                        error_output = f.read()
-                        if error_output:
-                            self.logger.error(f'Error output:\n{error_output}')
-                except Exception:
-                    pass
+                # Give threads a moment to flush output
+                time.sleep(0.5)
                 return False
             
             self.logger.info(f'✅ {config.name} started (PID: {process.pid})')
@@ -455,8 +517,15 @@ class ApplicationLauncher:
         except Exception as e:
             self.logger.error(f'Error stopping {config.name}: {e}')
         finally:
+            # Wait for log threads to finish (give them a moment to flush)
+            if component_id in self._log_threads:
+                stdout_thread, stderr_thread = self._log_threads[component_id]
+                stdout_thread.join(timeout=2.0)
+                stderr_thread.join(timeout=2.0)
+                del self._log_threads[component_id]
+            
             # Close log files
-            if hasattr(self, '_log_files') and component_id in self._log_files:
+            if component_id in self._log_files:
                 stdout_file, stderr_file = self._log_files[component_id]
                 try:
                     stdout_file.close()

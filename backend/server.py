@@ -33,13 +33,30 @@ LOG_FILE = 'logs.txt'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Initialize Gemini Planner Service
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+# Initialize Planner Service with config from .env
 planner_service = None
 try:
-    planner_service = PlannerService()
-    print("✓ Gemini Planner Service initialized successfully", flush=True)
+    # Build config from environment variables only
+    config = {
+        'LLM_PROVIDER': os.getenv('LLM_PROVIDER', 'gemini'),
+        'GEMINI_API_KEY': os.getenv('GEMINI_API_KEY', ''),
+        'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+        'AWS_REGION': os.getenv('AWS_REGION', 'us-east-1'),
+        'AWS_BEDROCK_PLANNER_MODEL': os.getenv('AWS_BEDROCK_PLANNER_MODEL', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'),
+        'WINDOWS_USERNAME': os.getenv('WINDOWS_USERNAME', os.getenv('USERNAME', 'user')),
+        'DESKTOP_PATH': os.getenv('DESKTOP_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Desktop"),
+        'DOCUMENTS_PATH': os.getenv('DOCUMENTS_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Documents"),
+        'DOWNLOADS_PATH': os.getenv('DOWNLOADS_PATH', f"C:\\Users\\{os.getenv('USERNAME', 'user')}\\Downloads"),
+        'STICKERS_PATH': os.getenv('STICKERS_PATH', r'D:\Stickers\New Briefcase'),
+    }
+    planner_service = PlannerService(config=config)
+    print(f"✓ Planner Service initialized successfully with {config['LLM_PROVIDER']} provider", flush=True)
 except ValueError as e:
-    print(f"⚠ Gemini Planner Service not available: {e}", flush=True)
+    print(f"⚠ Planner Service not available: {e}", flush=True)
 
 
 def get_or_create_device_id():
@@ -243,15 +260,15 @@ def send_command_dual(command_payload):
 
 def send_status_dual(status_data):
     """
-    Send status update via both WebSocket and AWS/Firebase.
+    Send status update via WebSocket and AWS/Firebase (not both to avoid duplicates).
     
     Args:
         status_data: Status data to send
     """
-    # Send via WebSocket (existing behavior)
+    # Send via WebSocket for local connections
     socketio.emit('jarvis_status', status_data)
     
-    # Send via AWS if enabled (primary)
+    # Send via AWS if enabled (primary) - ONLY if mobile is paired
     if aws_enabled and aws_service and aws_service.device_id:
         try:
             import json
@@ -263,7 +280,9 @@ def send_status_dual(status_data):
                     paired_mobile_id = config.get('paired_device_id')
                     if paired_mobile_id:
                         aws_service.send_status(paired_mobile_id, status_data)
-                        print(f"📤 AWS status sent to mobile: {paired_mobile_id}", flush=True)
+                        # Only log once per status to reduce log spam
+                        if status_data.get('progress') in [5, 20, 50, 95, 100] or status_data.get('status') in ['error', 'success']:
+                            print(f"📤 AWS status sent: {status_data.get('message', '')[:50]}...", flush=True)
                         
                         # Save to task history if this is a task completion
                         if status_data.get('status') in ['completed', 'error']:
@@ -273,14 +292,12 @@ def send_status_dual(status_data):
                                 task_id,
                                 status_data
                             )
-                    else:
-                        print(f"⚠️ No paired mobile device ID in config", flush=True)
-            else:
-                print(f"⚠️ device_config.json not found, skipping AWS status", flush=True)
+                    # Don't log warning every time - only once at startup
+            # Don't log warning every time - only once at startup
         except Exception as e:
             print(f"⚠️ Error sending AWS status: {e}", flush=True)
     
-    # Fallback to Firebase if AWS not available
+    # Fallback to Firebase if AWS not available - ONLY if mobile is paired
     elif firebase_enabled and firebase_service and firebase_service.device_id:
         try:
             import json
@@ -292,11 +309,9 @@ def send_status_dual(status_data):
                     paired_mobile_id = config.get('paired_device_id')
                     if paired_mobile_id:
                         firebase_service.send_status(paired_mobile_id, status_data)
-                        print(f"📤 Firebase status sent to mobile: {paired_mobile_id}")
-                    else:
-                        print(f"⚠️ No paired mobile device ID in config")
-            else:
-                print(f"⚠️ device_config.json not found, skipping Firebase status")
+                        # Only log key status updates to reduce spam
+                        if status_data.get('progress') in [5, 20, 50, 95, 100] or status_data.get('status') in ['error', 'success']:
+                            print(f"📤 Firebase status sent: {status_data.get('message', '')[:50]}...")
         except Exception as e:
             print(f"⚠️ Error sending Firebase status: {e}")
 
@@ -574,6 +589,58 @@ if __name__ == '__main__':
     print("=" * 50, flush=True)
     print("🤖 JARVIS Backend Server Starting...", flush=True)
     print("=" * 50, flush=True)
+    
+    # Start AWS command polling in background thread
+    if aws_enabled and aws_service and aws_service.device_id:
+        import threading
+        
+        def poll_aws_commands():
+            """Poll AWS DynamoDB for incoming commands from mobile."""
+            last_timestamp = 0
+            print("👂 Starting AWS command polling...", flush=True)
+            
+            # Wait for server to start
+            import time
+            time.sleep(3)
+            
+            while True:
+                try:
+                    # Poll for new commands
+                    commands = aws_service.poll_commands(aws_service.device_id, last_timestamp)
+                    
+                    for command in commands:
+                        # Extract command text
+                        command_text = command.get('text', '')
+                        timestamp = command.get('timestamp', 0)
+                        
+                        if command_text:
+                            print(f"📥 AWS command received: {command_text}", flush=True)
+                            
+                            # Send directly to local client via WebSocket
+                            # This is the same as receiving via /api/process
+                            try:
+                                # Emit to connected clients (local_client)
+                                socketio.emit('aws_command', {'message': command_text})
+                                print(f"✅ AWS command forwarded to local client", flush=True)
+                            except Exception as e:
+                                print(f"❌ Error forwarding AWS command: {e}", flush=True)
+                        
+                        # Update last timestamp
+                        if timestamp > last_timestamp:
+                            last_timestamp = timestamp
+                    
+                    # Sleep for 2 seconds before next poll
+                    time.sleep(2)
+                    
+                except Exception as e:
+                    print(f"❌ Error in AWS polling: {e}", flush=True)
+                    import time
+                    time.sleep(5)  # Wait longer on error
+        
+        # Start polling thread
+        polling_thread = threading.Thread(target=poll_aws_commands, daemon=True)
+        polling_thread.start()
+        print("✅ AWS command polling started", flush=True)
     
     socketio.run(
         app, 

@@ -1,3 +1,8 @@
+// Polyfills for AWS SDK in React Native
+import './crypto-polyfill';
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
+
 import React, { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet } from 'react-native';

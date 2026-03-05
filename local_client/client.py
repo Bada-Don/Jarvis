@@ -108,6 +108,12 @@ error_handler = None
 @sio.event
 def connect():
     global permission_service, error_handler
+    
+    # Prevent duplicate initialization logging
+    if hasattr(connect, '_initialized'):
+        print('✅ Reconnected to JARVIS Server')
+        return
+    
     print('✅ Connected to JARVIS Server')
     
     try:
@@ -123,6 +129,8 @@ def connect():
             register_abort_handler(sio)
             print('✅ Permission service initialized')
         
+        # Mark as initialized
+        connect._initialized = True
         print('✅ Connection setup complete')
     except Exception as e:
         print(f'❌ Error in connect handler: {e}')
@@ -146,6 +154,15 @@ def connect_error(data):
 def command(data):
     print(f'📥 Received command: {data.get("action", "unknown")}')
     execute_command(data)
+
+
+@sio.event
+def aws_command(data):
+    """Handle commands received from AWS polling."""
+    print(f'📥 AWS command received via WebSocket: {data.get("message", "")}')
+    # Route through backend planner (same as Firebase commands)
+    handle_firebase_command({'type': 'command', 'text': data.get('message', '')})
+
 
 
 def get_or_create_device_id():
@@ -275,20 +292,22 @@ def send_status(message, status_type="info"):
                 'type': message.get('status', status_type),
                 'timestamp': time.time()
             }
-            print(f"📤 Progress: {message.get('message', '')} ({message.get('progress', 0)}%)")
+            # Only log key progress milestones to reduce spam
+            if message.get('progress') in [5, 20, 50, 95, 100]:
+                print(f"📤 Progress: {message.get('message', '')} ({message.get('progress', 0)}%)")
         else:
             status_data = {
                 'message': message,
                 'type': status_type,
                 'timestamp': time.time()
             }
-            print(f"📤 Status: {message}")
+            # Only log important status messages
+            if status_type in ['error', 'success', 'warning']:
+                print(f"📤 Status: {message}")
         
         # Send via WebSocket if connected
         if sio.connected:
             sio.emit('status_update', status_data)
-        else:
-            print(f"⚠️ Socket disconnected, skipping WebSocket status")
         
         # Send via Firebase if enabled
         if firebase_enabled and firebase_service and firebase_service.device_id:
@@ -310,18 +329,17 @@ def send_status(message, status_type="info"):
                             config = json.load(f)
                             paired_mobile_id = config.get('paired_device_id')
                 except Exception as e:
-                    print(f"⚠️ Error reading paired device ID: {e}")
+                    pass  # Silently skip if can't read config
             
             # Send status to paired mobile device (not desktop's own ID)
             if paired_mobile_id:
                 firebase_service.send_status(paired_mobile_id, 
                                             message if isinstance(message, dict) else {'message': message, 'type': status_type})
-                print(f"📤 Firebase status sent to mobile: {paired_mobile_id}")
-            else:
-                print(f"⚠️ No paired mobile device ID found, skipping Firebase status")
             
     except Exception as e:
-        print(f"Failed to send status: {e}")
+        # Only log errors, not every status send failure
+        if status_type == 'error':
+            print(f"Failed to send status: {e}")
 
 
 def execute_command(command_data):
@@ -633,8 +651,19 @@ def main():
     
     print("=" * 50)
     
+    # Check if Firebase is enabled in .env file
+    firebase_config_enabled = True
+    try:
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()  # Load from local_client/.env
+        firebase_enabled_env = os.getenv('FIREBASE_ENABLED', 'true').lower()
+        firebase_config_enabled = firebase_enabled_env in ['true', '1', 'yes']
+    except Exception as e:
+        print(f"⚠️ Could not read FIREBASE_ENABLED from .env: {e}")
+    
     # Initialize Firebase BEFORE connecting to SocketIO
-    if FIREBASE_SERVICE_AVAILABLE and device_id:
+    if firebase_config_enabled and FIREBASE_SERVICE_AVAILABLE and device_id:
         try:
             from pathlib import Path
             firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
@@ -674,6 +703,9 @@ def main():
             print(f'❌ Firebase initialization error: {e}')
             import traceback
             traceback.print_exc()
+    elif not firebase_config_enabled:
+        print('⚠️ Firebase disabled in .env (FIREBASE_ENABLED=false)')
+        print('✅ Using AWS for cloud communication')
     
     print("=" * 50)
     print("🔌 Connecting to backend server...")

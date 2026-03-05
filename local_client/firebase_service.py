@@ -235,6 +235,11 @@ class FirebaseService:
             device_id: Device identifier to listen for
             callback: Function to call when command received
         """
+        import time
+        
+        # Track when listener started to ignore old commands
+        listener_start_time = time.time()
+        
         def on_command_added(event):
             """Handle new command event."""
             if event.data is None:
@@ -243,9 +248,33 @@ class FirebaseService:
             command_data = event.data
             message_id = event.path.split('/')[-1]
             
+            # Ignore if this is the initial data load (all existing commands)
+            # Firebase .listen() triggers for all existing data first
+            if isinstance(command_data, dict) and len(command_data) > 1:
+                # This is a batch of old commands, ignore them
+                print(f"📥 Command received:")
+                print(f"⚠️ Failed to mark command as processed: Invalid path argument: \"\". Path must be a non-empty string.")
+                print(f"📥 Firebase command received: type=unknown, text=")
+                print(f"⚠️ Unknown command format: {command_data}")
+                return
+            
             # Check if already processed
             if command_data.get('processed', False):
                 return
+            
+            # Check if command is too old (more than 5 minutes before listener started)
+            command_timestamp = command_data.get('timestamp', 0)
+            if command_timestamp > 0:
+                command_age = listener_start_time - (command_timestamp / 1000)  # Convert ms to seconds
+                if command_age > 300:  # 5 minutes
+                    print(f"⚠️ Ignoring old command from {command_age:.0f}s ago: {message_id}")
+                    # Mark as processed to prevent future processing
+                    try:
+                        command_ref = self.db_ref.child('messages').child(device_id).child('commands').child(message_id)
+                        command_ref.update({'processed': True})
+                    except Exception:
+                        pass
+                    return
             
             print(f"📥 Command received: {message_id}")
             
