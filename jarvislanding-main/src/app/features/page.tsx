@@ -1,6 +1,7 @@
 "use client";
 
 import NavbarDemo from "@/components/resizable-navbar-demo";
+import Link from "next/link";
 import { FooterSection } from "@/components/footer-section";
 import { BackgroundBeams } from "@/components/ui/background-beams";
 import { MorphingText } from "@/components/ui/morphing-text";
