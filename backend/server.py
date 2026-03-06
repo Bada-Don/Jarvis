@@ -223,12 +223,13 @@ def chat():
     return jsonify({"status": "error", "message": "No message provided"}), 400
 
 
-def send_command_dual(command_payload):
+def send_command_dual(command_payload, target_device_id=None):
     """
     Send command via both WebSocket and AWS/Firebase.
 
     Args:
         command_payload: Command data to send
+        target_device_id: Optional specific device ID to target via AWS/Firebase
     """
     # Send via WebSocket (existing behavior)
     socketio.emit('command', command_payload)
@@ -238,18 +239,24 @@ def send_command_dual(command_payload):
         try:
             import json
             from pathlib import Path
-            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
-            if device_config_path.exists():
-                with open(device_config_path, 'r') as f:
-                    config = json.load(f)
-                    paired_mobile_id = config.get('paired_device_id')
-                    if paired_mobile_id:
-                        aws_service.send_command(paired_mobile_id, command_payload)
-                        print(f"📤 AWS command sent to mobile: {paired_mobile_id}", flush=True)
-                    else:
-                        print(f"⚠️ No paired mobile device ID in config", flush=True)
+            
+            # If target_device_id is provided, use it. Otherwise, use paired mobile ID.
+            if target_device_id:
+                aws_service.send_command(target_device_id, command_payload)
+                print(f"📤 AWS command sent to target device: {target_device_id}", flush=True)
             else:
-                print(f"⚠️ device_config.json not found, skipping AWS command", flush=True)
+                device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+                if device_config_path.exists():
+                    with open(device_config_path, 'r') as f:
+                        config = json.load(f)
+                        paired_mobile_id = config.get('paired_device_id')
+                        if paired_mobile_id:
+                            aws_service.send_command(paired_mobile_id, command_payload)
+                            print(f"📤 AWS command sent to mobile: {paired_mobile_id}", flush=True)
+                        else:
+                            print(f"⚠️ No paired mobile device ID in config", flush=True)
+                else:
+                    print(f"⚠️ device_config.json not found, skipping AWS command", flush=True)
         except Exception as e:
             print(f"⚠️ Error sending AWS command: {e}", flush=True)
 
@@ -258,16 +265,21 @@ def send_command_dual(command_payload):
         try:
             import json
             from pathlib import Path
-            device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
-            if device_config_path.exists():
-                with open(device_config_path, 'r') as f:
-                    config = json.load(f)
-                    paired_mobile_id = config.get('paired_device_id')
-                    if paired_mobile_id:
-                        firebase_service.send_command(paired_mobile_id, command_payload)
-                        print(f"📤 Firebase command sent to mobile: {paired_mobile_id}", flush=True)
-                    else:
-                        print(f"⚠️ No paired mobile device ID found", flush=True)
+            
+            if target_device_id:
+                firebase_service.send_command(target_device_id, command_payload)
+                print(f"📤 Firebase command sent to target device: {target_device_id}", flush=True)
+            else:
+                device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
+                if device_config_path.exists():
+                    with open(device_config_path, 'r') as f:
+                        config = json.load(f)
+                        paired_mobile_id = config.get('paired_device_id')
+                        if paired_mobile_id:
+                            firebase_service.send_command(paired_mobile_id, command_payload)
+                            print(f"📤 Firebase command sent to mobile: {paired_mobile_id}", flush=True)
+                        else:
+                            print(f"⚠️ No paired mobile device ID found", flush=True)
         except Exception as e:
             print(f"⚠️ Error sending Firebase command: {e}", flush=True)
 
@@ -498,6 +510,62 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     print('Client disconnected')
+
+@socketio.on('process_instruction')
+def handle_process_instruction(data):
+    """Socket.IO handler for receiving instructions from web/mobile clients."""
+    print("=" * 50, flush=True)
+    print("🔴 PROCESS_INSTRUCTION EVENT RECEIVED!", flush=True)
+    print(f"📦 Data: {data}", flush=True)
+    print("=" * 50, flush=True)
+    
+    text = data.get('text', '')
+    target_device_id = data.get('deviceId', None)
+    
+    print(f"📥 Received socket instruction: {text[:100]}", flush=True)
+    
+    if planner_service is None:
+        emit('jarvis_status', {
+            'message': 'Planner service not available.',
+            'status': 'error'
+        })
+        return
+
+    try:
+        # Emit status update
+        send_status_dual({
+            'message': 'Processing instruction...',
+            'status': 'running',
+            'progress': 10
+        })
+        
+        # Generate plan
+        plan = planner_service.generate_plan(text)
+        mode = plan.get('mode', 'general')
+        
+        # Construct payload
+        command_payload = {
+            "action": "execute_plan",
+            "plan": plan,
+            "user_command": text,
+            "mode": mode
+        }
+        
+        # Send via dual channel, targeting specific device if provided
+        send_command_dual(command_payload, target_device_id=target_device_id)
+        
+        emit('jarvis_status', {
+            'message': 'Plan sent to executor.',
+            'status': 'running',
+            'progress': 30
+        })
+        
+    except Exception as e:
+        print(f"❌ Socket process error: {e}", flush=True)
+        emit('jarvis_status', {
+            'message': f'Error: {str(e)}',
+            'status': 'error'
+        })
 
 @socketio.on('screen_update')
 def handle_screen_update(data):

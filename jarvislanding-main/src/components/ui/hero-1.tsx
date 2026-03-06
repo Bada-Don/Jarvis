@@ -62,18 +62,28 @@ export function Hero({
       </p>
 
       {/* CTA */}
-      {ctaLabel && (
-        <div className="flex justify-center">
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+        {ctaLabel && (
           <HoverBorderGradient
             containerClassName="rounded-full"
             as="a"
+            href={ctaHref}
             className="bg-black text-white flex items-center space-x-3 px-8 py-4 text-lg cursor-pointer"
           >
             <Download className="h-5 w-5" />
             <span>{ctaLabel}</span>
           </HoverBorderGradient>
-        </div>
-      )}
+        )}
+        <HoverBorderGradient
+          containerClassName="rounded-full"
+          as="a"
+          href="/demo"
+          className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 flex items-center space-x-3 px-8 py-4 text-lg cursor-pointer hover:bg-emerald-500/20 transition-all"
+        >
+          <ChevronRight className="h-5 w-5" />
+          <span>Test Drive JARVIS</span>
+        </HoverBorderGradient>
+      </div>
 
       {/* Bottom Fade */}
       <div

@@ -4,22 +4,30 @@ Connects to the backend server and executes automation commands on the local mac
 Supports both general computer automation and FlexiSIGN-specific tasks.
 """
 
+import os
+import sys
+from pathlib import Path
+
+# Add the script's directory to Python path so imports work correctly
+script_dir = Path(__file__).parent.resolve()
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+
 # Load environment variables first (before any other imports that use them)
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # Load from local_client/.env
+    env_path = script_dir / '.env'
+    load_dotenv(dotenv_path=env_path)  # Load from local_client/.env
 except ImportError:
     pass  # python-dotenv not installed, will use system environment variables
 
 import socketio
 import pyautogui
 import time
-import os
 import subprocess
 import psutil
 import win32gui
 import win32con
-import sys
 import requests
 
 # Import configuration
