@@ -23,8 +23,8 @@ export default function Home() {
         }
         subtitle="Control your computer with natural language. Just say what you want, and JARVIS handles the clicks, keystrokes, and navigation for you."
         eyebrow="AI-Powered Automation"
-        ctaLabel="Download"
-        ctaHref="#download"
+        ctaLabel="Test Drive JARVIS"
+        ctaHref="/demo"
       />
       <AboutSection />
       <CollaborationSection />

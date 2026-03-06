@@ -43,7 +43,7 @@ export default function NavbarDemo() {
         <NavItems items={navItems} />
         <div className="flex items-center gap-4">
           <NavbarButton variant="secondary">Documentation</NavbarButton>
-          <NavbarButton variant="primary">Download</NavbarButton>
+          <NavbarButton variant="primary" href="/demo">Test Drive JARVIS</NavbarButton>
         </div>
       </NavBody>
 
@@ -83,8 +83,9 @@ export default function NavbarDemo() {
               onClick={() => setIsMobileMenuOpen(false)}
               variant="primary"
               className="w-full"
+              href="/demo"
             >
-              Download
+              Test Drive JARVIS
             </NavbarButton>
           </div>
         </MobileNavMenu>

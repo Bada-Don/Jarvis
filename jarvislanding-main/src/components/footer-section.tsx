@@ -24,12 +24,12 @@ export function FooterSection() {
         {/* CTA Section */}
         <div className="text-center mb-20">
           <h3 className="text-2xl md:text-4xl font-bold mb-4">Ready to automate your workflow?</h3>
-          
-          <a 
-            href="#" 
+
+          <a
+            href="/demo"
             className="inline-flex items-center gap-2 bg-white text-black px-8 py-4 rounded-full font-bold hover:bg-gray-200 transition-colors"
           >
-            Download JARVIS
+            Test Drive JARVIS
             <ArrowUpRight className="w-5 h-5" />
           </a>
         </div>

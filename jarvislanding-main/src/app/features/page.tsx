@@ -8,12 +8,12 @@ import { GlowCard } from "@/components/ui/spotlight-card";
 import { TextScramble } from "@/components/ui/text-scramble";
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import { 
-  Zap, 
-  Eye, 
-  MessageSquare, 
-  Shield, 
-  Layers, 
+import {
+  Zap,
+  Eye,
+  MessageSquare,
+  Shield,
+  Layers,
   RefreshCw,
   Terminal,
   Cpu,
@@ -21,16 +21,16 @@ import {
 } from "lucide-react";
 import { PixelCanvas } from "@/components/ui/pixel-canvas";
 
-function AnimatedFeatureCard({ 
-  icon: Icon, 
-  title, 
-  description, 
+function AnimatedFeatureCard({
+  icon: Icon,
+  title,
+  description,
   glowColor,
-  delay = 0 
-}: { 
-  icon: React.ElementType; 
-  title: string; 
-  description: string; 
+  delay = 0
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
   glowColor: "blue" | "purple" | "green" | "orange";
   delay?: number;
 }) {
@@ -146,15 +146,15 @@ export default function FeaturesPage() {
   return (
     <main className="relative min-h-screen bg-black">
       <NavbarDemo />
-      
+
       {/* Hero Section */}
       <section className="relative pt-40 pb-24 px-6 md:px-8 overflow-hidden">
         <div className="absolute inset-0">
           <BackgroundBeams className="opacity-20" />
         </div>
         <div className="relative z-10 container mx-auto max-w-5xl text-center">
-          <MorphingText 
-            texts={["Features", "Capabilities", "Power"]} 
+          <MorphingText
+            texts={["Features", "Capabilities", "Power"]}
             className="text-white mb-6"
           />
           <p className="text-xl text-gray-400 max-w-2xl mx-auto mt-10">
@@ -184,7 +184,7 @@ export default function FeaturesPage() {
               Built from the ground up for intelligent automation
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {coreFeatures.map((feature, idx) => (
               <AnimatedFeatureCard
@@ -207,10 +207,10 @@ export default function FeaturesPage() {
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">How It Works</h2>
             <p className="text-gray-400">Three simple steps to automation</p>
           </div>
-          
+
           <div className="relative">
             <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-neutral-800 to-transparent -translate-y-1/2" />
-            
+
             <div className="grid md:grid-cols-3 gap-8 relative">
               {[
                 { step: "01", title: "Speak", desc: "Tell JARVIS what you want to accomplish" },
@@ -246,11 +246,11 @@ export default function FeaturesPage() {
               Advanced Capabilities
             </h2>
             <p className="text-gray-400 max-w-2xl mx-auto">
-              JARVIS goes beyond simple automation. With cutting-edge AI and a modular architecture, 
+              JARVIS goes beyond simple automation. With cutting-edge AI and a modular architecture,
               it adapts to your unique workflow needs.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-3 gap-6">
             {advancedCapabilities.map((cap, idx) => (
               <motion.div
@@ -260,7 +260,7 @@ export default function FeaturesPage() {
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.15 }}
               >
-                <button 
+                <button
                   className="group relative w-full overflow-hidden border border-neutral-800 rounded-[32px] aspect-square transition-colors duration-200 hover:border-[var(--active-color)] focus:outline-none"
                   style={{ "--active-color": cap.color } as React.CSSProperties}
                 >
@@ -289,12 +289,14 @@ export default function FeaturesPage() {
             Ready to Get Started?
           </h2>
           <p className="text-gray-400 mb-10">
-            Download JARVIS today and experience the future of computer automation.
+            Test drive JARVIS today and experience the future of computer automation.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors">
-              Download Now
-            </button>
+            <Link href="/demo">
+              <button className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors">
+                Test Drive JARVIS
+              </button>
+            </Link>
             <button className="px-8 py-3 border border-neutral-700 text-white font-semibold rounded-full hover:bg-neutral-900 transition-colors">
               View Documentation
             </button>
