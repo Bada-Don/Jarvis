@@ -29,11 +29,13 @@ export default function JarvisDemoPortal() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat
+  // Auto-scroll chat without jumping the whole page
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Establish Socket.IO connection
@@ -98,7 +100,7 @@ export default function JarvisDemoPortal() {
       console.log('⚠️ Command is empty');
       return;
     }
-    
+
     if (!socket) {
       console.log('❌ Socket is null');
       return;
@@ -176,7 +178,10 @@ export default function JarvisDemoPortal() {
             />
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+          <div
+            ref={chatContainerRef}
+            className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide"
+          >
             {messages.map((msg, i) => (
               <div
                 key={i}
@@ -193,7 +198,6 @@ export default function JarvisDemoPortal() {
                 </div>
               </div>
             ))}
-            <div ref={chatEndRef} />
           </div>
 
           <div className="p-4 border-t border-zinc-800 bg-zinc-900/20">
