@@ -9,6 +9,8 @@ This module implements a Router -> Planner architecture.
 
 import os
 import json
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from llm_provider import GeminiProvider, OpenAIProvider, AWSBedrockProvider
 
@@ -806,12 +808,16 @@ Return ONLY a JSON object exactly like this (no markdown):
         mode = route_data.get("mode", "general")
         modules = route_data.get("modules",[])
         
+        # Create a "Safe" config that keeps the placeholder names literal for the LLM
+        # This prevents leaking real paths/usernames to the LLM.
+        safe_config = {k: f"{{{k}}}" for k in self.config.keys()}
+        
         # If FlexiSIGN is detected, use the exact original Flexisign prompt ONLY.
         if mode == "flexisign" or "flexisign" in modules:
-            return MODULE_FLEXISIGN.format(**self.config)
+            return MODULE_FLEXISIGN.format(**safe_config)
             
         # Assemble General Prompt
-        final_prompt = BASE_PROMPT.format(**self.config)
+        final_prompt = BASE_PROMPT.format(**safe_config)
         
         if "ui_os" in modules: final_prompt += "\n" + MODULE_UI_OS
         if "email" in modules: final_prompt += "\n" + MODULE_EMAIL
@@ -856,6 +862,9 @@ Return ONLY a JSON object exactly like this (no markdown):
             )
             print(f"DEBUG: RAW AI RESPONSE:\n{response_text}\n--- END RAW ---")
             
+            # Privacy Audit: Log the safe prompt and raw response
+            self._log_privacy_audit(system_prompt, response_text)
+            
             response_text = response_text.strip()
             
             if response_text.startswith('```'):
@@ -873,6 +882,9 @@ Return ONLY a JSON object exactly like this (no markdown):
                 plan = safe_json_loads(response_text)
             except ImportError:
                 plan = json.loads(response_text)
+
+            # 4. Resolve placeholders in the generated plan LOCALLY (for privacy)
+            plan = self._resolve_placeholders(plan)
             
             self._validate_plan(plan)
             
@@ -893,6 +905,48 @@ Return ONLY a JSON object exactly like this (no markdown):
             raise ValueError(f"Invalid JSON response from Planner Model: {e}")
         except Exception as e:
             raise Exception(f"Failed to generate plan: {e}")
+
+    def _resolve_placeholders(self, data):
+        """Recursively resolve placeholders in strings within a dictionary or list."""
+        if isinstance(data, str):
+            # Resolve placeholders using self.config
+            try:
+                return data.format(**self.config)
+            except (KeyError, ValueError, IndexError):
+                # If formatting fails (e.g. unknown key or malformed braces), return original
+                return data
+        elif isinstance(data, list):
+            return [self._resolve_placeholders(item) for item in data]
+        elif isinstance(data, dict):
+            return {key: self._resolve_placeholders(value) for key, value in data.items()}
+        return data
+
+    def _log_privacy_audit(self, system_prompt: str, raw_response: str):
+        """Logs the safe system prompt and raw LLM response for privacy auditing."""
+        try:
+            # Determine log directory (relative to current file's parent's parent -> root/local_client/debug_logs)
+            log_dir = Path(__file__).parent.parent / "local_client" / "debug_logs" / "privacy_audit"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = log_dir / f"audit_{timestamp}.txt"
+            
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write("="*80 + "\n")
+                f.write(f"PRIVACY AUDIT LOG - {datetime.now().isoformat()}\n")
+                f.write("="*80 + "\n\n")
+                f.write("--- [SAFE SYSTEM PROMPT SENT TO LLM] ---\n")
+                f.write("(Contains abstract placeholders, no real paths/usernames)\n\n")
+                f.write(system_prompt)
+                f.write("\n\n" + "-"*40 + "\n\n")
+                f.write("--- [RAW RESPONSE RECEIVED FROM LLM] ---\n")
+                f.write("(Contains abstract placeholders to be resolved locally)\n\n")
+                f.write(raw_response)
+                f.write("\n\n" + "="*80 + "\n")
+                
+            print(f"Privacy audit log saved to: {log_file}")
+        except Exception as e:
+            print(f"Failed to save privacy audit log: {e}")
     
     def _validate_plan(self, plan: dict) -> None:
         """Validation logic kept identical"""
