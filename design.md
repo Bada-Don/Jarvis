@@ -278,7 +278,7 @@ User Command → Planner Model → Execution Plan
 ```json
 {
   "type": "shell_command",
-  "command": "mkdir \"%USERPROFILE%\\Desktop\\Folder\"",
+  "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\Folder\"",
   "desc": "Create folder on Desktop"
 }
 ```
@@ -287,7 +287,7 @@ User Command → Planner Model → Execution Plan
 ```json
 {
   "type": "write_file",
-  "path": "%USERPROFILE%\\Desktop\\script.py",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\script.py",
   "content": "print('Hello')",
   "desc": "Write Python script"
 }

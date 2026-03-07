@@ -712,8 +712,8 @@ if __name__ == '__main__':
                         if timestamp > last_timestamp:
                             last_timestamp = timestamp
                     
-                    # Sleep for 2 seconds before next poll
-                    time.sleep(2)
+                    # Sleep briefly before next poll for better responsiveness
+                    time.sleep(0.5)
                     
                 except Exception as e:
                     print(f"❌ Error in AWS polling: {e}", flush=True)

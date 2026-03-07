@@ -15,7 +15,7 @@ JARVIS operates on **THREE execution planes**, not just vision:
 #### **Plane 1: Command-Line Operations (PRIORITY #1)**
 ```python
 # Shell commands - FASTEST and MOST RELIABLE
-{"type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\""}
+{"type": "shell_command", "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\""}
 {"type": "shell_command", "command": "type nul > file.txt"}
 {"type": "shell_command", "command": "start \"\" \"path\\to\\file.txt\""}
 ```
@@ -73,10 +73,10 @@ EXECUTION PRIORITY RULES (STRICT ORDER):
 ```json
 {
   "sequence": [
-    {"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\LabCode\""},
-    {"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", 
+    {"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\""},
+    {"order": 2, "type": "write_file", "path": "%USERPROFILE%\\OneDrive\\Desktop\\LabCode\\bubble_sort.py", 
      "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n    return arr"},
-    {"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\""},
+    {"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\""},
     {"order": 4, "type": "keyboard", "value": "ctrl+`"},
     {"order": 5, "type": "keyboard", "value": "python bubble_sort.py"},
     {"order": 6, "type": "keyboard", "value": "enter"}

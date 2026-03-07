@@ -158,13 +158,13 @@ All Windows environment variables now work correctly:
     {
       "order": 1,
       "type": "shell_command",
-      "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\"",
+      "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\"",
       "desc": "Create AI Lab folder"
     },
     {
       "order": 2,
       "type": "shell_command",
-      "command": "explorer \"%USERPROFILE%\\Desktop\\AI Lab\"",
+      "command": "explorer \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\"",
       "desc": "Open AI Lab folder"
     }
   ]
@@ -180,14 +180,14 @@ All Windows environment variables now work correctly:
     {
       "order": 1,
       "type": "write_file",
-      "path": "%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt",
+      "path": "%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\\Practical 1.txt",
       "content": "AIM: BFS Implementation...",
       "desc": "Create practical file"
     },
     {
       "order": 2,
       "type": "shell_command",
-      "command": "explorer \"%USERPROFILE%\\Desktop\\AI Lab\"",
+      "command": "explorer \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\"",
       "desc": "Open folder"
     }
   ]

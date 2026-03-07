@@ -41,7 +41,7 @@ def write_file(path: str, content: str, encoding: str = 'utf-8') -> Tuple[bool, 
         >>> write_file("~/Desktop/test.py", "print('Hello')")
         (True, "File written successfully: C:\\Users\\user\\Desktop\\test.py")
         
-        >>> write_file("%USERPROFILE%\\Desktop\\test.py", "print('Hello')")
+        >>> write_file("%USERPROFILE%\\OneDrive\\Desktop\\test.py", "print('Hello')")
         (True, "File written successfully: C:\\Users\\user\\Desktop\\test.py")
         
         >>> write_file("C:\\temp\\script.py", "def bubble_sort(arr):\\n    pass")

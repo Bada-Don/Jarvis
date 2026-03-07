@@ -165,9 +165,9 @@ The planner uses a **two-stage Router → Planner architecture** for maximum eff
 {
   "mode": "general",
   "sequence": [
-    {"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Create folder"},
-    {"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\script.py", "content": "def hello():\n    print('Hello')", "desc": "Write Python file"},
-    {"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Open VS Code"},
+    {"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\"", "desc": "Create folder"},
+    {"order": 2, "type": "write_file", "path": "%USERPROFILE%\\OneDrive\\Desktop\\LabCode\\script.py", "content": "def hello():\n    print('Hello')", "desc": "Write Python file"},
+    {"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\OneDrive\\Desktop\\LabCode\"", "desc": "Open VS Code"},
     {"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open terminal"}
   ],
   "expected_final_state": "VS Code showing script.py with terminal open"

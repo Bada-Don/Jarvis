@@ -6,9 +6,9 @@ import { ChatInput } from '../components/ChatInput';
 import { PermissionModal } from '../components/PermissionModal';
 import { AbortButton } from '../components/AbortButton';
 import { PairingScreen } from './PairingScreen';
-import { 
-    sendMessage, 
-    uploadFile, 
+import {
+    sendMessage,
+    uploadFile,
     connectToStatusUpdates,
     connectToPermissionRequests,
     sendPermissionResponse,
@@ -37,11 +37,11 @@ export default function ChatScreen() {
     const [showPairingScreen, setShowPairingScreen] = useState(false);
     const [isPaired, setIsPaired] = useState(false);
     const [useAWS, setUseAWS] = useState(true); // Always use AWS in this branch
-    
+
     // AWS and Pairing services
     const awsServiceRef = useRef<AWSService | null>(null);
     const pairingManagerRef = useRef<PairingManager | null>(null);
-    
+
     // Use ref to track progress message ID to avoid re-creating the effect
     const progressMessageIdRef = useRef<string | null>(null);
     const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,15 +50,15 @@ export default function ChatScreen() {
     useEffect(() => {
         // Prevent double initialization in React StrictMode (development)
         let initialized = false;
-        
+
         const init = async () => {
             if (initialized) return;
             initialized = true;
             await initializeServices();
         };
-        
+
         init();
-        
+
         // Cleanup function
         return () => {
             initialized = false;
@@ -68,29 +68,29 @@ export default function ChatScreen() {
     const initializeServices = async () => {
         try {
             console.log('☁️ AWS-only mode, initializing services...');
-            
+
             // Initialize PairingManager
             const pairingManager = new PairingManager();
             pairingManagerRef.current = pairingManager;
-            
+
             // Check if already paired
             const paired = await pairingManager.isPaired();
             setIsPaired(paired);
-            
+
             if (paired) {
                 // Get paired desktop ID
                 const desktopId = await pairingManager.getPairedDesktopId();
-                
+
                 if (desktopId) {
                     // Get device ID
                     const deviceId = await pairingManager.getDeviceId();
-                    
+
                     if (deviceId) {
                         // Clean up existing AWS service if any
                         if (awsServiceRef.current) {
                             awsServiceRef.current.disconnect();
                         }
-                        
+
                         // Initialize AWS service
                         const awsService = new AWSService(deviceId, desktopId, {
                             region: process.env.EXPO_PUBLIC_AWS_REGION || 'us-east-1',
@@ -99,17 +99,17 @@ export default function ChatScreen() {
                             tableName: process.env.EXPO_PUBLIC_AWS_DYNAMODB_TABLE_NAME || 'JarvisState',
                         });
                         awsServiceRef.current = awsService;
-                        
+
                         // Connect to AWS
                         await awsService.connect();
-                        
+
                         // Clear old status messages to prevent showing stale errors
                         await awsService.clearMessages();
                         console.log('🧹 Cleared old status messages');
-                        
+
                         // Set up status listener
                         awsService.listenForStatus(handleAWSStatus);
-                        
+
                         setUseAWS(true);
                         // Don't log here - already logged in listenForStatus
                     }
@@ -129,12 +129,12 @@ export default function ChatScreen() {
 
     const handleAWSStatus = (status: any) => {
         // Don't log here - already logged in AWSService
-        
+
         // Extract progress info
         const progress = status.progress;
         const message = status.message;
         const statusType = status.status || status.type;
-        
+
         // Update task running state
         if (progress !== undefined) {
             if (progress > 0 && progress < 100 && statusType !== 'success' && statusType !== 'error') {
@@ -143,10 +143,10 @@ export default function ChatScreen() {
                 setIsTaskRunning(false);
             }
         }
-        
+
         // Determine the final status
         const progressStatus = statusType === 'success' ? 'success' : statusType === 'error' ? 'error' : 'running';
-        
+
         // Check if we have an existing progress message to update
         if (progressMessageIdRef.current) {
             // Update existing progress message
@@ -154,11 +154,11 @@ export default function ChatScreen() {
                 prev.map((msg) =>
                     msg.id === progressMessageIdRef.current
                         ? {
-                              ...msg,
-                              progress: progress,
-                              progressTitle: message,
-                              progressStatus: progressStatus,
-                          }
+                            ...msg,
+                            progress: progress,
+                            progressTitle: message,
+                            progressStatus: progressStatus,
+                        }
                         : msg
                 )
             );
@@ -166,7 +166,7 @@ export default function ChatScreen() {
             // Create new progress message
             const newProgressId = createId();
             progressMessageIdRef.current = newProgressId;
-            
+
             setMessages((prev) => [
                 ...prev,
                 {
@@ -180,7 +180,7 @@ export default function ChatScreen() {
                 },
             ]);
         }
-        
+
         // Only clear progress message ID when task is truly complete
         // Don't clear immediately to prevent creating duplicate progress cards
         if ((statusType === 'success' || statusType === 'error') && progress >= 100) {
@@ -202,39 +202,39 @@ export default function ChatScreen() {
             // Skip WebSocket if using AWS
             return;
         }
-        
+
         const cleanup = connectToStatusUpdates((statusData) => {
             console.log('Status update received:', statusData);
-            
+
             // Parse the data - handle nested message structure
             let progressData = statusData;
-            
+
             // If message is an object with progress data, use that
             if (typeof statusData.message === 'object' && statusData.message.progress !== undefined) {
                 progressData = statusData.message;
             }
-            
+
             // Extract progress info
             const progress = progressData.progress;
             const message = progressData.message || statusData.message;
             const status = progressData.status || statusData.type;
             const error = progressData.error;
-            
+
             // Only handle progress updates (not regular status messages)
             if (progress === undefined) {
                 return;
             }
-            
+
             // Update task running state based on progress
             if (progress > 0 && progress < 100 && status !== 'success' && status !== 'error') {
                 setIsTaskRunning(true);
             } else if (status === 'success' || status === 'error' || progress >= 100) {
                 setIsTaskRunning(false);
             }
-            
+
             // Determine the final status
             const progressStatus = status === 'success' || status === 'error' ? status : 'running';
-            
+
             // Check if we have an existing progress message to update
             if (progressMessageIdRef.current) {
                 // Update existing progress message in-place
@@ -242,12 +242,12 @@ export default function ChatScreen() {
                     prev.map((msg) =>
                         msg.id === progressMessageIdRef.current
                             ? {
-                                  ...msg,
-                                  progress: progress,
-                                  progressTitle: message,
-                                  progressStatus: progressStatus,
-                                  errorMessage: error,
-                              }
+                                ...msg,
+                                progress: progress,
+                                progressTitle: message,
+                                progressStatus: progressStatus,
+                                errorMessage: error,
+                            }
                             : msg
                     )
                 );
@@ -255,7 +255,7 @@ export default function ChatScreen() {
                 // Create new progress message
                 const newProgressId = createId();
                 progressMessageIdRef.current = newProgressId;
-                
+
                 setMessages((prev) => [
                     ...prev,
                     {
@@ -270,7 +270,7 @@ export default function ChatScreen() {
                     },
                 ]);
             }
-            
+
             // Only clear progress message ID when task is truly complete
             // Don't clear immediately to prevent creating duplicate progress cards
             if ((status === 'success' || status === 'error') && progress >= 100) {
@@ -316,10 +316,10 @@ export default function ChatScreen() {
     const handlePairingComplete = async () => {
         setShowPairingScreen(false);
         setIsPaired(true);
-        
+
         // Reinitialize services after pairing
         await initializeServices();
-        
+
         Alert.alert(
             'Pairing Complete',
             'Your device is now paired with the desktop application. You can now send commands remotely!'
@@ -343,7 +343,7 @@ export default function ChatScreen() {
     const handleAbortTask = () => {
         abortTask();
         setIsTaskRunning(false);
-        
+
         // Add abort message to chat
         setMessages((prev) => [
             ...prev,
@@ -414,10 +414,21 @@ export default function ChatScreen() {
 
             // Send message via AWS or WebSocket
             if (text) {
-                if (useAWS && awsServiceRef.current) {
-                    // Send via AWS
-                    await awsServiceRef.current.sendCommand(text);
-                    console.log('✅ Command sent via AWS');
+                if (useAWS) {
+                    // If AWS is requested but service isn't ready yet, wait briefly
+                    if (!awsServiceRef.current) {
+                        console.log('⏳ Waiting for AWS service initialization...');
+                        // Short sleep to allow init
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+
+                    if (awsServiceRef.current) {
+                        // Send via AWS
+                        await awsServiceRef.current.sendCommand(text);
+                        console.log('✅ Command sent via AWS');
+                    } else {
+                        throw new Error('AWS service not initialized. Please check your connection.');
+                    }
                 } else {
                     // Send via WebSocket
                     await sendMessage(text);
@@ -457,7 +468,7 @@ export default function ChatScreen() {
     }
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
@@ -474,9 +485,9 @@ export default function ChatScreen() {
                 <MessageList messages={messages} />
             </View>
 
-            <AbortButton 
-                visible={isTaskRunning} 
-                onAbort={handleAbortTask} 
+            <AbortButton
+                visible={isTaskRunning}
+                onAbort={handleAbortTask}
             />
 
             <ChatInput

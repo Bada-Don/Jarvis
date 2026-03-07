@@ -222,10 +222,10 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 
 **Examples**:
 ```json
-{"type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Create folder"}
-{"type": "shell_command", "command": "type nul > \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Create file"}
-{"type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Open file"}
-{"type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Open folder"}
+{"type": "shell_command", "command": "mkdir \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\"", "desc": "Create folder"}
+{"type": "shell_command", "command": "type nul > \"%USERPROFILE%\\OneDrive\\Desktop\\notes.txt\"", "desc": "Create file"}
+{"type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\OneDrive\\Desktop\\notes.txt\"", "desc": "Open file"}
+{"type": "shell_command", "command": "explorer \"%USERPROFILE%\\OneDrive\\Desktop\\AI Lab\"", "desc": "Open folder"}
 ```
 
 ---
@@ -249,7 +249,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 ```json
 {
   "type": "write_file",
-  "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\LabCode\\bubble_sort.py",
   "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n    return arr",
   "desc": "Write bubble sort program"
 }
@@ -268,7 +268,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 
 **Examples**:
 ```json
-{"type": "read_file", "path": "%USERPROFILE%\\Desktop\\script.py", "desc": "Read script"}
+{"type": "read_file", "path": "%USERPROFILE%\\OneDrive\\Desktop\\script.py", "desc": "Read script"}
 ```
 
 #### `append_file`
@@ -284,7 +284,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 
 **Examples**:
 ```json
-{"type": "append_file", "path": "%USERPROFILE%\\Desktop\\log.txt", "content": "New log entry\n", "desc": "Append to log"}
+{"type": "append_file", "path": "%USERPROFILE%\\OneDrive\\Desktop\\log.txt", "content": "New log entry\n", "desc": "Append to log"}
 ```
 
 #### `create_directory`
@@ -299,7 +299,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 
 **Examples**:
 ```json
-{"type": "create_directory", "path": "%USERPROFILE%\\Desktop\\Projects\\Python", "desc": "Create nested folders"}
+{"type": "create_directory", "path": "%USERPROFILE%\\OneDrive\\Desktop\\Projects\\Python", "desc": "Create nested folders"}
 ```
 
 ---
@@ -326,7 +326,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 ```json
 {
   "type": "replace_in_file",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\form.txt",
   "old_text": "Name: John Doe",
   "new_text": "Name: Harshit Singla",
   "desc": "Update name field"
@@ -350,7 +350,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 ```json
 {
   "type": "modify_lines",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\form.txt",
   "line_number": 5,
   "new_content": "Name: Harshit Singla",
   "num_lines": 1,
@@ -374,7 +374,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 ```json
 {
   "type": "insert_at_line",
-  "path": "%USERPROFILE%\\Desktop\\code.py",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\code.py",
   "line_number": 10,
   "content": "    # New comment\n    new_code_line()",
   "desc": "Insert code at line 10"
@@ -397,7 +397,7 @@ JARVIS is a multi-plane AI automation system that combines command-line operatio
 ```json
 {
   "type": "delete_lines",
-  "path": "%USERPROFILE%\\Desktop\\code.py",
+  "path": "%USERPROFILE%\\OneDrive\\Desktop\\code.py",
   "start_line": 15,
   "end_line": 20,
   "desc": "Delete lines 15-20"

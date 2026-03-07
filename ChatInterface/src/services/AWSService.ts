@@ -75,9 +75,9 @@ export class AWSService {
       region: config?.region || 'us-east-1',
       credentials: config?.accessKeyId && config?.secretAccessKey
         ? {
-            accessKeyId: config.accessKeyId,
-            secretAccessKey: config.secretAccessKey,
-          }
+          accessKeyId: config.accessKeyId,
+          secretAccessKey: config.secretAccessKey,
+        }
         : undefined, // Use default credentials if not provided
     });
 
@@ -223,10 +223,10 @@ export class AWSService {
 
     this.statusCallback = callback;
 
-    // Poll for status updates every 2 seconds
+    // Poll for status updates every 1 second (was 2s) for better responsiveness
     this.pollingInterval = setInterval(async () => {
       await this._pollStatusUpdates();
-    }, 2000);
+    }, 1000);
 
     // Do an immediate poll
     this._pollStatusUpdates();
@@ -268,20 +268,20 @@ export class AWSService {
       if (result.Items && result.Items.length > 0) {
         // Track processed items to avoid duplicates
         const processedItems = new Set<string>();
-        
+
         // Process each status update
         for (const item of result.Items) {
           // Create unique key for deduplication (timestamp + message + progress)
           const uniqueKey = `${item.timestamp}_${item.message || item.text || ''}_${item.progress || 'none'}`;
-          
+
           // Skip if already processed in this batch
           if (processedItems.has(uniqueKey)) {
             console.log('⏭️ Skipping duplicate status');
             continue;
           }
-          
+
           processedItems.add(uniqueKey);
-          
+
           const status: StatusMessage = {
             type: item.type || 'status',
             message: item.message || item.text || '',
