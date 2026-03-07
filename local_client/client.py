@@ -119,6 +119,9 @@ firebase_enabled = False
 # Error handler instance
 error_handler = None
 
+# Device ID (set during initialization)
+device_id = None
+
 
 @sio.event
 def connect():
@@ -476,6 +479,9 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
         # Initialize Vision Service
         try:
             vision_service = VisionService()
+            # Set device ID for S3 uploads
+            if device_id:
+                vision_service.set_device_id(device_id)
             send_status({
                 'message': 'Vision service ready',
                 'progress': 23,
@@ -633,7 +639,7 @@ def execute_flexisign_legacy(command_data):
 
 
 def main():
-    global firebase_service, firebase_enabled
+    global firebase_service, firebase_enabled, device_id
     
     print("=" * 50)
     print("🤖 JARVIS Local Client Starting...")

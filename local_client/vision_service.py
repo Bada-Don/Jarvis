@@ -6,6 +6,7 @@ Supports both FlexiSIGN-specific and general computer automation.
 
 import os
 import json
+import time
 from io import BytesIO
 from pathlib import Path
 
@@ -17,6 +18,15 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Import boto3 for S3 upload
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    print("⚠️ Warning: boto3 not installed, S3 upload disabled")
 
 # Import debug logger
 try:
@@ -247,6 +257,19 @@ class VisionService:
             self.client = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")
         
+        # Initialize S3 client for screenshot upload
+        self.s3_client = None
+        self.s3_bucket = os.getenv('AWS_S3_BUCKET_NAME', 'jarvis-automation-assets')
+        self.aws_region = os.getenv('AWS_REGION', 'us-east-1')
+        self.device_id = None
+        
+        if BOTO3_AVAILABLE:
+            try:
+                self.s3_client = boto3.client('s3', region_name=self.aws_region)
+                print(f"✅ S3 client initialized (bucket: {self.s3_bucket})")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize S3 client: {e}")
+        
         # Load FastSAM model
         if som_model_path is None:
             possible_paths = [
@@ -268,6 +291,60 @@ class VisionService:
             else:
                 print("⚠️ Warning: FastSAM weights not found")
     
+    def set_device_id(self, device_id: str):
+        """Set device ID for S3 uploads."""
+        self.device_id = device_id
+    
+    def upload_to_s3(self, image: np.ndarray, filename: str) -> str:
+        """
+        Upload screenshot to S3.
+        
+        Args:
+            image: Image as numpy array (BGR format)
+            filename: Filename for the screenshot
+        
+        Returns:
+            S3 object key if successful, None otherwise
+        """
+        if not self.s3_client:
+            print("⚠️ S3 client not available, skipping upload")
+            return None
+        
+        if not self.device_id:
+            print("⚠️ Device ID not set, skipping S3 upload")
+            return None
+        
+        try:
+            # Convert image to PNG bytes
+            _, buffer = cv2.imencode('.png', image)
+            image_bytes = buffer.tobytes()
+            
+            # Generate S3 key
+            timestamp = int(time.time())
+            object_key = f"screenshots/{self.device_id}/{timestamp}_{filename}"
+            
+            # Upload to S3
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket,
+                Key=object_key,
+                Body=image_bytes,
+                ContentType='image/png',
+                Metadata={
+                    'device-id': self.device_id,
+                    'timestamp': str(timestamp)
+                }
+            )
+            
+            print(f"✅ Screenshot uploaded to S3: {object_key}")
+            return object_key
+            
+        except ClientError as e:
+            print(f"❌ Failed to upload to S3: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Unexpected error uploading to S3: {e}")
+            return None
+    
     def capture_screenshot(self) -> np.ndarray:
         """
         Capture a screenshot using pyautogui.
@@ -278,6 +355,9 @@ class VisionService:
         screenshot = pyautogui.screenshot()
         screenshot_np = np.array(screenshot)
         screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
+        
+        # Upload to S3
+        self.upload_to_s3(screenshot_bgr, "screenshot.png")
         
         if DEBUG_LOGGER_AVAILABLE:
             try:
@@ -315,6 +395,9 @@ class VisionService:
             boxes = results[0].boxes.xyxy.cpu().numpy() if results[0].boxes is not None else np.array([])
             filtered_boxes = filter_boxes(boxes, img_width, img_height)
             annotated_image, box_map = draw_annotations(image, filtered_boxes)
+            
+            # Upload annotated image to S3
+            self.upload_to_s3(annotated_image, "annotated.png")
             
             if DEBUG_LOGGER_AVAILABLE:
                 try:
