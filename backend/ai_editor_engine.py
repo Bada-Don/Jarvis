@@ -45,7 +45,7 @@ class AIEditorEngine:
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment or provided.")
         self.client = genai.Client(api_key=api_key)
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-flash-latest"
 
     # --- Text Editing ---
     def get_text_edits(self, content: str, prompt: str) -> TextFileEdits:

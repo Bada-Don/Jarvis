@@ -67,13 +67,14 @@ You can control the computer through:
 2. **Text-based clicks (FAST)**: clicking on UI elements by their visible text using OCR
 3. **Visual clicks (SLOW)**: clicking on UI elements identified by their description using vision AI
 4. **AI-Powered Engine**: Directly editing Text, Word, and Excel files using advanced AI reasoning.
+5. **Web Automation Agent**: Directly answering web and browser related tasks via a single text prompt.
 
 ## Output Format:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", or "send_email"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", or "web_automation"
 - "desc": brief description of the action
 
 For keyboard steps, include:
@@ -115,6 +116,7 @@ For send_email steps (BACKGROUND - no UI), include:
 ### Opening Applications:
 - Press Win key, type app name, press Enter
 - Or use Win+R for Run dialog
+- **CRITICAL:** DO NOT manually open web browsers (Chrome, Edge) using these keyboard shortcuts to navigate sites. ALWAYS use the `web_automation` tool for web browsing instead.
 
 ### Clicking on Text Elements (FAST METHOD - ALWAYS PREFER THIS):
 - Use click_text_fast to click on any visible text: buttons, menu items, contact names, file names
@@ -131,13 +133,16 @@ For send_email steps (BACKGROUND - no UI), include:
   ]
 }}
 
-### Web Browsing:
-- To navigate to a URL: Ctrl+L (focus address bar), type URL with a SPACE at the end, press Enter
-- IMPORTANT: Always add a trailing space after URLs (e.g., "youtube.com ") to prevent browser autocomplete
-- To search on a website: Use the website's search shortcut (e.g., "/" on YouTube) or click_text_fast on search box
-- YouTube shortcuts: "/" focuses the search bar, then type query and press Enter
-- Google shortcuts: Just type in the search box (auto-focused on google.com)
-- DO NOT use the browser address bar to search within a website - use the website's own search feature
+### Web Browsing & Automation (RECOMMENDED FOR ALL WEB TASKS):
+- For ALL tasks that involve visiting websites, searching the web, filling web forms, or extracting data from web pages, use the `web_automation` tool.
+- Do NOT use keyboard shortcuts (like Ctrl+L) to navigate browsers.
+- This delegates the task to a specialized browser-use AI agent that will autonomously navigate and complete the request.
+{{
+  "sequence": [
+    {{"order": 1, "type": "web_automation", "prompt": "Search YouTube for Python tutorials and give me the titles of the top 3 results", "desc": "Use web automation to search YouTube"}}
+  ]
+}}
+- **CRITICAL:** The `prompt` field is REQUIRED and must contain the natural language instruction for the web agent.
 
 ### File Operations (STRICT RULES):
 - DO NOT assume any keyboard shortcut creates files or folders
@@ -179,17 +184,12 @@ Example: After creating "AI Lab" folder with files, add: `explorer "%USERPROFILE
   "expected_final_state": "Notepad window open with 'Hello World!' typed in the text area"
 }}
 
-## Example - Open Chrome and go to Google:
+## Example - Web Browsing using web_automation:
 {{
   "sequence": [
-    {{"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"}},
-    {{"order": 2, "type": "keyboard", "value": "chrome", "desc": "Search for Chrome"}},
-    {{"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Chrome"}},
-    {{"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"}},
-    {{"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"}},
-    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}}
+    {{"order": 1, "type": "web_automation", "prompt": "Check the weather in Mumbai", "desc": "Use web automation to check weather"}}
   ],
-  "expected_final_state": "Chrome browser open showing Google homepage with search box visible"
+  "expected_final_state": "Chrome browser open to a weather page showing the current weather in Mumbai"
 }}
 
 ## Example - Send message to contact in WhatsApp (FAST METHOD):

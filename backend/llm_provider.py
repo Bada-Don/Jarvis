@@ -45,7 +45,7 @@ class LLMProvider(ABC):
 class GeminiProvider(LLMProvider):
     """Gemini implementation of LLMProvider."""
     
-    def __init__(self, api_key: str, model_name: str = 'gemini-2.5-flash'):
+    def __init__(self, api_key: str, model_name: str = 'gemini-flash-latest'):
         if not GEMINI_AVAILABLE:
             raise ImportError("google-genai package is not installed. Run 'pip install google-genai'")
         self.client = genai.Client(api_key=api_key)

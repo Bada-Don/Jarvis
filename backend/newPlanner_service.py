@@ -52,12 +52,13 @@ You can control the computer through:
 2. **Text-based clicks (FAST)**: clicking on UI elements by their visible text using OCR
 3. **Visual clicks (SLOW)**: clicking on UI elements identified by their description using vision AI
 4. **AI-Powered Engine**: Directly editing Text, Word, and Excel files using advanced AI reasoning.
+5. **Web Automation Agent**: Directly answering web and browser related tasks via a single text prompt.
 
 ## Output Format:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", or "send_email"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", or "web_automation"
 - "desc": brief description of the action
 """
 
@@ -104,13 +105,16 @@ For visual_click steps (SLOW - use only when text is not available), include:
   ]
 }}
 
-### Web Browsing:
-- To navigate to a URL: Ctrl+L (focus address bar), type URL with a SPACE at the end, press Enter
-- IMPORTANT: Always add a trailing space after URLs (e.g., "youtube.com ") to prevent browser autocomplete
-- To search on a website: Use the website's search shortcut (e.g., "/" on YouTube) or click_text_fast on search box
-- YouTube shortcuts: "/" focuses the search bar, then type query and press Enter
-- Google shortcuts: Just type in the search box (auto-focused on google.com)
-- DO NOT use the browser address bar to search within a website - use the website's own search feature
+### Web Browsing & Automation (RECOMMENDED FOR ALL WEB TASKS):
+- For ALL tasks that involve visiting websites, searching the web, filling web forms, or extracting data from web pages, use the `web_automation` tool.
+- **CRITICAL**: Do NOT use keyboard shortcuts (like Ctrl+L) to navigate browsers.
+- This delegates the task to a specialized browser-use AI agent that will autonomously navigate and complete the request.
+{{
+  "sequence":[
+    {{"order": 1, "type": "web_automation", "prompt": "Search YouTube for Python tutorials and give me the titles of the top 3 results", "desc": "Use web automation to search YouTube"}}
+  ]
+}}
+- **CRITICAL:** The `prompt` field is REQUIRED and must contain the natural language instruction for the web agent.
 
 ### Text Editing:
 - Click to position cursor
@@ -128,17 +132,12 @@ For visual_click steps (SLOW - use only when text is not available), include:
   "expected_final_state": "Notepad window open with 'Hello World!' typed in the text area"
 }}
 
-## Example - Open Chrome and go to Google:
+## Example - Web Browsing using web_automation:
 {{
   "sequence":[
-    {{"order": 1, "type": "keyboard", "value": "win", "desc": "Open Start menu"}},
-    {{"order": 2, "type": "keyboard", "value": "chrome", "desc": "Search for Chrome"}},
-    {{"order": 3, "type": "keyboard", "value": "enter", "desc": "Launch Chrome"}},
-    {{"order": 4, "type": "keyboard", "value": "ctrl+l", "desc": "Focus address bar"}},
-    {{"order": 5, "type": "keyboard", "value": "google.com ", "desc": "Type URL with trailing space to prevent autocomplete"}},
-    {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Navigate to site"}}
+    {{"order": 1, "type": "web_automation", "prompt": "Check the weather in Mumbai", "desc": "Use web automation to check weather"}}
   ],
-  "expected_final_state": "Chrome browser open showing Google homepage with search box visible"
+  "expected_final_state": "Chrome browser open to a weather page showing the current weather in Mumbai"
 }}
 
 ## Example - Send message to contact in WhatsApp (FAST METHOD):
@@ -771,7 +770,7 @@ class PlannerService:
         router_prompt = """You are a routing agent for a Computer Automation AI. 
 Analyze the user command and determine which tool modules are required.
 Available Modules:
-- "ui_os": Opening apps, typing, web browsing, clicking buttons (keyboard, click_text_fast, visual_click).
+- "ui_os": Opening apps, typing, web browsing, clicking buttons (keyboard, click_text_fast, visual_click, web_automation).
 - "email": Sending background emails (send_email).
 - "shell": Command prompt operations, creating folders, basic file creation (shell_command).
 - "file_editing": AI-powered editing of Word (.docx), Excel (.xlsx), or Text (.txt) files, AND direct code/text file operations (ai_edit_word, ai_edit_excel, ai_edit_text, write_file, replace_in_file, modify_lines). REQUIRED when user asks to edit, modify, or change content in documents.
@@ -907,7 +906,7 @@ Return ONLY a JSON object exactly like this (no markdown):
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'append_file', 'create_directory',
             'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
-            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email'
+            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email', 'web_automation'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -921,6 +920,9 @@ Return ONLY a JSON object exactly like this (no markdown):
                 # Validate required fields for each step type
             if step_type == 'keyboard' and 'value' not in step:
                 raise ValueError(f"Keyboard step {i+1} missing 'value' field")
+            
+            if step_type == 'web_automation' and 'prompt' not in step:
+                raise ValueError(f"Web automation step {i+1} missing 'prompt' field")
             
             if step_type == 'click_text_fast':
                 if 'window_title' not in step:
