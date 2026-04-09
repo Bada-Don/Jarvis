@@ -261,7 +261,7 @@ def handle_firebase_command(command_data):
             response = requests.post(
                 f'{SERVER_URL}/api/process',
                 json={'text': command_text},
-                timeout=30
+                timeout=120
             )
             
             if response.status_code == 200:

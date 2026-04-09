@@ -240,24 +240,75 @@ class FirebaseService:
             if event.data is None:
                 return
             
-            command_data = event.data
-            message_id = event.path.split('/')[-1]
+            # Firebase .listen() triggers with initial data at the reference path
+            path = event.path
+            data = event.data
             
-            # Check if already processed
-            if command_data.get('processed', False):
-                return
+            # Clean path: strip whitespace and leading/trailing slashes
+            clean_path = str(path).strip().strip('/') if path is not None else ""
             
-            print(f"📥 Command received: {message_id}")
+            # Internal helper to process a single command
+            def process_single_command(cmd_id, cmd_data):
+                # Ensure cmd_id is a non-empty string after stripping whitespace
+                clean_cmd_id = str(cmd_id).strip().strip('/') if cmd_id else ""
+                if not clean_cmd_id or not isinstance(cmd_data, dict):
+                    return
+                
+                # Check if already processed (handle typo 'processsed' from old versions too)
+                if cmd_data.get('processed', False) or cmd_data.get('processsed', False):
+                    return
+                
+                print(f"📥 Command received: {clean_cmd_id}")
+                
+                # Mark as processed
+                try:
+                    command_ref = self.db_ref.child('messages').child(device_id).child('commands').child(clean_cmd_id)
+                    command_ref.update({'processed': True})
+                except Exception as e:
+                    print(f"⚠️ Failed to mark command as processed: {e}")
+                
+                # Call callback with command data
+                callback(cmd_data)
+
+            # CASE 1: Initial snapshot (path is '/' or empty) — data is a dict of ALL commands
+            if not clean_path and isinstance(data, dict):
+                # Check if this is a bulk snapshot (dict of dicts keyed by Firebase push IDs)
+                first_val = next(iter(data.values()), None) if data else None
+                if isinstance(first_val, dict):
+                    # This is the initial snapshot — process each command individually
+                    # Count how many are new vs already processed
+                    processed_count = sum(
+                        1 for v in data.values()
+                        if isinstance(v, dict) and (v.get('processed', False) or v.get('processsed', False))
+                    )
+                    new_count = len(data) - processed_count
+                    
+                    if new_count > 0:
+                        print(f"🔍 Initial snapshot: {len(data)} commands ({processed_count} already processed, {new_count} new)")
+                    else:
+                        print(f"✓ Initial snapshot: {len(data)} commands (all already processed, skipping)")
+                        return
+                    
+                    try:
+                        # Sort by timestamp to preserve order
+                        sorted_cmds = sorted(
+                            data.items(), 
+                            key=lambda x: x[1].get('timestamp', 0) if isinstance(x[1], dict) else 0
+                        )
+                        for cmd_id, cmd_data in sorted_cmds:
+                            process_single_command(cmd_id, cmd_data)
+                    except Exception as e:
+                        print(f"⚠️ Error processing snapshot: {e}")
+                        for cmd_id, cmd_data in data.items():
+                            process_single_command(cmd_id, cmd_data)
+                elif 'type' in data or 'text' in data:
+                    # Edge case: single command at root path with no ID
+                    if not (data.get('processed', False) or data.get('processsed', False)):
+                        callback(data)
             
-            # Mark as processed
-            try:
-                command_ref = self.db_ref.child('messages').child(device_id).child('commands').child(message_id)
-                command_ref.update({'processed': True})
-            except Exception as e:
-                print(f"⚠️ Failed to mark command as processed: {e}")
-            
-            # Call callback with command data
-            callback(command_data)
+            # CASE 2: Individual command update (path is like '/-OpnFkKctnUTyn5b__CZ')
+            elif clean_path and isinstance(data, dict):
+                process_single_command(clean_path, data)
         
         # Listen for new commands
         commands_ref = self.db_ref.child('messages').child(device_id).child('commands')

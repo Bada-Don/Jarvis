@@ -97,7 +97,7 @@ def test_openai_model():
 
 def test_google_model():
     # Enable your API key first if you haven't: https://ai.google.dev/palm_docs/oauth_quickstart
-    config = LLMConfig(provider="google", model_name="gemini-flash-latest")
+    config = LLMConfig(provider="google", model_name="gemini-2.5-flash")
     test_llm(config, "Describe this image", "assets/examples/test.png")
 
 

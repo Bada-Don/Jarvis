@@ -30,7 +30,7 @@ BASE_PROMPT = r"""You are JARVIS, an AI assistant that automates computer tasks.
 - Downloads Path: {DOWNLOADS_PATH}
 - **Stickers/New Briefcase Path: {{STICKERS_PATH}}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{{STICKERS_PATH}}")
 
-**CRITICAL: Always use {{DESKTOP_PATH}} for Desktop paths, NOT %USERPROFILE%\\Desktop (user may have OneDrive sync enabled)**
+**CRITICAL: Always use {{DESKTOP_PATH}} for Desktop paths, NOT {DESKTOP_PATH} (user may have OneDrive sync enabled)**
 
 EXECUTION PRIORITY RULES (STRICT ORDER):
 1. **Command-line operations FIRST**: If a task can be done via command prompt/PowerShell (creating folders, files, moving files), ALWAYS use commands
@@ -70,6 +70,7 @@ For keyboard steps, include:
   - For shortcuts: "ctrl+c", "alt+tab", "win+r", "ctrl+shift+esc"
   - For special keys: "enter", "tab", "escape", "backspace", "delete", "up", "down", "left", "right", "f1"-"f12"
   - For text: just the text string like "Hello World" or "notepad"
+  - **CRITICAL: NEVER use {curly braces} inside a text string (e.g., "Hello{enter}World"). This is FORBIDDEN. Use separate steps for special keys or use "write_file" for multi-line text.**
 - "repeats": (optional) number of times to repeat
 
 For click_text_fast steps, include:
@@ -206,13 +207,13 @@ MODULE_SHELL = r"""
 - Create folder: `mkdir FolderName`
 - Create empty file: `type nul > filename.txt`
 - Create multiple files: `type nul > file1.txt && type nul > file2.txt`
-- Navigate to Desktop: `cd %USERPROFILE%\Desktop`
-- Navigate to Documents: `cd %USERPROFILE%\Documents`
+- Navigate to Desktop: `cd {DESKTOP_PATH}`
+- Navigate to Documents: `cd {DOCUMENTS_PATH}`
 - Open folder in Explorer: `explorer FolderName` or `explorer .` (current folder)
 - Chain commands: Use `&&` to run multiple commands (e.g., `mkdir test && cd test`)
 
 **IMPORTANT: When creating folders/files, ALWAYS end with opening the folder in Explorer** so the user can see the result.
-Example: After creating "AI Lab" folder with files, add: `explorer "%USERPROFILE%\Desktop\AI Lab"`
+Example: After creating "AI Lab" folder with files, add: `explorer "{DESKTOP_PATH}\AI Lab"`
 
 ## Shell Command Operations (HYBRID CLI APPROACH - PREFERRED):
 For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This is the "Killer Combo" workflow:
@@ -235,7 +236,7 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 - Create empty file: `type nul > "filename.txt"` (use quotes for spaces)
 - Create multiple files: `type nul > file1.txt & type nul > file2.txt`
 - Open file: `start "" "full\path\to\file.txt"` (ALWAYS use full path with start, quotes for spaces)
-- Open folder in Explorer: `explorer "%USERPROFILE%\Desktop\FolderName"` (environment variables work correctly)
+- Open folder in Explorer: `explorer "{DESKTOP_PATH}\FolderName"` (environment variables work correctly)
 - Open current folder: `explorer .`
 - Chain commands: Use `&` to run multiple commands (e.g., `mkdir test & cd test`)
 - Delete file: `del "filename.txt"`
@@ -246,8 +247,8 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 **CRITICAL RULES FOR SHELL COMMANDS:**
 1. **ALWAYS use quotes** around paths/filenames with spaces: `mkdir "AI Lab"` not `mkdir AI Lab`
 2. **For start command**: Use format `start "" "full\path\to\file.txt"` - the empty quotes are required
-3. **For explorer command**: Use `explorer "%USERPROFILE%\Desktop\Folder Name"` - environment variables are automatically expanded
-4. **Environment variables**: Use %USERPROFILE%, %DESKTOP%, etc. - they will be expanded automatically
+3. **For explorer command**: Use `explorer "{DESKTOP_PATH}\Folder Name"` - environment variables are automatically expanded
+4. **Path Variables**: Use {DESKTOP_PATH}, {DOCUMENTS_PATH}, etc. - they will be expanded automatically with the correct user paths (including OneDrive if enabled).
 5. **Use full absolute paths** with start command, not relative paths or cd
 6. **Combine folder creation and file creation** in ONE command when possible
 7. **Don't chain cd commands** - use full paths instead
@@ -257,19 +258,22 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 **Example - Create and edit a file (Killer Combo):**
 {{
   "sequence":[
-    {{"order": 1, "type": "shell_command", "command": "type nul > \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Create notes.txt on Desktop"}},
-    {{"order": 2, "type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\Desktop\\notes.txt\"", "desc": "Open notes.txt"}},
+    {{"order": 1, "type": "shell_command", "command": "type nul > \"{DESKTOP_PATH}\\notes.txt\"", "desc": "Create notes.txt on Desktop"}},
+    {{"order": 2, "type": "shell_command", "command": "start \"\" \"{DESKTOP_PATH}\\notes.txt\"", "desc": "Open notes.txt"}},
     {{"order": 3, "type": "keyboard", "value": "Hello World!", "desc": "Type content"}},
-    {{"order": 4, "type": "keyboard", "value": "ctrl+s", "desc": "Save file (silent)"}}
+    {{"order": 4, "type": "keyboard", "value": "enter", "desc": "New line"}},
+    {{"order": 5, "type": "keyboard", "value": "ctrl+s", "desc": "Save file (silent)"}}
   ],
   "expected_final_state": "Notepad showing notes.txt with 'Hello World!' saved"
 }}
 
+**CRITICAL: For multi-line text or code, ALWAYS use write_file (Plane 2) instead of typing simulate. It is faster and safer.**
+
 **Example - Create folder with file (spaces in names):**
 {{
   "sequence":[
-    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\" & type nul > \"%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt\"", "desc": "Create AI Lab folder with Practical 1 file"}},
-    {{"order": 2, "type": "shell_command", "command": "start \"\" \"%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt\"", "desc": "Open Practical 1 file"}},
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"{DESKTOP_PATH}\\AI Lab\" & type nul > \"{DESKTOP_PATH}\\AI Lab\\Practical 1.txt\"", "desc": "Create AI Lab folder with Practical 1 file"}},
+    {{"order": 2, "type": "shell_command", "command": "start \"\" \"{DESKTOP_PATH}\\AI Lab\\Practical 1.txt\"", "desc": "Open Practical 1 file"}},
     {{"order": 3, "type": "keyboard", "value": "AIM: To implement BFS algorithm", "desc": "Type content"}},
     {{"order": 4, "type": "keyboard", "value": "ctrl+s", "desc": "Save file (silent)"}}
   ],
@@ -279,8 +283,8 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 **Example - Create folder structure:**
 {{
   "sequence":[
-    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\Projects\" & mkdir \"%USERPROFILE%\\Desktop\\Projects\\Python\"", "desc": "Create nested folders"}},
-    {{"order": 2, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\Projects\"", "desc": "Open Projects folder in Explorer"}}
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"{DESKTOP_PATH}\\Projects\" & mkdir \"{DESKTOP_PATH}\\Projects\\Python\"", "desc": "Create nested folders"}},
+    {{"order": 2, "type": "shell_command", "command": "explorer \"{DESKTOP_PATH}\\Projects\"", "desc": "Open Projects folder in Explorer"}}
   ],
   "expected_final_state": "Explorer showing Projects folder with Python subfolder"
 }}
@@ -288,9 +292,9 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 **Example - Create folder with spaces and open it:**
 {{
   "sequence":[
-    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Create AI Lab folder"}},
-    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\AI Lab\\notes.txt", "content": "Lab notes here", "desc": "Create notes file"}},
-    {{"order": 3, "type": "shell_command", "command": "explorer \"%USERPROFILE%\\Desktop\\AI Lab\"", "desc": "Open AI Lab folder in Explorer"}}
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"{DESKTOP_PATH}\\AI Lab\"", "desc": "Create AI Lab folder"}},
+    {{"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\AI Lab\\notes.txt", "content": "Lab notes here", "desc": "Create notes file"}},
+    {{"order": 3, "type": "shell_command", "command": "explorer \"{DESKTOP_PATH}\\AI Lab\"", "desc": "Open AI Lab folder in Explorer"}}
   ],
   "expected_final_state": "Explorer showing AI Lab folder with notes.txt file"
 }}
@@ -342,7 +346,7 @@ For editing Word (.docx), Excel (.xlsx), or Text (.txt) files with natural langu
 For creating/editing code files and structured content, use these direct file operations. They are MUCH faster and more reliable than UI-based editing.
 
 **CRITICAL: The Modern Workflow for Code Files:**
-1. **Create folder** using `shell_command` (e.g., `mkdir "%USERPROFILE%\Desktop\LabCode"`)
+1. **Create folder** using `shell_command` (e.g., `mkdir "{DESKTOP_PATH}\LabCode"`)
 2. **Write file content** using `write_file` with full code (NO UI interaction needed!)
 3. **Open in editor** using `shell_command` (e.g., `code "path\to\file.py"` for VS Code)
 4. **Run program** using keyboard shortcuts (Ctrl+` for terminal, then type command)
@@ -353,7 +357,7 @@ When user asks to modify, edit, update, change, or fix an existing file:
 **STEP 1: READ THE FILE FIRST**
 {{
   "type": "read_file",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "{DESKTOP_PATH}\\form.txt",
   "desc": "Read current file content to understand what needs to be changed"
 }}
 
@@ -361,7 +365,7 @@ When user asks to modify, edit, update, change, or fix an existing file:
 Use `replace_in_file` for targeted changes (PREFERRED - works like IDE Find & Replace):
 {{
   "type": "replace_in_file",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "{DESKTOP_PATH}\\form.txt",
   "old_text": "Name: John Doe",
   "new_text": "Name: Harshit Singla",
   "desc": "Replace the name field with new value"
@@ -388,7 +392,7 @@ Use `replace_in_file` for targeted changes (PREFERRED - works like IDE Find & Re
 OR use `modify_lines` for line-specific changes:
 {{
   "type": "modify_lines",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "{DESKTOP_PATH}\\form.txt",
   "line_number": 5,
   "new_content": "Name: Harshit Singla",
   "num_lines": 1,
@@ -398,7 +402,7 @@ OR use `modify_lines` for line-specific changes:
 OR use `write_file` ONLY if you need to rewrite the entire file:
 {{
   "type": "write_file",
-  "path": "%USERPROFILE%\\Desktop\\form.txt",
+  "path": "{DESKTOP_PATH}\\form.txt",
   "content": "Full updated content here...",
   "desc": "Rewrite entire file with modifications"
 }}
@@ -406,7 +410,7 @@ OR use `write_file` ONLY if you need to rewrite the entire file:
 **STEP 3: VERIFY (OPTIONAL)**
 {{
   "type": "shell_command",
-  "command": "start \"\" \"%USERPROFILE%\\Desktop\\form.txt\"",
+  "command": "start \"\" \"{DESKTOP_PATH}\\form.txt\"",
   "desc": "Open file to verify changes"
 }}
 
@@ -430,11 +434,11 @@ OR use `write_file` ONLY if you need to rewrite the entire file:
 Use "write_file" to create or overwrite a file with content directly. NO UI needed!
 {{
   "type": "write_file",
-  "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py",
+  "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py",
   "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        for j in range(0, n-i-1):\\n            if arr[j] > arr[j+1]:\\n                arr[j], arr[j+1] = arr[j+1], arr[j]\\n\\ndata =[64, 34, 25, 12, 22, 11, 90]\\nbubble_sort(data)\\nprint(data)",
   "desc": "Write bubble sort program"
 }}
-- "path": Full absolute path to file (use %USERPROFILE% for user directory)
+- "path": Full absolute path to file (use {DESKTOP_PATH} or {DOCUMENTS_PATH} for user directories)
 - "content": Complete file content (use \n for newlines, escape quotes)
 - Creates parent directories automatically if they don't exist
 - Overwrites file if it already exists
@@ -443,7 +447,7 @@ Use "write_file" to create or overwrite a file with content directly. NO UI need
 Use "read_file" to read file contents.
 {{
   "type": "read_file",
-  "path": "%USERPROFILE%\\Desktop\\script.py",
+  "path": "{DESKTOP_PATH}\\script.py",
   "desc": "Read script contents"
 }}
 
@@ -451,7 +455,7 @@ Use "read_file" to read file contents.
 Use "append_file" to add content to existing file.
 {{
   "type": "append_file",
-  "path": "%USERPROFILE%\\Desktop\\log.txt",
+  "path": "{DESKTOP_PATH}\\log.txt",
   "content": "New log entry\\n",
   "desc": "Append to log file"
 }}
@@ -460,16 +464,16 @@ Use "append_file" to add content to existing file.
 Use "create_directory" to create folders.
 {{
   "type": "create_directory",
-  "path": "%USERPROFILE%\\Desktop\\Projects\\Python",
+  "path": "{DESKTOP_PATH}\\Projects\\Python",
   "desc": "Create Python projects folder"
 }}
 
 **Example - Create Python program and run in VS Code (MODERN APPROACH):**
 {{
   "sequence":[
-    {{"order": 1, "type": "shell_command", "command": "mkdir \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Create LabCode folder"}},
-    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data = input(\\"Enter numbers separated by spaces: \\").strip()\\n    if not data:\\n        print(\\"No input provided.\\")\\n    else:\\n        arr = list(map(int, data.split()))\\n        bubble_sort(arr)\\n        print(\\"Sorted array:\\", *arr)", "desc": "Write bubble sort program"}},
-    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\"", "desc": "Open folder in VS Code"}},
+    {{"order": 1, "type": "shell_command", "command": "mkdir \"{DESKTOP_PATH}\\LabCode\"", "desc": "Create LabCode folder"}},
+    {{"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data = input(\\"Enter numbers separated by spaces: \\").strip()\\n    if not data:\\n        print(\\"No input provided.\\")\\n    else:\\n        arr = list(map(int, data.split()))\\n        bubble_sort(arr)\\n        print(\\"Sorted array:\\", *arr)", "desc": "Write bubble sort program"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\"", "desc": "Open folder in VS Code"}},
     {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
     {{"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"}},
     {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
@@ -480,9 +484,9 @@ Use "create_directory" to create folders.
 **Example - Debug existing code (READ → ANALYZE → FIX → WRITE):**
 {{
   "sequence":[
-    {{"order": 1, "type": "read_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "desc": "Read existing code to analyze"}},
-    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data =[64, 34, 25, 12, 22, 11, 90]\\n    result = bubble_sort(data)\\n    print(\\"Sorted array:\\", result)", "desc": "Write corrected code with bug fixes"}},
-    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\\bubble_sort.py\"", "desc": "Open fixed file in VS Code"}},
+    {{"order": 1, "type": "read_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "desc": "Read existing code to analyze"}},
+    {{"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\\n    n = len(arr)\\n    for i in range(n):\\n        swapped = False\\n        for j in range(0, n - i - 1):\\n            if arr[j] > arr[j + 1]:\\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\\n                swapped = True\\n        if not swapped:\\n            break\\n    return arr\\n\\nif __name__ == \\"__main__\\":\\n    data =[64, 34, 25, 12, 22, 11, 90]\\n    result = bubble_sort(data)\\n    print(\\"Sorted array:\\", result)", "desc": "Write corrected code with bug fixes"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\\bubble_sort.py\"", "desc": "Open fixed file in VS Code"}},
     {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
     {{"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"}},
     {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
@@ -493,9 +497,9 @@ Use "create_directory" to create folders.
 **Example - Copy code from document to new file:**
 {{
   "sequence":[
-    {{"order": 1, "type": "read_file", "path": "%USERPROFILE%\\Desktop\\AI Lab\\Practical 1.txt", "desc": "Read code from document"}},
-    {{"order": 2, "type": "write_file", "path": "%USERPROFILE%\\Desktop\\LabCode\\dfs.py", "content": "# DFS Algorithm Implementation\\ndef dfs(graph, start, visited=None):\\n    if visited is None:\\n        visited = set()\\n    visited.add(start)\\n    print(start, end=' ')\\n    for neighbor in graph[start]:\\n        if neighbor not in visited:\\n            dfs(graph, neighbor, visited)\\n    return visited\\n\\nif __name__ == \\"__main__\\":\\n    graph = {{\\n        'A': ['B', 'C'],\\n        'B':['D', 'E'],\\n        'C': ['F'],\\n        'D':[],\\n        'E': ['F'],\\n        'F':[]\\n    }}\\n    print(\\"DFS Traversal:\\")\\n    dfs(graph, 'A')", "desc": "Write extracted code to new Python file"}},
-    {{"order": 3, "type": "shell_command", "command": "code \"%USERPROFILE%\\Desktop\\LabCode\\dfs.py\"", "desc": "Open new file in VS Code"}},
+    {{"order": 1, "type": "read_file", "path": "{DESKTOP_PATH}\\AI Lab\\Practical 1.txt", "desc": "Read code from document"}},
+    {{"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\dfs.py", "content": "# DFS Algorithm Implementation\\ndef dfs(graph, start, visited=None):\\n    if visited is None:\\n        visited = set()\\n    visited.add(start)\\n    print(start, end=' ')\\n    for neighbor in graph[start]:\\n        if neighbor not in visited:\\n            dfs(graph, neighbor, visited)\\n    return visited\\n\\nif __name__ == \\"__main__\\":\\n    graph = {{\\n        'A': ['B', 'C'],\\n        'B':['D', 'E'],\\n        'C': ['F'],\\n        'D':[],\\n        'E': ['F'],\\n        'F':[]\\n    }}\\n    print(\\"DFS Traversal:\\")\\n    dfs(graph, 'A')", "desc": "Write extracted code to new Python file"}},
+    {{"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\\dfs.py\"", "desc": "Open new file in VS Code"}},
     {{"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"}},
     {{"order": 5, "type": "keyboard", "value": "python dfs.py", "desc": "Type run command"}},
     {{"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}}
@@ -761,7 +765,7 @@ class PlannerService:
                 from pathlib import Path
                 local_client_path = Path(__file__).parent.parent / "local_client"
                 if str(local_client_path) not in sys.path:
-                    sys.path.insert(0, str(local_client_path))
+                    sys.path.append(str(local_client_path))
                 import config as user_config
                 
                 config = {

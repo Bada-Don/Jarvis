@@ -243,7 +243,7 @@ class VisionService:
         # Configure Gemini
         if GEMINI_AVAILABLE:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = 'gemini-2.0-flash'
+            self.model_name = 'gemini-2.5-flash'
         else:
             self.client = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")

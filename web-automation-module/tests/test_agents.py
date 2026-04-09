@@ -37,7 +37,7 @@ async def test_browser_use_agent():
 
     # llm = llm_provider.get_llm_model(
     #     provider="google",
-    #     model_name="gemini-flash-latest",
+    #     model_name="gemini-2.5-flash",
     #     temperature=0.6,
     #     api_key=os.getenv("GOOGLE_API_KEY", "")
     # )
@@ -185,7 +185,7 @@ async def test_browser_use_parallel():
 
     # llm = utils.get_llm_model(
     #     provider="google",
-    #     model_name="gemini-flash-latest",
+    #     model_name="gemini-2.5-flash",
     #     temperature=0.6,
     #     api_key=os.getenv("GOOGLE_API_KEY", "")
     # )

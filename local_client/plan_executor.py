@@ -1092,8 +1092,28 @@ class PlanExecutor:
                 pyautogui.press(value)
                 time.sleep(0.05)
             else:
-                # Text to type
-                pyautogui.typewrite(value, interval=0.03)
+                # Text to type - Handle embedded special keys like {enter}, {tab}
+                if '{' in value and '}' in value:
+                    parts = re.split(r'(\{enter\}|\{return\}|\{tab\}|\{space\}|\{backspace\}|\{delete\}|\{del\}|\{esc\}|\{escape\}|\{up\}|\{down\}|\{left\}|\{right\})', value, flags=re.IGNORECASE)
+                    for part in parts:
+                        if not part:
+                            continue
+                        
+                        lower_part = part.lower()
+                        if lower_part.startswith('{') and lower_part.endswith('}'):
+                            key = lower_part[1:-1]
+                            # Normalize aliases
+                            if key == 'ret': key = 'return'
+                            if key == 'esc': key = 'escape'
+                            if key == 'del': key = 'delete'
+                            
+                            pyautogui.press(key)
+                        else:
+                            pyautogui.typewrite(part, interval=0.03)
+                else:
+                    # Regular text without embedded keys
+                    pyautogui.typewrite(value, interval=0.03)
+                
                 time.sleep(self.DELAY_AFTER_STEP)
             
             if repeats > 1 and rep < repeats - 1:
