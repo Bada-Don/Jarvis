@@ -33,5 +33,4 @@ python-dotenv
 # Firebase Admin SDK for desktop-to-mobile communication
 firebase-admin
 
-# AWS SDK for Bedrock
-boto3
+

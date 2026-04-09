@@ -9,8 +9,10 @@ This module implements a Router -> Planner architecture.
 
 import os
 import json
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
-from llm_provider import GeminiProvider, OpenAIProvider, AWSBedrockProvider
+from llm_provider import GeminiProvider, OpenAIProvider
 
 load_dotenv()
 
@@ -26,9 +28,9 @@ BASE_PROMPT = r"""You are JARVIS, an AI assistant that automates computer tasks.
 - Desktop Path: {DESKTOP_PATH}
 - Documents Path: {DOCUMENTS_PATH}
 - Downloads Path: {DOWNLOADS_PATH}
-- **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{STICKERS_PATH}")
+- **Stickers/New Briefcase Path: {{STICKERS_PATH}}** (IMPORTANT: When user mentions "New Briefcase", "stickers", or files from there, use "stickers" or "{{STICKERS_PATH}}")
 
-**CRITICAL: Always use {DESKTOP_PATH} for Desktop paths, NOT %USERPROFILE%\Desktop (user may have OneDrive sync enabled)**
+**CRITICAL: Always use {{DESKTOP_PATH}} for Desktop paths, NOT %USERPROFILE%\\Desktop (user may have OneDrive sync enabled)**
 
 EXECUTION PRIORITY RULES (STRICT ORDER):
 1. **Command-line operations FIRST**: If a task can be done via command prompt/PowerShell (creating folders, files, moving files), ALWAYS use commands
@@ -52,12 +54,13 @@ You can control the computer through:
 2. **Text-based clicks (FAST)**: clicking on UI elements by their visible text using OCR
 3. **Visual clicks (SLOW)**: clicking on UI elements identified by their description using vision AI
 4. **AI-Powered Engine**: Directly editing Text, Word, and Excel files using advanced AI reasoning.
+5. **Web Automation Agent**: Directly answering web and browser related tasks via a single text prompt.
 
 ## Output Format:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", or "send_email"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", or "web_automation"
 - "desc": brief description of the action
 """
 
@@ -514,11 +517,37 @@ Use "create_directory" to create folders.
 """
 
 MODULE_FILE_NAV = r"""
+## Web Automation Agent (RECOMMENDED FOR ALL WEB TASKS):
+For searching the web, finding information, or browser-based tasks:
+
+**REQUIRED FIELDS:**
+- "type": "web_automation"
+- "prompt": The user's original request or a refined version for the web agent
+- "desc": Brief description
+
+**Example - Search for something:**
+{{
+  "order": 1,
+  "type": "web_automation",
+  "prompt": "What is the capital of France?",
+  "desc": "Search for capital of France"
+}}
+
+**Example - Find weather:**
+{{
+  "order": 1,
+  "type": "web_automation",
+  "prompt": "Current weather in Mumbai",
+  "desc": "Get Mumbai weather"
+}}
+
+**CRITICAL: Use web_automation for ANY task that requires browsing or searching the internet.**
+
 ## File and Folder Operations (FAST & RELIABLE):
 Use filesystem-based operations that bypass UI completely. These use fuzzy path matching and are MUCH faster than UI navigation.
 
 **IMPORTANT LOCATION MAPPINGS:**
-- "New Briefcase" folder → use "stickers" (located at D:\Stickers\New Briefcase)
+- "New Briefcase" folder → use "stickers" (located at {{STICKERS_PATH}})
 - "Desktop" → use "desktop"
 - "Documents" → use "documents"
 - "Downloads" → use "downloads"
@@ -556,16 +585,16 @@ Use "open_folder" to open any folder in Explorer with fuzzy path matching. NO UI
 Use "save_file" to save files by typing the full path into the Save dialog.
 {{
   "type": "save_file",
-  "path": "C:\\Users\\harsh\\OneDrive\\Desktop\\document.txt",
+  "path": "{{DESKTOP_PATH}}\\document.txt",
   "desc": "Save file to Desktop"
 }}
 - "path": Full absolute path (use double backslashes in JSON)
 
 ## Path Resolution Examples:
 The system automatically resolves fuzzy paths:
-- "desktop/jarvis test" → "C:\Users\harsh\OneDrive\Desktop\JARVIS Test"
-- "stickers/maan 22" → "D:\Stickers\New Briefcase\maan 22.FS"
-- "documents/report" → "C:\Users\harsh\Documents\report.docx"
+- "desktop/jarvis test" → "{{DESKTOP_PATH}}\\JARVIS Test"
+- "stickers/maan 22" → "{{STICKERS_PATH}}\\maan 22.FS"
+- "documents/report" → "C:\\Users\\user\\Documents\\report.docx"
 - Handles typos, case differences, partial names
 - Automatically finds file extensions
 
@@ -596,7 +625,7 @@ The system automatically resolves fuzzy paths:
 ## Example - Save a file:
 {{
   "sequence":[
-    {{"order": 1, "type": "save_file", "path": "C:\\Users\\harsh\\OneDrive\\Desktop\\notes.txt", "desc": "Save notes to Desktop"}}
+    {{"order": 1, "type": "save_file", "path": "{{DESKTOP_PATH}}\\notes.txt", "desc": "Save notes to Desktop"}}
   ],
   "expected_final_state": "File saved to Desktop as notes.txt"
 }}
@@ -764,12 +793,7 @@ class PlannerService:
         self.init_provider(api_key)
 
     def init_provider(self, str_api_key_override=None):
-        if self.llm_provider == 'bedrock' or self.llm_provider == 'aws':
-             # Bedrock uses local AWS credentials/IAM roles, so no API key is passed here
-             self.provider = AWSBedrockProvider(
-                 region_name=os.getenv("AWS_REGION", "us-east-1")
-             )
-        elif self.llm_provider == 'openai':
+        if self.llm_provider == 'openai':
              api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
              if not api_key: raise ValueError("OpenAI API key not configured.")
              self.provider = OpenAIProvider(api_key=api_key)
@@ -793,6 +817,7 @@ Available Modules:
 - "file_editing": AI-powered editing of Word (.docx), Excel (.xlsx), or Text (.txt) files, AND direct code/text file operations (ai_edit_word, ai_edit_excel, ai_edit_text, write_file, replace_in_file, modify_lines). REQUIRED when user asks to edit, modify, or change content in documents.
 - "file_navigation": Opening files/folders directly by path or saving files (open_file, open_folder, save_file).
 - "flexisign": ONLY if command involves number plates, flexisign, govt plates, or bike/car plates.
+- "web_auto": MUST include for ANY web searching, browsing, or online information retrieval. REQUIRED for "search for", "find on google", "weather", etc.
 
 CRITICAL: If user asks to edit/modify/change content in a Word, Excel, or Text file, you MUST include "file_editing" module.
 
@@ -821,20 +846,24 @@ Return ONLY a JSON object exactly like this (no markdown):
     def build_prompt(self, route_data: dict) -> str:
         """Assembles the final system prompt based on Router's decision without losing ANY details."""
         mode = route_data.get("mode", "general")
-        modules = route_data.get("modules",[])
+        modules = route_data.get("modules", [])
+        
+        # Create a "Safe" config that keeps the placeholder names literal for the LLM
+        # This prevents leaking real paths/usernames to the LLM.
+        safe_config = {k: f"{{{k}}}" for k in self.config.keys()}
         
         # If FlexiSIGN is detected, use the exact original Flexisign prompt ONLY.
         if mode == "flexisign" or "flexisign" in modules:
-            return MODULE_FLEXISIGN.format(**self.config)
+            return MODULE_FLEXISIGN.format(**safe_config)
             
         # Assemble General Prompt
-        final_prompt = BASE_PROMPT.format(**self.config)
+        final_prompt = BASE_PROMPT.format(**safe_config)
         
         if "ui_os" in modules: final_prompt += "\n" + MODULE_UI_OS
         if "email" in modules: final_prompt += "\n" + MODULE_EMAIL
         if "shell" in modules: final_prompt += "\n" + MODULE_SHELL
         if "file_editing" in modules: final_prompt += "\n" + MODULE_FILE_EDITING
-        if "file_navigation" in modules: final_prompt += "\n" + MODULE_FILE_NAV
+        if "file_navigation" in modules or "web_auto" in modules: final_prompt += "\n" + MODULE_FILE_NAV
         
         # Always add the mandatory output requirements at the end
         final_prompt += "\n" + MODULE_OUT_REQ
@@ -873,6 +902,9 @@ Return ONLY a JSON object exactly like this (no markdown):
             )
             print(f"DEBUG: RAW AI RESPONSE:\n{response_text}\n--- END RAW ---")
             
+            # Privacy Audit: Log the safe prompt and raw response
+            self._log_privacy_audit(system_prompt, response_text)
+            
             response_text = response_text.strip()
             
             if response_text.startswith('```'):
@@ -890,6 +922,9 @@ Return ONLY a JSON object exactly like this (no markdown):
                 plan = safe_json_loads(response_text)
             except ImportError:
                 plan = json.loads(response_text)
+
+            # 4. Resolve placeholders in the generated plan LOCALLY (for privacy)
+            plan = self._resolve_placeholders(plan)
             
             self._validate_plan(plan)
             
@@ -911,6 +946,50 @@ Return ONLY a JSON object exactly like this (no markdown):
         except Exception as e:
             raise Exception(f"Failed to generate plan: {e}")
     
+    def _resolve_placeholders(self, data):
+        """Recursively resolve placeholders in strings within a dictionary or list."""
+        if isinstance(data, str):
+            # Resolve placeholders using self.config
+            try:
+                # Use a dict that only contains what we want to resolve
+                return data.format(**self.config)
+            except (KeyError, ValueError, IndexError):
+                # If formatting fails (e.g. unknown key or malformed braces), return original
+                return data
+        elif isinstance(data, list):
+            return [self._resolve_placeholders(item) for item in data]
+        elif isinstance(data, dict):
+            return {key: self._resolve_placeholders(value) for key, value in data.items()}
+        return data
+
+    def _log_privacy_audit(self, system_prompt: str, raw_response: str):
+        """Logs the safe system prompt and raw LLM response for privacy auditing."""
+        try:
+            # Determine log directory (relative to current file's parent's parent -> root/local_client/debug_logs)
+            log_base = Path(__file__).parent.parent / "local_client" / "debug_logs"
+            log_dir = log_base / "privacy_audit"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = log_dir / f"audit_{timestamp}.txt"
+            
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write("="*80 + "\n")
+                f.write(f"PRIVACY AUDIT LOG - {datetime.now().isoformat()}\n")
+                f.write("="*80 + "\n\n")
+                f.write("--- [SAFE SYSTEM PROMPT SENT TO LLM] ---\n")
+                f.write("(Contains abstract placeholders, no real paths/usernames)\n\n")
+                f.write(system_prompt)
+                f.write("\n\n" + "-"*40 + "\n\n")
+                f.write("--- [RAW RESPONSE RECEIVED FROM LLM] ---\n")
+                f.write("(Contains abstract placeholders to be resolved locally)\n\n")
+                f.write(raw_response)
+                f.write("\n\n" + "="*80 + "\n")
+                
+            print(f"Privacy audit log saved to: {log_file}")
+        except Exception as e:
+            print(f"Failed to save privacy audit log: {e}")
+
     def _validate_plan(self, plan: dict) -> None:
         """Validation logic kept identical"""
         if not isinstance(plan, dict): raise ValueError("Plan must be a dictionary")
@@ -923,7 +1002,7 @@ Return ONLY a JSON object exactly like this (no markdown):
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'append_file', 'create_directory',
             'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
-            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email'
+            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email', 'web_automation'
         }
         
         for i, step in enumerate(plan['sequence']):
@@ -937,6 +1016,9 @@ Return ONLY a JSON object exactly like this (no markdown):
                 # Validate required fields for each step type
             if step_type == 'keyboard' and 'value' not in step:
                 raise ValueError(f"Keyboard step {i+1} missing 'value' field")
+            
+            if step_type == 'web_automation' and 'prompt' not in step:
+                raise ValueError(f"Web automation step {i+1} missing 'prompt' field")
             
             if step_type == 'click_text_fast':
                 if 'window_title' not in step:

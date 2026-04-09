@@ -48,8 +48,7 @@ export class PairingManager {
       // Initialize Firebase database
       this.database = getFirebaseDatabase();
 
-      console.log('✅ PairingManager initialized');
-      console.log(`   Device ID: ${deviceId}`);
+      // Only log once - moved to _getOrCreateDeviceId
     } catch (error) {
       console.error('❌ Failed to initialize device ID:', error);
       throw error;
@@ -70,6 +69,8 @@ export class PairingManager {
         const config: DeviceConfig = JSON.parse(configJson);
         if (config.deviceId) {
           console.log(`📱 Loaded existing device ID: ${config.deviceId}`);
+          console.log('✅ PairingManager initialized');
+          console.log(`   Device ID: ${config.deviceId}`);
           return config.deviceId;
         }
       }
@@ -84,6 +85,8 @@ export class PairingManager {
     await this._saveDeviceConfig(deviceId);
 
     console.log(`🆕 Generated new device ID: ${deviceId}`);
+    console.log('✅ PairingManager initialized');
+    console.log(`   Device ID: ${deviceId}`);
     return deviceId;
   }
 

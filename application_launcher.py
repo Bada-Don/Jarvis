@@ -139,6 +139,14 @@ class ApplicationLauncher:
                 startup_delay=1.0,  # UI can start quickly
                 max_restart_attempts=3,
                 restart_delay=5.0
+            ),
+            'web_ui': ComponentConfig(
+                name='Web Automation UI',
+                script_path='web-automation-module/webui.py',
+                working_dir='web-automation-module',
+                startup_delay=2.0,
+                max_restart_attempts=3,
+                restart_delay=5.0
             )
         }
     
@@ -161,8 +169,8 @@ class ApplicationLauncher:
         
         self.running = True
         
-        # Start components in order: Backend → Local Client → Settings UI
-        component_order = ['backend', 'local_client', 'settings_ui']
+        # Start components in order: Backend → Local Client → Settings UI → Web UI
+        component_order = ['backend', 'local_client', 'settings_ui', 'web_ui']
         
         for component_id in component_order:
             if self.shutdown_requested:
@@ -409,8 +417,8 @@ class ApplicationLauncher:
         
         self.running = False
         
-        # Shutdown components in reverse order: Settings UI → Local Client → Backend
-        component_order = ['settings_ui', 'local_client', 'backend']
+        # Shutdown components in reverse order: Web UI → Settings UI → Local Client → Backend
+        component_order = ['web_ui', 'settings_ui', 'local_client', 'backend']
         
         for component_id in component_order:
             if component_id in self.processes:

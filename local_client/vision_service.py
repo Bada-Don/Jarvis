@@ -24,6 +24,7 @@ try:
     DEBUG_LOGGER_AVAILABLE = True
 except ImportError:
     DEBUG_LOGGER_AVAILABLE = False
+    print("⚠️ Warning: debug_logger.py not found")
 
 # Import Gemini
 try:
@@ -242,7 +243,7 @@ class VisionService:
         # Configure Gemini
         if GEMINI_AVAILABLE:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = 'gemini-2.5-flash'
+            self.model_name = 'gemini-2.0-flash'
         else:
             self.client = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")
@@ -273,7 +274,7 @@ class VisionService:
         Capture a screenshot using pyautogui.
         
         Returns:
-            np.ndarray: Screenshot as BGR numpy array (OpenCV format)
+            Image as numpy array (BGR format)
         """
         screenshot = pyautogui.screenshot()
         screenshot_np = np.array(screenshot)
