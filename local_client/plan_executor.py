@@ -1780,7 +1780,15 @@ class PlanExecutor:
         
         try:
             import docx
-            doc = docx.Document(file_path)
+            import os
+
+            # If file doesn't exist or is exactly 0 bytes (e.g., from 'type nul > ...')
+            if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                doc = docx.Document()
+                doc.save(file_path)
+            else:
+                doc = docx.Document(file_path)
+                
             context = self._ai_editor_engine.extract_word_context(doc)
             
             self._send_status(f"AI is proposing changes to document {os.path.basename(file_path)}...", "info")

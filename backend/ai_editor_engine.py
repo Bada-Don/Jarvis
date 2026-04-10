@@ -192,6 +192,16 @@ class AIEditorEngine:
                     all_paragraphs.extend(cell.paragraphs)
         
         for edit in edits:
+            if not edit.search_text:
+                if edit.replace_text:
+                    if len(doc.paragraphs) == 1 and not doc.paragraphs[0].text.strip():
+                        doc.paragraphs[0].text = edit.replace_text
+                        changes_made = True
+                    else:
+                        doc.add_paragraph(edit.replace_text)
+                        changes_made = True
+                continue
+
             for p in all_paragraphs:
                 if edit.search_text in p.text:
                     changes_made = True
