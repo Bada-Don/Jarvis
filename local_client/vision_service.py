@@ -34,13 +34,16 @@ except ImportError:
     GEMINI_AVAILABLE = False
     print("⚠️ Warning: google-genai not installed")
 
-# Import FastSAM
+# Import requests for OmniParser API
 try:
-    from ultralytics import FastSAM
-    FASTSAM_AVAILABLE = True
+    import requests as _requests
+    REQUESTS_AVAILABLE = True
 except ImportError:
-    FASTSAM_AVAILABLE = False
-    print("⚠️ Warning: ultralytics not installed")
+    REQUESTS_AVAILABLE = False
+    print("⚠️ Warning: requests library not installed — OmniParser client will not work")
+
+# OmniParser server URL (persistent Flask API server on port 8000)
+OMNI_SERVER_URL = "http://127.0.0.1:8000/detect"
 
 
 def filter_boxes(boxes: np.ndarray, img_width: int, img_height: int) -> np.ndarray:
@@ -234,7 +237,9 @@ class VisionService:
     
     def __init__(self, api_key: str = None, som_model_path: str = None):
         """
-        Initialize VisionService with API key and FastSAM model.
+        Initialize VisionService with Gemini API key.
+        UI element detection is handled by the persistent OmniParser API server
+        (backend/omni_server.py) running on port 8000 — no local model loading needed.
         """
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
         if not self.api_key:
@@ -248,26 +253,17 @@ class VisionService:
             self.client = None
             print("⚠️ Warning: Gemini not available, Vision Mapper will not work")
         
-        # Load FastSAM model
-        if som_model_path is None:
-            possible_paths = [
-                Path(__file__).parent / "weights" / "FastSAM-s.pt",
-                Path(__file__).parent.parent / "backend" / "weights" / "FastSAM-s.pt",
-            ]
-            for path in possible_paths:
-                if path.exists():
-                    som_model_path = str(path)
-                    break
-        
-        if som_model_path and FASTSAM_AVAILABLE:
-            print(f"Loading FastSAM model from: {som_model_path}")
-            self.som_model = FastSAM(som_model_path)
+        # Verify OmniParser server is reachable (non-fatal — will fail loudly at detection time)
+        if REQUESTS_AVAILABLE:
+            try:
+                resp = _requests.get("http://127.0.0.1:8000/health", timeout=2)
+                if resp.ok:
+                    data = resp.json()
+                    print(f"✅ OmniParser server ready (device: {data.get('device', '?')})")
+            except Exception:
+                print("⚠️ Warning: OmniParser server not reachable at port 8000 — start omni_server.py before running visual_click steps")
         else:
-            self.som_model = None
-            if not FASTSAM_AVAILABLE:
-                print("⚠️ Warning: FastSAM not available")
-            else:
-                print("⚠️ Warning: FastSAM weights not found")
+            print("⚠️ Warning: requests library not installed — OmniParser client disabled")
     
     def capture_screenshot(self) -> np.ndarray:
         """
@@ -290,45 +286,66 @@ class VisionService:
     
     def run_som_detection(self, image: np.ndarray) -> tuple[np.ndarray, dict]:
         """
-        Run Set-of-Mark detection on an image.
-        
+        Run Set-of-Mark detection via the OmniParser API server.
+
+        Workflow:
+          1. JPEG-encode the screenshot in-memory (no disk I/O)
+          2. POST to omni_server.py  →  receive JSON bounding boxes
+          3. Filter noisy/huge boxes client-side
+          4. Draw red SoM annotations client-side (keeps API response small)
+
         Returns:
             tuple: (annotated_image, box_map)
         """
-        if self.som_model is None:
-            raise RuntimeError("FastSAM model not loaded. Cannot run SoM detection.")
-        
-        img_height, img_width = image.shape[:2]
-        
-        temp_path = Path(__file__).parent / "temp_screenshot.png"
-        cv2.imwrite(str(temp_path), image)
-        
-        try:
-            # Run FastSAM with optimized parameters for UI detection
-            results = self.som_model(
-                str(temp_path),
-                conf=0.2,    # Lower confidence to catch more UI elements
-                iou=0.3,     # Lower IoU to reduce duplicates
-                imgsz=1024,
-                retina_masks=True
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError(
+                "requests library not installed. Cannot call OmniParser server."
             )
-            
-            boxes = results[0].boxes.xyxy.cpu().numpy() if results[0].boxes is not None else np.array([])
-            filtered_boxes = filter_boxes(boxes, img_width, img_height)
-            annotated_image, box_map = draw_annotations(image, filtered_boxes)
-            
-            if DEBUG_LOGGER_AVAILABLE:
-                try:
-                    get_debug_logger().log_annotated_image(annotated_image)
-                    get_debug_logger().log_box_map(box_map)
-                except Exception as e:
-                    print(f"⚠️ Debug log error: {e}")
-            
-            return annotated_image, box_map
-            
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
+
+        img_height, img_width = image.shape[:2]
+
+        # ── 1. Encode screenshot to JPEG in-memory (quality 70 = sweet spot) ──
+        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+        success, buffer = cv2.imencode(".jpg", image, encode_params)
+        if not success:
+            raise RuntimeError("Failed to JPEG-encode screenshot for OmniParser server.")
+
+        # ── 2. POST to OmniParser server ─────────────────────────────────────
+        try:
+            response = _requests.post(
+                OMNI_SERVER_URL,
+                files={"file": ("screenshot.jpg", buffer.tobytes(), "image/jpeg")},
+                timeout=15  # generous timeout for first-request GPU allocation
+            )
+            response.raise_for_status()
+        except _requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                "Cannot connect to OmniParser server at port 8000. "
+                "Ensure omni_server.py is running before executing visual_click steps."
+            )
+        except _requests.exceptions.Timeout:
+            raise RuntimeError(
+                "OmniParser server timed out. The model may still be warming up — retry."
+            )
+
+        data = response.json()
+        raw_boxes = data.get("boxes", [])
+
+        # ── 3. Filter client-side (same logic as before) ─────────────────────
+        boxes_np = np.array(raw_boxes, dtype=np.float32) if raw_boxes else np.array([])
+        filtered_boxes = filter_boxes(boxes_np, img_width, img_height)
+
+        # ── 4. Draw SoM annotations client-side ─────────────────────────────
+        annotated_image, box_map = draw_annotations(image, filtered_boxes)
+
+        if DEBUG_LOGGER_AVAILABLE:
+            try:
+                get_debug_logger().log_annotated_image(annotated_image)
+                get_debug_logger().log_box_map(box_map)
+            except Exception as e:
+                print(f"⚠️ Debug log error: {e}")
+
+        return annotated_image, box_map
     
     def map_targets_to_ids(self, annotated_image: np.ndarray, targets: list[str], mode: str = "general") -> dict:
         """

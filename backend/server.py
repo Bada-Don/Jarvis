@@ -6,6 +6,8 @@ import os
 import base64
 import json
 import time
+import subprocess
+import socket
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
@@ -483,10 +485,64 @@ def handle_abort_task(data):
     })
 
 
+def start_omni_server():
+    """
+    Check if the OmniParser Vision Server is running on port 8000.
+    If not, start it as a background process.
+    """
+    omni_port = 8000
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        is_running = s.connect_ex(('127.0.0.1', omni_port)) == 0
+    
+    if is_running:
+        print(f"✓ OmniParser Vision Server is already running on port {omni_port}", flush=True)
+        return
+
+    print("🚀 Starting OmniParser Vision Server...", flush=True)
+    try:
+        from pathlib import Path
+        omni_script = Path(__file__).parent / "omni_server.py"
+        
+        if not omni_script.exists():
+            print(f"⚠ Could not find {omni_script}. OmniParser will not be auto-started.", flush=True)
+            return
+
+        # Start as a subprocess
+        # Use CREATE_NEW_PROCESS_GROUP on Windows to ensure signals are handled correctly
+        creation_flags = 0
+        if os.name == 'nt':
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+
+        # Redirect output to log file
+        log_dir = Path(__file__).parent.parent / 'data' / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / 'omni_server_auto.log'
+        
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"\n--- Starting OmniParser at {datetime.now()} ---\n")
+            subprocess.Popen(
+                [import_sys.executable if 'import_sys' in globals() else "python", str(omni_script)],
+                cwd=str(Path(__file__).parent),
+                stdout=f,
+                stderr=f,
+                creationflags=creation_flags
+            )
+        
+        print(f"✓ OmniParser Vision Server started (Logging to {log_file})", flush=True)
+    except Exception as e:
+        print(f"⚠ Failed to start OmniParser Vision Server: {e}", flush=True)
+
+
 if __name__ == '__main__':
+    # Try to import sys for the executable path
+    import sys as import_sys
+    
     print("=" * 50, flush=True)
     print("🤖 JARVIS Backend Server Starting...", flush=True)
     print("=" * 50, flush=True)
+    
+    # Auto-start OmniParser dependency
+    start_omni_server()
     
     socketio.run(
         app, 

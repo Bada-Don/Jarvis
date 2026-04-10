@@ -124,6 +124,14 @@ class ApplicationLauncher:
                 max_restart_attempts=3,
                 restart_delay=5.0
             ),
+            'omni_server': ComponentConfig(
+                name='OmniParser Vision Server',
+                script_path='backend/omni_server.py',
+                working_dir='backend',
+                startup_delay=5.0,  # GPU warmup needs time before client connects
+                max_restart_attempts=3,
+                restart_delay=5.0
+            ),
             'local_client': ComponentConfig(
                 name='Local Client',
                 script_path='local_client/client.py',
@@ -169,8 +177,8 @@ class ApplicationLauncher:
         
         self.running = True
         
-        # Start components in order: Backend → Local Client → Settings UI → Web UI
-        component_order = ['backend', 'local_client', 'settings_ui', 'web_ui']
+        # Start components in order: Backend → OmniParser → Local Client → Settings UI → Web UI
+        component_order = ['backend', 'omni_server', 'local_client', 'settings_ui', 'web_ui']
         
         for component_id in component_order:
             if self.shutdown_requested:
@@ -417,8 +425,8 @@ class ApplicationLauncher:
         
         self.running = False
         
-        # Shutdown components in reverse order: Web UI → Settings UI → Local Client → Backend
-        component_order = ['web_ui', 'settings_ui', 'local_client', 'backend']
+        # Shutdown components in reverse order: Web UI → Settings UI → Local Client → OmniParser → Backend
+        component_order = ['web_ui', 'settings_ui', 'local_client', 'omni_server', 'backend']
         
         for component_id in component_order:
             if component_id in self.processes:
