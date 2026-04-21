@@ -816,6 +816,14 @@ class PlanExecutor:
                             f"to='{step.get('recipient_email', '')}' subject='{step.get('subject', '')}' success={result} desc='{step_desc}'"
                         )
                 
+                elif step_type == 'web_automation':
+                    result = self._execute_web_automation_step(step)
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, "web_automation",
+                            f"prompt='{step.get('prompt', '')[:50]}' success={result} desc='{step_desc}'"
+                        )
+                
                 else:
                     self._send_status(f"Unknown step type: {step_type}", "warning")
                 
@@ -2750,6 +2758,144 @@ Output the complete modified file content (no explanations, no markdown, just th
                 return False
         except Exception as e:
             self._send_status(f"✗ Email service error: {str(e)}", "error")
+            return False
+
+    def _execute_web_automation_step(self, step: dict) -> bool:
+        """
+        Execute a web_automation step by delegating to the web-automation-module.
+        
+        Args:
+            step: Step dict with 'prompt' (str)
+        
+        Returns:
+            bool: True if web automation completed successfully
+        """
+        prompt = step.get('prompt')
+        if not prompt:
+            self._send_status("web_automation: missing 'prompt' parameter", "warning")
+            return False
+            
+        self._send_status(f"Starting web AI agent: {prompt}", "info")
+        
+        try:
+            import sys
+            import asyncio
+            from dotenv import load_dotenv
+            import subprocess
+            
+            # Setup path to import from web-automation-module
+            web_module_path = Path(__file__).parent.parent / "web-automation-module"
+            
+            # Load module-specific .env for API keys and LLM settings
+            module_env = web_module_path / ".env"
+            if module_env.exists():
+                load_dotenv(dotenv_path=module_env, override=True)
+            else:
+                load_dotenv() # Fallback to default .env
+            
+            src_path = web_module_path / "src"
+            
+            # Add both web_module_path and src_path to sys.path
+            # This is necessary because internal modules in web-automation-module
+            # use 'from src.utils import ...' while JARVIS needs direct access to these folders.
+            if web_module_path.exists() and str(web_module_path) not in sys.path:
+                sys.path.insert(0, str(web_module_path))
+            if src_path.exists() and str(src_path) not in sys.path:
+                sys.path.insert(0, str(src_path))
+                
+            # Import BrowserUseAgent and related components
+            try:
+                from utils import llm_provider
+                from agent.browser_use.browser_use_agent import BrowserUseAgent
+                from browser.custom_browser import CustomBrowser
+                from browser_use.browser.browser import BrowserConfig
+                from browser_use.browser.context import BrowserContextConfig as BUContextConfig
+            except ImportError as e:
+                self._send_status(f"web_automation: failed to import agent modules: {e}", "error")
+                return False
+                
+            # Initialize LLM using the module's provider
+            provider = os.getenv("DEFAULT_LLM", "google")
+            
+            # Detect API key from multiple possible sources (local_client uses GEMINI_API_KEY often)
+            google_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+            
+            # Safe default model for Gemini (User specifically requested gemini-flash-latest)
+            model_name = "gemini-flash-latest" if provider == "google" else "gpt-4o"
+            
+            # Log the choice and key presence (censored)
+            key_info = f" (Key: {google_key[:4]}...{google_key[-4:]})" if google_key else " (NO KEY FOUND)"
+            self._send_status(f"Initializing Web AI with {provider} ({model_name}){key_info}", "info")
+            
+            llm = llm_provider.get_llm_model(
+                provider=provider,
+                model_name=model_name,
+                temperature=0.7,
+                api_key=google_key
+            )
+            
+            # Setup Browser and Context
+            browser_path = os.getenv("BROWSER_PATH")
+            user_data_dir = os.getenv("BROWSER_USER_DATA")
+            
+            config_kwargs = {"headless": False, "disable_security": True}
+            if browser_path:
+                config_kwargs["browser_binary_path"] = browser_path
+            if user_data_dir:
+                config_kwargs["extra_browser_args"] = [f"--user-data-dir={user_data_dir}"]
+            
+            browser_instance = CustomBrowser(config=BrowserConfig(**config_kwargs))
+            
+            context_config = BUContextConfig(
+                window_width=1280,
+                window_height=1100
+            )
+            
+            # Callbacks for JARVIS UI updates
+            def step_callback(state, output, step_num):
+                msg = output.current_state.next_goal if output and output.current_state else "Thinking..."
+                self._send_status(f"Web AI Step {step_num}: {msg}", "info")
+
+            async def step_error_callback(agent):
+                """Callback to report internal step errors to the UI"""
+                if agent.state.history.history:
+                    last_step = agent.state.history.history[-1]
+                    errors = [r.error for r in last_step.result if r.error]
+                    if errors:
+                        error_msg = "; ".join(errors)
+                        step_num = len(agent.state.history.history)
+                        # Correctly route through internal status helper to avoid double nesting
+                        self._send_status(f"Web AI Step {step_num} Error: {error_msg}", "error")
+
+            def done_callback(history):
+                self._send_status("Web AI task complete.", "info")
+
+            async def run_agent():
+                # Correct way to get context in async
+                browser_context = await browser_instance.new_context(config=context_config)
+                
+                # Initialize Agent correctly matching its API
+                agent = BrowserUseAgent(
+                    task=prompt,
+                    llm=llm,
+                    browser=browser_instance,
+                    browser_context=browser_context,
+                    register_new_step_callback=step_callback,
+                    register_done_callback=done_callback,
+                    use_vision=True
+                )
+                
+                self._send_status(f"Starting web AI agent: {prompt}", "info")
+                return await agent.run(on_step_end=step_error_callback)
+
+            # Execute synchronously
+            history = asyncio.run(run_agent())
+            
+            final_result = history.final_result()
+            return f"Web Automation Result: {final_result}"
+
+        except Exception as e:
+            self._send_status(f"web_automation: error - {str(e)}", "error")
             return False
 
 

@@ -8,6 +8,7 @@ data/logs/
 venv/
 node_modules/
 self-operating-computer-main/
+Jarvis-aws-migration/
 
 # Hypothesis test cache
 .hypothesis/
