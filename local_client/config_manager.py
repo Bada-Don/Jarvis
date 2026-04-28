@@ -30,9 +30,11 @@ SETTINGS_SCHEMA = {
         "windows_username": {"type": "string", "label": "Windows Username", "default": ""},
     },
     "llm": {
-        "provider": {"type": "choice", "label": "LLM Provider", "choices": ["gemini", "openai"], "default": "gemini"},
+        "provider": {"type": "choice", "label": "LLM Provider", "choices": ["gemini", "openai", "local"], "default": "gemini"},
         "gemini_api_key": {"type": "string", "label": "Gemini API Key (Primary)", "default": "", "secret": True},
         "openai_api_key": {"type": "string", "label": "OpenAI API Key (Secondary)", "default": "", "secret": True},
+        "local_model_name": {"type": "string", "label": "Local Model Name", "default": "gemma:2b"},
+        "local_base_url": {"type": "string", "label": "Local Base URL", "default": "http://127.0.0.1:1234/v1"},
     },
     "paths": {
         "desktop": {"type": "path", "label": "Desktop Path", "default": ""},
@@ -115,23 +117,60 @@ class ConfigurationManager:
         Returns:
             Configuration object
         """
-        # Try to load from JSON first (new format)
+        # Load defaults first
+        config_dict = copy.deepcopy(DEFAULT_CONFIG)
+        
+        # Try to load from JSON if it exists
         if self._json_config_path.exists():
             try:
-                return self._load_from_json()
+                with open(self._json_config_path, 'r') as f:
+                    stored_data = json.load(f)
+                    self._deep_update(config_dict, stored_data)
             except Exception as e:
                 print(f"Warning: Failed to load JSON config: {e}")
         
-        # Try to load from Python config file (legacy format)
-        if self._config_path.exists():
-            try:
-                return self._load_from_python_config()
-            except Exception as e:
-                print(f"Warning: Failed to load Python config: {e}")
+        # Override with environment variables
+        self._apply_env_overrides(config_dict)
         
-        # Create new configuration with defaults
-        print("Creating new configuration with defaults")
-        return Configuration.from_dict(DEFAULT_CONFIG)
+        return Configuration.from_dict(config_dict)
+
+    def _apply_env_overrides(self, config_dict: Dict[str, Any]) -> None:
+        """Apply environment variable overrides to config dictionary"""
+        import os
+        
+        # System
+        if os.environ.get('BACKEND_URL'):
+            config_dict['system']['server_url'] = os.environ.get('BACKEND_URL')
+        if os.environ.get('WINDOWS_USERNAME'):
+            config_dict['system']['windows_username'] = os.environ.get('WINDOWS_USERNAME')
+            
+        # LLM
+        if os.environ.get('LLM_PROVIDER'):
+            config_dict['llm']['provider'] = os.environ.get('LLM_PROVIDER')
+        if os.environ.get('GEMINI_API_KEY'):
+            config_dict['llm']['gemini_api_key'] = os.environ.get('GEMINI_API_KEY')
+        if os.environ.get('OPENAI_API_KEY'):
+            config_dict['llm']['openai_api_key'] = os.environ.get('OPENAI_API_KEY')
+        if os.environ.get('LOCAL_MODEL_NAME'):
+            config_dict['llm']['local_model_name'] = os.environ.get('LOCAL_MODEL_NAME')
+        if os.environ.get('LOCAL_BASE_URL'):
+            config_dict['llm']['local_base_url'] = os.environ.get('LOCAL_BASE_URL')
+            
+        # Paths
+        if os.environ.get('DESKTOP_PATH'):
+            config_dict['paths']['desktop'] = os.environ.get('DESKTOP_PATH')
+        if os.environ.get('DOCUMENTS_PATH'):
+            config_dict['paths']['documents'] = os.environ.get('DOCUMENTS_PATH')
+        if os.environ.get('DOWNLOADS_PATH'):
+            config_dict['paths']['downloads'] = os.environ.get('DOWNLOADS_PATH')
+        if os.environ.get('STICKERS_PATH'):
+            config_dict['paths']['stickers'] = os.environ.get('STICKERS_PATH')
+            
+        # Firebase
+        if os.environ.get('FIREBASE_ENABLED'):
+            config_dict['firebase']['enabled'] = os.environ.get('FIREBASE_ENABLED').lower() == 'true'
+        if os.environ.get('FIREBASE_PAIRED_DEVICE_ID'):
+            config_dict['firebase']['paired_device_id'] = os.environ.get('FIREBASE_PAIRED_DEVICE_ID')
     
     def _load_from_json(self) -> Configuration:
         """Load configuration from JSON file"""
@@ -277,7 +316,7 @@ class ConfigurationManager:
     
     def save(self) -> None:
         """
-        Save configuration to disk in both JSON and Python formats.
+        Save configuration to disk in JSON format.
         Creates a backup before saving.
         """
         # Create backup before saving
@@ -288,11 +327,6 @@ class ConfigurationManager:
         config_dict = self.config.to_dict()
         with open(self._json_config_path, 'w') as f:
             json.dump(config_dict, f, indent=2)
-        
-        # Save as Python config file (for backward compatibility)
-        config_content = get_config_template(self.config)
-        with open(self._config_path, 'w') as f:
-            f.write(config_content)
     
     def validate(self) -> List[str]:
         """

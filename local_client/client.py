@@ -30,12 +30,34 @@ import win32gui
 import win32con
 import requests
 
-# Import configuration
-try:
-    from config import *
-except ImportError:
-    print("⚠️ Warning: config.py not found, using default settings")
-    SERVER_URL = 'http://localhost:5000'
+# Load configuration from environment variables
+SERVER_URL = os.environ.get('BACKEND_URL', 'http://localhost:5000')
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'gemini')
+LOCAL_MODEL_NAME = os.environ.get('LOCAL_MODEL_NAME', 'gemma:2b')
+LOCAL_BASE_URL = os.environ.get('LOCAL_BASE_URL', 'http://localhost:11434/v1')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+# Timing defaults
+ACTION_DELAY = float(os.environ.get('ACTION_DELAY', 0.3))
+APP_LAUNCH_WAIT = float(os.environ.get('APP_LAUNCH_WAIT', 3.0))
+HOTKEY_DELAY = float(os.environ.get('HOTKEY_DELAY', 0.5))
+PRE_TYPE_DELAY = float(os.environ.get('PRE_TYPE_DELAY', 0.2))
+SCREENSHOT_DELAY = float(os.environ.get('SCREENSHOT_DELAY', 0.5))
+WINDOW_ACTIVATION_TIMEOUT = float(os.environ.get('WINDOW_ACTIVATION_TIMEOUT', 10.0))
+WINDOW_POLL_INTERVAL = float(os.environ.get('WINDOW_POLL_INTERVAL', 0.5))
+RETRY_DELAY = float(os.environ.get('RETRY_DELAY', 2.0))
+VERIFICATION_DELAY = float(os.environ.get('VERIFICATION_DELAY', 1.0))
+
+# Verification settings
+VERIFICATION_ENABLED = os.environ.get('VERIFICATION_ENABLED', 'false').lower() == 'true'
+MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 0))
+CONFIDENCE_THRESHOLD = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.7))
+
+# Firebase settings
+FIREBASE_ENABLED = os.environ.get('FIREBASE_ENABLED', 'true').lower() == 'true'
+FIREBASE_PAIRED = os.environ.get('FIREBASE_PAIRED', 'false').lower() == 'true'
+FIREBASE_PAIRED_DEVICE_ID = os.environ.get('FIREBASE_PAIRED_DEVICE_ID', '')
 
 # Import FlexiSign Manager (for FlexiSIGN mode)
 try:
@@ -381,25 +403,16 @@ def execute_two_model_plan(command_data, retry_count: int = 0):
     
     Args:
         command_data: Command data from server
-        retry_count: Current retry attempt (configurable via config.py)
+        retry_count: Current retry attempt
     """
     # Reset abort flag at start of new execution
     if PERMISSION_SERVICE_AVAILABLE:
         reset_abort()
     
-    # Load verification settings from config.py
-    try:
-        from config import (
-            VERIFICATION_ENABLED, MAX_RETRIES, RETRY_DELAY, 
-            VERIFICATION_DELAY, CONFIDENCE_THRESHOLD
-        )
-        enable_verification = VERIFICATION_ENABLED
-        retry_delay = RETRY_DELAY
-    except ImportError:
-        # Fallback to defaults if config not available
-        MAX_RETRIES = 0
-        enable_verification = False  # Disabled by default for faster execution
-        retry_delay = 2.0
+    # Load settings from environment variables
+    max_retries = int(os.environ.get('MAX_RETRIES', 0))
+    enable_verification = os.environ.get('VERIFICATION_ENABLED', 'false').lower() == 'true'
+    retry_delay = float(os.environ.get('RETRY_DELAY', 2.0))
     
     if not TWO_MODEL_PIPELINE_AVAILABLE:
         send_status("Two-Model Pipeline not available. Missing dependencies.", "error")

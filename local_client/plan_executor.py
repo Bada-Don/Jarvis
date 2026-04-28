@@ -392,12 +392,8 @@ class PlanExecutor:
         verified = True  # Default to True if no verification
         
         if verify and expected_state and exec_success:
-            # Load verification delay from config
-            try:
-                from config import VERIFICATION_DELAY
-                verification_delay = VERIFICATION_DELAY
-            except ImportError:
-                verification_delay = 1.0  # Default fallback
+            # Load verification settings from environment variables
+            verification_delay = float(os.environ.get('VERIFICATION_DELAY', 1.0))
             
             self._send_status("Verifying task completion...", "info", progress=92)
             time.sleep(verification_delay)  # Wait for UI to settle (configurable)

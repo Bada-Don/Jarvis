@@ -9,7 +9,7 @@ Supports both FlexiSIGN-specific tasks and general computer automation.
 import os
 import json
 from dotenv import load_dotenv
-from llm_provider import GeminiProvider, OpenAIProvider
+from llm_provider import GeminiProvider, OpenAIProvider, LocalProvider
 
 # Load environment variables from .env file
 load_dotenv()
@@ -756,44 +756,23 @@ class PlannerService:
             api_key: Optional API key override. 
             config: Optional configuration dict with user-specific values.
         """
-        # Load config if not provided
         if config is None:
-            try:
-                # Try to import config from local_client
-                import sys
-                from pathlib import Path
-                local_client_path = Path(__file__).parent.parent / "local_client"
-                if str(local_client_path) not in sys.path:
-                    sys.path.insert(0, str(local_client_path))
-                import config as user_config
-                
-                config = {
-                    'WINDOWS_USERNAME': getattr(user_config, 'WINDOWS_USERNAME', 'user'),
-                    'DESKTOP_PATH': getattr(user_config, 'DESKTOP_PATH', r'C:\Users\user\Desktop'),
-                    'DOCUMENTS_PATH': getattr(user_config, 'DOCUMENTS_PATH', r'C:\Users\user\Documents'),
-                    'DOWNLOADS_PATH': getattr(user_config, 'DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
-                    'STICKERS_PATH': getattr(user_config, 'STICKERS_PATH', r'D:\Stickers\New Briefcase'),
-                }
-                self.llm_provider = getattr(user_config, 'LLM_PROVIDER', 'gemini')
-                self.gemini_key = getattr(user_config, 'GEMINI_API_KEY', '')
-                self.openai_key = getattr(user_config, 'OPENAI_API_KEY', '')
-            except Exception as e:
-                print(f"Warning: Could not load config, using defaults: {e}")
-                config = {
-                    'WINDOWS_USERNAME': 'user',
-                    'DESKTOP_PATH': r'C:\Users\user\Desktop',
-                    'DOCUMENTS_PATH': r'C:\Users\user\Documents',
-                    'DOWNLOADS_PATH': r'C:\Users\user\Downloads',
-                    'STICKERS_PATH': r'D:\Stickers\New Briefcase',
-                }
-                self.llm_provider = 'gemini'
-                self.gemini_key = ''
-                self.openai_key = ''
+            config = {
+                'WINDOWS_USERNAME': os.getenv('WINDOWS_USERNAME', 'user'),
+                'DESKTOP_PATH': os.getenv('DESKTOP_PATH', r'C:\Users\user\Desktop'),
+                'DOCUMENTS_PATH': os.getenv('DOCUMENTS_PATH', r'C:\Users\user\Documents'),
+                'DOWNLOADS_PATH': os.getenv('DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
+                'STICKERS_PATH': os.getenv('STICKERS_PATH', r'D:\Stickers\New Briefcase'),
+                'LLM_PROVIDER': os.getenv('LLM_PROVIDER', 'gemini'),
+                'GEMINI_API_KEY': os.getenv('GEMINI_API_KEY', ''),
+                'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+                'LOCAL_MODEL_NAME': os.getenv('LOCAL_MODEL_NAME', 'gemma:2b'),
+                'LOCAL_BASE_URL': os.getenv('LOCAL_BASE_URL', 'http://localhost:11434/v1')
+            }
         
-        # Ensure LLM provider settings are available
-        self.llm_provider = config.get('LLM_PROVIDER', getattr(self, 'llm_provider', 'gemini'))
-        self.gemini_key = config.get('GEMINI_API_KEY', getattr(self, 'gemini_key', ''))
-        self.openai_key = config.get('OPENAI_API_KEY', getattr(self, 'openai_key', ''))
+        self.llm_provider = config.get('LLM_PROVIDER', 'gemini')
+        self.gemini_key = config.get('GEMINI_API_KEY', '')
+        self.openai_key = config.get('OPENAI_API_KEY', '')
 
         self.config = config
         
@@ -811,6 +790,10 @@ class PlannerService:
              if not api_key:
                  raise ValueError("OpenAI API key not configured. Set OPENAI_API_KEY in config or env.")
              self.provider = OpenAIProvider(api_key=api_key)
+        elif self.llm_provider == 'local':
+             model_name = self.config.get('LOCAL_MODEL_NAME', os.getenv('LOCAL_MODEL_NAME', 'gemma:2b'))
+             base_url = self.config.get('LOCAL_BASE_URL', os.getenv('LOCAL_BASE_URL', 'http://localhost:11434/v1'))
+             self.provider = LocalProvider(model_name=model_name, base_url=base_url)
         else:
              # Default to Gemini
              api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')

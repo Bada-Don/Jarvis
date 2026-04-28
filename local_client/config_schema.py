@@ -27,6 +27,8 @@ DEFAULT_CONFIG = {
         "provider": "gemini",
         "gemini_api_key": "",
         "openai_api_key": "",
+        "local_model_name": "gemma:2b",
+        "local_base_url": "http://localhost:11434/v1",
     },
     
     "paths": {
@@ -121,8 +123,8 @@ VALIDATION_RULES = [
     ValidationRule(
         field_path="llm.provider",
         rule_type="choice",
-        params={"choices": ["gemini", "openai"]},
-        error_message="LLM provider must be 'gemini' or 'openai'"
+        params={"choices": ["gemini", "openai", "local"]},
+        error_message="LLM provider must be 'gemini', 'openai', or 'local'"
     ),
     
     # Timing
@@ -183,6 +185,8 @@ class LLMConfig:
     provider: str = "gemini"
     gemini_api_key: str = ""
     openai_api_key: str = ""
+    local_model_name: str = "gemma:2b"
+    local_base_url: str = "http://localhost:11434/v1"
 
 @dataclass
 class PathsConfig:
@@ -293,6 +297,8 @@ SERVER_URL = r"{system.server_url}"
 LLM_PROVIDER = '{llm.provider}'
 GEMINI_API_KEY = '{llm.gemini_api_key}'
 OPENAI_API_KEY = '{llm.openai_api_key}'
+LOCAL_MODEL_NAME = '{llm.local_model_name}'
+LOCAL_BASE_URL = '{llm.local_base_url}'
 
 # =============================================================================
 # SYSTEM INFORMATION
