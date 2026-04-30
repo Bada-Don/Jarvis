@@ -655,6 +655,8 @@ IMPORTANT:
 - Return ONLY valid JSON, no markdown formatting or extra text
 - Each step must be atomic and executable
 - Add small waits implicitly between steps (the executor handles this)
+
+ACT AS A PURE JSON API. DO NOT provide explanations. DO NOT provide conversational text. Output ONLY the raw JSON object. If you include any text outside the JSON, the system will fail. No markdown fences, no thinking, no extra output.
 """
 
 MODULE_FLEXISIGN = r"""You are a FlexiSIGN Automation Agent. Your goal is to translate natural language requests into a structured JSON execution plan.
@@ -751,6 +753,8 @@ Use these EXACT values. Do not guess.
 
 ### 7. IMPORTANT
 You MUST include an "expected_final_state" field describing what the screen should look like after successful execution.
+
+ACT AS A PURE JSON API. DO NOT provide explanations. DO NOT provide conversational text. Output ONLY the raw JSON object. If you include any text outside the JSON, the system will fail. No markdown fences, no thinking, no extra output.
 """
 
 # ==========================================
@@ -812,6 +816,8 @@ Available Modules:
 - "web_auto": MUST include for ANY web searching, browsing, or online information retrieval. REQUIRED for "search for", "find on google", "weather", etc.
 
 CRITICAL: If user asks to edit/modify/change content in a Word, Excel, or Text file, you MUST include "file_editing" module.
+
+ACT AS A PURE JSON API. DO NOT provide explanations. DO NOT provide conversational text. Output ONLY the raw JSON object. If you include any text outside the JSON, the system will fail. No markdown fences, no thinking, no extra output.
 
 Return ONLY a JSON object exactly like this (no markdown):
 {

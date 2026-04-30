@@ -9,6 +9,7 @@ venv/
 node_modules/
 self-operating-computer-main/
 Jarvis-aws-migration/
+test_prompts/
 
 # Hypothesis test cache
 .hypothesis/

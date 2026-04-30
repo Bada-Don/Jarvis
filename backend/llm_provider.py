@@ -89,6 +89,7 @@ class OpenAIProvider(LLMProvider):
         response = self.client.chat.completions.create(
             model=self.model_name,
             temperature=0.1,  # Low temperature for reliable JSON
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -102,8 +103,11 @@ class LocalProvider(LLMProvider):
 
     # Appended to system prompt to enforce JSON-only output
     JSON_SUFFIX = (
-        "\n\nCRITICAL: Output ONLY valid JSON. "
-        "No markdown, no explanations, no extra text."
+        "\n\nACT AS A PURE JSON API. "
+        "DO NOT provide explanations. DO NOT provide conversational text. "
+        "Output ONLY the raw JSON object. "
+        "If you include any text outside the JSON, the system will fail. "
+        "No markdown fences, no thinking, no extra output."
     )
 
     def __init__(
