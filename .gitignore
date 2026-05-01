@@ -69,3 +69,8 @@ data/firebase_config.json
 
 # Config backups
 local_client/config_backups/
+
+# Graphify
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json

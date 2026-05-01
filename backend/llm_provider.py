@@ -128,6 +128,7 @@ class LocalProvider(LLMProvider):
         self.model_name = model_name
         self.max_retries = max_retries
         self.base_url = base_url.rstrip("/")
+        self.cache_stats = {"total_requests": 0, "cached_tokens": 0, "total_input_tokens": 0}
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from model output, handling markdown fences, extra text, and partial responses."""
@@ -206,6 +207,84 @@ class LocalProvider(LLMProvider):
         except Exception:
             return False
 
+    def _track_cache_stats(self, response) -> None:
+        """Extract and log KV cache hit metrics from the API response."""
+        try:
+            usage = getattr(response, 'usage', None)
+            if usage is None:
+                return
+
+            input_tokens = getattr(usage, 'prompt_tokens', 0) or 0
+            self.cache_stats["total_requests"] += 1
+            self.cache_stats["total_input_tokens"] += input_tokens
+
+            # LM Studio returns cached_tokens in input_tokens_details
+            input_details = getattr(usage, 'prompt_tokens_details', None)
+            if input_details:
+                # prompt_tokens_details is a list of CompletionTokensDetails
+                for detail in (input_details if isinstance(input_details, list) else [input_details]):
+                    cached = getattr(detail, 'cached_tokens', 0) or 0
+                    if cached > 0:
+                        self.cache_stats["cached_tokens"] += cached
+                        hit_pct = (cached / input_tokens * 100) if input_tokens > 0 else 0
+                        print(f"  KV Cache: {cached}/{input_tokens} tokens cached ({hit_pct:.0f}%)")
+                        return
+
+            # Also check for OpenAI-style nested dict
+            if hasattr(usage, 'model_dump'):
+                usage_dict = usage.model_dump()
+                cached = usage_dict.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                if cached > 0:
+                    self.cache_stats["cached_tokens"] += cached
+                    hit_pct = (cached / input_tokens * 100) if input_tokens > 0 else 0
+                    print(f"  KV Cache: {cached}/{input_tokens} tokens cached ({hit_pct:.0f}%)")
+        except Exception:
+            pass  # Cache stats are best-effort, never fail the request
+
+    def warmup_cache(self, system_prompt: str) -> bool:
+        """Pre-warm the KV cache by sending a lightweight request with the system prompt.
+        
+        This populates the KV cache for the system prompt prefix so that
+        subsequent real requests benefit from cache hits immediately.
+        Returns True if warmup succeeded, False otherwise.
+        """
+        import time
+
+        if not self._check_server_available():
+            print("LocalProvider: Warmup skipped — server not reachable")
+            return False
+
+        try:
+            start = time.perf_counter()
+            warmup_prompt = system_prompt + self.JSON_SUFFIX
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                temperature=0.0,
+                max_tokens=5,  # Minimal output — we just want to populate the cache
+                messages=[
+                    {"role": "system", "content": warmup_prompt},
+                    {"role": "user", "content": "Reply with: {\"status\":\"ready\"}"},
+                ],
+            )
+            elapsed = time.perf_counter() - start
+            self._track_cache_stats(response)
+            print(f"LocalProvider: KV cache warmed up in {elapsed:.1f}s (subsequent requests will be faster)")
+            return True
+        except Exception as e:
+            print(f"LocalProvider: Warmup failed (non-critical): {e}")
+            return False
+
+    def get_cache_stats(self) -> dict:
+        """Return current cache hit statistics."""
+        stats = dict(self.cache_stats)
+        if stats["total_input_tokens"] > 0:
+            stats["cache_hit_pct"] = round(
+                stats["cached_tokens"] / stats["total_input_tokens"] * 100, 1
+            )
+        else:
+            stats["cache_hit_pct"] = 0.0
+        return stats
+
     def generate_content(self, system_prompt: str, user_prompt: str) -> str:
         import time
 
@@ -228,6 +307,7 @@ class LocalProvider(LLMProvider):
         last_error = None
         for attempt in range(self.max_retries):
             try:
+                start_time = time.perf_counter()
                 response = self.client.chat.completions.create(
                     model=self.model_name,
                     temperature=0.0,
@@ -237,6 +317,10 @@ class LocalProvider(LLMProvider):
                         {"role": "user", "content": user_prompt},
                     ],
                 )
+                elapsed = time.perf_counter() - start_time
+
+                # Track cache hit metrics
+                self._track_cache_stats(response)
 
                 message = response.choices[0].message
                 content = message.content
@@ -251,6 +335,7 @@ class LocalProvider(LLMProvider):
                 if not content:
                     raise ValueError("Empty response from model (both content and reasoning_content are empty)")
 
+                print(f"LocalProvider: Response in {elapsed:.1f}s")
                 return self._extract_json(content)
 
             except Exception as e:

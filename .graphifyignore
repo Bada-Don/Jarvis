@@ -1,0 +1,14 @@
+# .graphifyignore
+venv/
+.git/
+.vscode/
+__pycache__/
+node_modules/
+dist/
+tmp/
+uploads/
+debug_logs/
+.gemini/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
