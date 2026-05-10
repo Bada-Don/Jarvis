@@ -25,7 +25,7 @@ flowchart LR
     E -->|File Operation| G[Direct File I/O]
     E -->|Keyboard| H[pyautogui Input]
     E -->|Visual Click| I[Vision Pipeline]
-    I --> J[Screenshot + FastSAM]
+    I --> J[Screenshot + OmniParser]
     J --> K[Vision Mapper]
     K --> L[Click Coordinates]
     F --> M[Task Complete]
@@ -72,7 +72,7 @@ sequenceDiagram
         else Keyboard Step
             Client->>PC: pyautogui keyboard action
         else Visual Click Step
-            Client->>Client: Screenshot + FastSAM SoM
+            Client->>Client: Screenshot + OmniParser SoM
             Client->>Vision: Annotated image + targets
             Vision-->>Client: Target → Element ID mapping
             Client->>PC: Click at element center
@@ -129,7 +129,7 @@ Converts natural language into structured execution plans with intelligent metho
 
 Identifies UI elements in annotated screenshots. Uses Set-of-Mark (SoM) technique:
 
-1. **FastSAM** detects all UI elements and draws numbered red boxes
+1. **OmniParser** detects all UI elements and draws numbered red boxes
 2. **Vision Mapper** receives the annotated image + target list
 3. Returns mapping: `{"address_bar": 45, "submit_button": 12}`
 
@@ -143,7 +143,7 @@ flowchart TD
     B -->|No| C[Execute Shell/File/Keyboard Steps]
     B -->|Yes| D[Collect All Visual Targets]
     D --> E[Take Screenshot]
-    E --> F[Run FastSAM SoM]
+    E --> F[Run OmniParser SoM]
     F --> G[Call Vision Mapper Once]
     G --> H[Cache ID Map + Box Map]
     H --> I[Execute All Steps]
@@ -209,7 +209,7 @@ graph TB
         D[Python WebSocket Client]
         E[Shell Command Executor]
         F[File Operations Module]
-        G[FastSAM<br/>UI Detection]
+        G[OmniParser<br/>UI Detection]
         H[Gemini 2.5 Flash<br/>Vision Mapper]
         I[pyautogui<br/>Mouse/Keyboard]
     end
@@ -235,7 +235,7 @@ graph TB
 | File Operations | Python file I/O | Direct file manipulation |
 | File Editor | Custom module | IDE-like editing (replace, modify lines) |
 | Vision Mapper | Gemini 2.5 Flash | Image → Element IDs (fallback) |
-| SoM Detection | FastSAM (Ultralytics) | UI element segmentation |
+| SoM Detection | OmniParser | UI element segmentation |
 | Automation | pyautogui + pywin32 | Mouse/keyboard control |
 | Communication | WebSocket | Real-time bidirectional |
 
@@ -247,7 +247,7 @@ graph TB
 │   ├── planner_service.py     # Planner Model integration (multi-plane)
 │   ├── file_operations.py     # Direct file I/O operations
 │   ├── file_editor.py         # Intelligent file editing
-│   └── SoM.py                 # FastSAM annotation logic
+│   └── omni_server.py         # OmniParser API server
 │
 ├── local_client/
 │   ├── client.py              # WebSocket client, command router
@@ -283,7 +283,7 @@ flowchart LR
 |------|-----------|-------------------|
 | General | Any computer task | Multi-plane (shell → file → keyboard → vision) |
 | FlexiSIGN Direct | Number plate creation | UIA automation (no vision) |
-| Vision Fallback | Unknown UIs, legacy apps | FastSAM + Gemini Vision |
+| Vision Fallback | Unknown UIs, legacy apps | OmniParser + Gemini Vision |
 
 ## Expected Impact
 
@@ -314,7 +314,7 @@ flowchart LR
 - **File Operation**: ~0.1 seconds (write_file, read_file)
 - **Keyboard Action**: ~0.3-0.5 seconds per step
 - **OCR Click**: ~1-2 seconds (click_text_fast)
-- **Vision Click**: ~3-5 seconds (FastSAM + Vision Mapper)
+- **Vision Click**: ~3-5 seconds (OmniParser + Vision Mapper)
 
 **Typical Task Times:**
 - **Create folder + file**: ~0.5 seconds (shell commands)
@@ -340,7 +340,7 @@ timeline
              : Verification system
     
     In Progress : Icon detection accuracy
-                : FastSAM tuning
+                : OmniParser tuning
                 : Performance optimization
     
     Planned : Voice activation ("Hey JARVIS")
@@ -372,7 +372,7 @@ This enables rapid diagnosis of:
 - **Planner Issues**: Wrong execution plane selected
 - **Shell Command Failures**: Command syntax or path errors
 - **File Operation Errors**: Permission issues, path resolution
-- **Vision Pipeline Failures**: FastSAM detection, Vision Mapper misidentification
+- **Vision Pipeline Failures**: OmniParser detection, Vision Mapper misidentification
 - **Verification Failures**: Expected vs actual state mismatch
 
 
@@ -418,20 +418,25 @@ cd jarvis
    tesseract --version
    ```
 
-### Step 3: Download FastSAM Weights
+### Step 3: Set Up OmniParser Vision Server
 
-FastSAM is used for UI element detection. Download the model weights:
+OmniParser is used for UI element detection. It runs as a persistent API server to ensure fast inference.
 
-1. Create a `weights` folder in the `backend` directory:
+1. **Download Model Weights**:
+   - Create the directory: `backend\weights\icon_detect`
+   - Download the OmniParser YOLO model (`model.pt`) and place it in that folder.
+   - The final path should be: `backend\weights\icon_detect\model.pt`
+
+2. **Start the Vision Server**:
+   Open a **new** Command Prompt window:
    ```cmd
-   mkdir backend\weights
+   cd backend
+   venv\Scripts\activate
+   python omni_server.py
    ```
+   You should see: `[OmniServer] ✅ Server is READY — awaiting requests on port 8000`.
+   Keep this window open for any tasks requiring visual clicking.
 
-2. Download FastSAM-s.pt from one of these sources:
-   - **Official**: https://github.com/CASIA-IVA-Lab/FastSAM/releases
-   - **Direct link**: https://huggingface.co/spaces/An-619/FastSAM/resolve/main/weights/FastSAM-s.pt
-
-3. Place `FastSAM-s.pt` in `backend\weights\`
 
 ### Step 4: Set Up Backend Server
 
@@ -459,7 +464,7 @@ pip install -r requirements.txt
 This will install:
 - Flask (web server)
 - Flask-SocketIO (WebSocket communication)
-- Ultralytics (FastSAM)
+- Ultralytics (OmniParser/YOLO)
 - OpenCV, Pillow (image processing)
 - PyTorch (deep learning)
 - PyAutoGUI (automation)
