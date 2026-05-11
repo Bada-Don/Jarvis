@@ -190,47 +190,45 @@ class AIEditorEngine:
             for row in table.rows:
                 for cell in row.cells:
                     all_paragraphs.extend(cell.paragraphs)
-        
+
         for edit in edits:
             if not edit.search_text:
                 if edit.replace_text:
+                    # If document is virtually empty, use the first paragraph
                     if len(doc.paragraphs) == 1 and not doc.paragraphs[0].text.strip():
                         doc.paragraphs[0].text = edit.replace_text
-                        changes_made = True
                     else:
                         doc.add_paragraph(edit.replace_text)
-                        changes_made = True
+                    changes_made = True
                 continue
 
+            # Search and replace
+            found = False
             for p in all_paragraphs:
                 if edit.search_text in p.text:
-                    changes_made = True
+                    # To preserve formatting, we try to replace within runs if possible
                     replaced_in_run = False
                     for run in p.runs:
                         if edit.search_text in run.text:
                             run.text = run.text.replace(edit.search_text, edit.replace_text)
                             replaced_in_run = True
+                            changes_made = True
+                            found = True
+                    
                     if not replaced_in_run:
-                        ref_run = next((r for r in p.runs if r.text.strip()), p.runs[0] if p.runs else None)
-                        f_name, f_size, f_bold, f_italic, f_underline, f_color = None, None, None, None, None, None
-                        if ref_run:
-                            f_name = ref_run.font.name
-                            f_size = ref_run.font.size
-                            f_bold = ref_run.font.bold
-                            f_italic = ref_run.font.italic
-                            f_underline = ref_run.font.underline
-                            if ref_run.font.color and ref_run.font.color.type == 1:
-                                f_color = ref_run.font.color.rgb
-                        
-                        new_text = p.text.replace(edit.search_text, edit.replace_text)
-                        p.clear()
-                        new_run = p.add_run(new_text)
-                        if f_name: new_run.font.name = f_name
-                        if f_size: new_run.font.size = f_size
-                        if f_bold is not None: new_run.font.bold = f_bold
-                        if f_italic is not None: new_run.font.italic = f_italic
-                        if f_underline is not None: new_run.font.underline = f_underline
-                        if f_color: new_run.font.color.rgb = f_color
+                        p.text = p.text.replace(edit.search_text, edit.replace_text)
+                        changes_made = True
+                        found = True
+
+            # If not found and it's a new/empty document, just add the text
+            if not found and edit.replace_text:
+                if len(doc.paragraphs) == 1 and not doc.paragraphs[0].text.strip():
+                    doc.paragraphs[0].text = edit.replace_text
+                    changes_made = True
+                else:
+                    # Robustness: if document was supposed to be new but has content, append
+                    pass
+
         return changes_made
 
     # --- Diff Generator ---

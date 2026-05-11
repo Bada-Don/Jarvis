@@ -12,6 +12,7 @@ import {
     connectToStatusUpdates,
     connectToPermissionRequests,
     sendPermissionResponse,
+    sendPermissionResponseReact,
     abortTask,
     PermissionRequest,
 } from '../services/api';
@@ -118,6 +119,21 @@ export default function ChatScreen() {
     const handleFirebaseStatus = (status: any) => {
         console.log('📱 Firebase status update:', status);
         
+        // Handle ReAct permission requests
+        if (status.type === 'REQUEST_PERMISSION') {
+            console.log('🔐 ReAct Permission request via Firebase:', status);
+            setPermissionRequest({
+                requestId: status.session_id,
+                sessionId: status.session_id,
+                operation: status.operation || 'Critical Operation',
+                details: status.details || 'No details provided',
+                timestamp: Date.now(),
+                isReact: true
+            });
+            setIsTaskRunning(true);
+            return;
+        }
+
         // Extract progress info
         const progress = status.progress;
         const message = status.message;
@@ -202,6 +218,21 @@ export default function ChatScreen() {
                 progressData = statusData.message;
             }
             
+            // Handle ReAct permission requests via WebSocket status
+            if (statusData.type === 'REQUEST_PERMISSION') {
+                console.log('🔐 ReAct Permission request via WebSocket:', statusData);
+                setPermissionRequest({
+                    requestId: statusData.session_id,
+                    sessionId: statusData.session_id,
+                    operation: statusData.operation || 'Critical Operation',
+                    details: statusData.details || 'No details provided',
+                    timestamp: Date.now(),
+                    isReact: true
+                });
+                setIsTaskRunning(true);
+                return;
+            }
+
             // Extract progress info
             const progress = progressData.progress;
             const message = progressData.message || statusData.message;
@@ -316,14 +347,22 @@ export default function ChatScreen() {
 
     const handlePermissionApprove = () => {
         if (permissionRequest) {
-            sendPermissionResponse(permissionRequest.requestId, true);
+            if (permissionRequest.isReact && permissionRequest.sessionId) {
+                sendPermissionResponseReact(permissionRequest.sessionId, true);
+            } else {
+                sendPermissionResponse(permissionRequest.requestId, true);
+            }
             setPermissionRequest(null);
         }
     };
 
     const handlePermissionDeny = () => {
         if (permissionRequest) {
-            sendPermissionResponse(permissionRequest.requestId, false);
+            if (permissionRequest.isReact && permissionRequest.sessionId) {
+                sendPermissionResponseReact(permissionRequest.sessionId, false);
+            } else {
+                sendPermissionResponse(permissionRequest.requestId, false);
+            }
             setPermissionRequest(null);
         }
     };

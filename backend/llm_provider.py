@@ -260,7 +260,7 @@ class LocalProvider(LLMProvider):
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 temperature=0.0,
-                max_tokens=5,  # Minimal output — we just want to populate the cache
+                max_tokens=64,  # Reasoning models need room to produce content.
                 messages=[
                     {"role": "system", "content": warmup_prompt},
                     {"role": "user", "content": "Reply with: {\"status\":\"ready\"}"},

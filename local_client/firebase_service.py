@@ -345,6 +345,31 @@ class FirebaseService:
             print(f"❌ Failed to send status: {e}")
             return None
     
+    def send_command(self, device_id: str, command: Dict[str, Any]) -> Optional[str]:
+        """
+        Send a command to Firebase.
+
+        Mirrors the backend FirebaseService API so backend/server.py remains safe
+        even if this local-client module is imported first on sys.path.
+        """
+        try:
+            message_id = str(uuid.uuid4())
+            command_ref = self.db_ref.child('messages').child(device_id).child('commands').child(message_id)
+
+            command_data = {
+                'type': 'command',
+                'timestamp': int(time.time()),
+                'processed': False,
+                **command
+            }
+
+            command_ref.set(command_data)
+            return message_id
+
+        except Exception as e:
+            print(f"Failed to send command: {e}")
+            return None
+
     def get_device_info(self, device_id: str) -> Optional[Dict[str, Any]]:
         """
         Get device information from Firebase.

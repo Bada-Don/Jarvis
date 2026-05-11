@@ -66,6 +66,8 @@ export interface PermissionRequest {
     operation: string;
     details: string;
     timestamp: number;
+    isReact?: boolean;
+    sessionId?: string;
 }
 
 // Send permission response back to server
@@ -77,6 +79,17 @@ export const sendPermissionResponse = (requestId: string, approved: boolean) => 
         timestamp: Date.now(),
     });
     console.log(`📤 Permission response sent: ${requestId} - ${approved ? 'APPROVED' : 'DENIED'}`);
+};
+
+// Send ReAct permission response back to server
+export const sendPermissionResponseReact = (sessionId: string, approved: boolean) => {
+    const socket = getSocket();
+    socket.emit('permission_response_react', {
+        session_id: sessionId,
+        approved,
+        timestamp: Date.now(),
+    });
+    console.log(`📤 ReAct permission response sent for session ${sessionId}: ${approved ? 'APPROVED' : 'DENIED'}`);
 };
 
 // Listen for permission requests

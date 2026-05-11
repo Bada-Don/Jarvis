@@ -7,19 +7,24 @@ This module implements a Rule-Based Router -> Planner architecture.
 3. The Planner LLM generates the execution plan.
 
 KV Cache Optimization:
-- CACHEABLE_PREFIX is identical across ALL requests → maximizes prefix cache hits
-- Module-specific content is appended as a small SUFFIX → minimal re-processing
+- CACHEABLE_PREFIX is identical across ALL requests -> maximizes prefix cache hits
+- Module-specific content is appended as a small SUFFIX -> minimal re-processing
 - This architecture can reduce TTFT from ~20s to ~5s with local models
 """
 
 import os
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from llm_provider import GeminiProvider, OpenAIProvider, LocalProvider
 
 load_dotenv()
+
+_ROOT_DIR = Path(__file__).parent.parent
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
 # ==========================================
 # 🧩 PROMPT MODULES (Exact Original Text)
@@ -54,8 +59,8 @@ EXECUTION PRIORITY RULES (STRICT ORDER):
 CRITICAL: Creating folders/files via right-click is FORBIDDEN when commands can do it. Commands are faster, more reliable, and don't depend on UI element detection.
 
 CRITICAL PATH RULES:
-1. When user mentions "New Briefcase" → use "stickers" or "D:\Stickers\New Briefcase"
-2. When user mentions "Desktop" → use "desktop" or the full Desktop path
+1. When user mentions "New Briefcase" -> use "stickers" or "D:\Stickers\New Briefcase"
+2. When user mentions "Desktop" -> use "desktop" or the full Desktop path
 3. NEVER add file extensions unless the user explicitly mentions them
 4. Use fuzzy paths without extensions - the system will find the correct file automatically
 
@@ -71,7 +76,7 @@ You can control the computer through:
 Return a valid JSON object with a "sequence" array containing ordered steps.
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", "shell_command", "write_file", "read_file", "replace_in_file", "modify_lines", "open_file", "open_folder", "save_file", "web_automation", or "create_directory"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", "shell_command", "write_file", "read_file", "path_exists", "directory_exists", "replace_in_file", "modify_lines", "open_file", "open_folder", "save_file", "web_automation", or "create_directory"
 - "desc": brief description of the action
 """
 
@@ -211,7 +216,7 @@ MODULE_SHELL = r"""
 - File and folder creation MUST use:
   - Command-line operations (PREFERRED - fastest and most reliable), OR
   - Direct filesystem operations, OR
-  - Explicit UI menu navigation (LAST RESORT - e.g., right-click → New → Text Document)
+  - Explicit UI menu navigation (LAST RESORT - e.g., right-click -> New -> Text Document)
 - Ctrl+N MAY ONLY be used when the user explicitly requests "new window" or "new document" AND the application is known
 
 **IMPORTANT Command Syntax:**
@@ -314,19 +319,33 @@ For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This
 """
 
 MODULE_FILE_EDITING = r"""
-## AI-POWERED FILE EDITING (RECOMMENDED FOR WORD/EXCEL/TEXT FILES):
+## AI-POWERED FILE EDITING & CREATION (RECOMMENDED FOR WORD/EXCEL/TEXT FILES):
 
-For editing Word (.docx), Excel (.xlsx), or Text (.txt) files with natural language instructions:
+For editing OR CREATING Word (.docx), Excel (.xlsx), or Text (.txt) files with natural language instructions:
+
+**CRITICAL: Creating Word/Excel files via `start` or `keyboard` is FORBIDDEN.**
+- Use `ai_edit_word` to create/edit .docx files.
+- Use `ai_edit_excel` to create/edit .xlsx files.
+- The system automatically creates the file if it doesn't exist.
 
 **REQUIRED FIELDS:**
 - "type": Must be "ai_edit_word" (for .docx), "ai_edit_excel" (for .xlsx), or "ai_edit_text" (for .txt)
 - "path": Fuzzy path to the file (e.g., "desktop/report" or "desktop/input")
-- "prompt": Natural language instructions describing what to change (e.g., "Replace Harshit with Ayushi")
+- "prompt": Natural language instructions describing what to change or what to create (e.g., "Create a report about AI trends")
 - "desc": Brief description of the action
 
 **CRITICAL: Both "path" and "prompt" are REQUIRED. DO NOT omit either field.**
 
-**Example - Edit Word document:**
+**Example - Create a new Word document:**
+{{
+  "order": 1,
+  "type": "ai_edit_word",
+  "path": "desktop/LabCode/python_intro",
+  "prompt": "Create a new document with a basic python program that prints 'Hello World'",
+  "desc": "Create python intro Word document"
+}}
+
+**Example - Edit existing Word document:**
 {{
   "order": 1,
   "type": "ai_edit_word",
@@ -334,26 +353,9 @@ For editing Word (.docx), Excel (.xlsx), or Text (.txt) files with natural langu
   "prompt": "Replace the name Harshit Singla with Ayushi and replace the phone number with 9872113958",
   "desc": "Update name and phone in Word document"
 }}
+"""
 
-**Example - Edit Excel spreadsheet:**
-{{
-  "order": 1,
-  "type": "ai_edit_excel",
-  "path": "desktop/sales_data",
-  "prompt": "Add a Commission column that calculates 5% of Sales",
-  "desc": "Add commission calculations"
-}}
-
-**Example - Edit text file:**
-{{
-  "order": 1,
-  "type": "ai_edit_text",
-  "path": "desktop/notes",
-  "prompt": "Organize into sections: Attendees, Discussion, Action Items",
-  "desc": "Restructure meeting notes"
-}}
-
-## PLANE 2: CODE WORKSPACE CONTROL (RECOMMENDED FOR CODE FILES):
+MODULE_WORKSPACE_CONTROL = r"""
 For creating/editing code files and structured content, use these direct file operations. They are MUCH faster and more reliable than UI-based editing.
 
 **CRITICAL: The Modern Workflow for Code Files:**
@@ -386,7 +388,7 @@ Use `replace_in_file` for targeted changes (PREFERRED - works like IDE Find & Re
 - `old_text` must be the COMPLETE text you want to replace (e.g., "Name: John Doe", not just "Name:")
 - `new_text` is the COMPLETE replacement text (e.g., "Name: Harshit Singla")
 - The operation finds `old_text` and replaces it entirely with `new_text`
-- Think of it like: Find "Name: John Doe" → Replace with "Name: Harshit Singla"
+- Think of it like: Find "Name: John Doe" -> Replace with "Name: Harshit Singla"
 
 **WRONG (will result in "Name: Harshit Singla John Doe"):**
 {{
@@ -492,7 +494,7 @@ Use "create_directory" to create folders.
   "expected_final_state": "VS Code showing bubble_sort.py with terminal ready to run the program"
 }}
 
-**Example - Debug existing code (READ → ANALYZE → FIX → WRITE):**
+**Example - Debug existing code (READ -> ANALYZE -> FIX -> WRITE):**
 {{
   "sequence":[
     {{"order": 1, "type": "read_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "desc": "Read existing code to analyze"}},
@@ -562,10 +564,10 @@ For searching the web, finding information, or browser-based tasks:
 Use filesystem-based operations that bypass UI completely. These use fuzzy path matching and are MUCH faster than UI navigation.
 
 **IMPORTANT LOCATION MAPPINGS:**
-- "New Briefcase" folder → use "stickers" (located at {{STICKERS_PATH}})
-- "Desktop" → use "desktop"
-- "Documents" → use "documents"
-- "Downloads" → use "downloads"
+- "New Briefcase" folder -> use "stickers" (located at {{STICKERS_PATH}})
+- "Desktop" -> use "desktop"
+- "Documents" -> use "documents"
+- "Downloads" -> use "downloads"
 
 **FILE EXTENSION RULE:**
 NEVER add file extensions (.pdf, .docx, .fs, .txt) to paths. The system automatically finds the correct file with any extension.
@@ -607,9 +609,9 @@ Use "save_file" to save files by typing the full path into the Save dialog.
 
 ## Path Resolution Examples:
 The system automatically resolves fuzzy paths:
-- "desktop/jarvis test" → "{{DESKTOP_PATH}}\\JARVIS Test"
-- "stickers/maan 22" → "{{STICKERS_PATH}}\\maan 22.FS"
-- "documents/report" → "C:\\Users\\user\\Documents\\report.docx"
+- "desktop/jarvis test" -> "{{DESKTOP_PATH}}\\JARVIS Test"
+- "stickers/maan 22" -> "{{STICKERS_PATH}}\\maan 22.FS"
+- "documents/report" -> "C:\\Users\\user\\Documents\\report.docx"
 - Handles typos, case differences, partial names
 - Automatically finds file extensions
 
@@ -681,7 +683,7 @@ MODULE_FLEXISIGN = r"""You are a FlexiSIGN Automation Agent. Your goal is to tra
 - **Stickers/New Briefcase Path: {STICKERS_PATH}** (IMPORTANT: When user mentions "New Briefcase" or "stickers", use "stickers")
 
 CRITICAL PATH RULES:
-1. When user mentions "New Briefcase" → use "stickers"
+1. When user mentions "New Briefcase" -> use "stickers"
 2. NEVER add file extensions - system finds them automatically
 
 ### 1. KNOWLEDGE BASE (Dimensions)
@@ -768,6 +770,36 @@ You MUST include an "expected_final_state" field describing what the screen shou
 ACT AS A PURE JSON API. DO NOT provide explanations. DO NOT provide conversational text. Output ONLY the raw JSON object. If you include any text outside the JSON, the system will fail. No markdown fences, no thinking, no extra output.
 """
 
+MODULE_REACT = r"""
+MODULE: REACT (Iterative Execution)
+CONTEXT: You are in an iterative Thought-Action-Observation loop.
+GOAL: Generate 1-3 atomic steps to progress toward the user's goal.
+
+RESPONSE SCHEMA:
+{
+  "thought": "Brief reasoning about current state and next steps",
+  "sequence": [
+    {
+      "order": 1,
+      "type": "keyboard|visual_click|shell_command|path_exists|directory_exists|read_file|write_file|...",
+      "desc": "Human readable description"
+    }
+  ],
+  "is_complete": false,
+  "expected_observation": "What you expect to see after these steps"
+}
+
+GUIDELINES:
+1. If the task is finished, set "is_complete": true and "sequence": [].
+2. If you need more info from the user, use type: "ask_doubt" with "question" parameter.
+3. Keep batches small (1-3 steps) to allow for frequent feedback.
+4. Put type-specific fields at the step top level, e.g. "command", "path", "content", "value", "target_name"; do not nest them under "parameters".
+5. Make expected_observation concrete and checkable. Mention exact file/folder paths, filenames, visible window titles, or text that should exist after the batch. Avoid vague wording like "the action completed successfully".
+6. Do not use read_file to verify a folder. Use directory_exists for folders and path_exists when either a file or folder is acceptable.
+"""
+
+
+
 # ==========================================
 # 🚀 PLANNER SERVICE CLASS
 # ==========================================
@@ -792,24 +824,43 @@ class PlannerService:
         self.gemini_key = config.get('GEMINI_API_KEY', '')
         self.openai_key = config.get('OPENAI_API_KEY', '')
         self.config = config
+        self._cached_content_name = None
+        self._cached_content_text = ""
+        
+        # Initialize modules dictionary for easy access
+        self.MODULES = {
+            'general': MODULE_UI_OS + MODULE_SHELL + MODULE_OUT_REQ,
+            'flexisign': MODULE_FLEXISIGN,
+            'react': MODULE_REACT,
+            'email': MODULE_EMAIL,
+            'file_editing': MODULE_FILE_EDITING + "\n" + MODULE_WORKSPACE_CONTROL,
+            'file_navigation': MODULE_FILE_NAV
+        }
         
         self.init_provider(api_key)
 
     def init_provider(self, str_api_key_override=None):
         if self.llm_provider == 'openai':
-             api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
-             if not api_key: raise ValueError("OpenAI API key not configured.")
-             self.provider = OpenAIProvider(api_key=api_key)
+            api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
+            if not api_key: raise ValueError("OpenAI API key not configured.")
+            self.provider = OpenAIProvider(api_key=api_key)
         elif self.llm_provider == 'local':
-             model_name = self.config.get('LOCAL_MODEL_NAME', os.getenv('LOCAL_MODEL_NAME', 'gemma:2b'))
-             base_url = self.config.get('LOCAL_BASE_URL', os.getenv('LOCAL_BASE_URL', 'http://localhost:11434/v1'))
-             self.provider = LocalProvider(model_name=model_name, base_url=base_url)
+            model_name = self.config.get('LOCAL_MODEL_NAME', os.getenv('LOCAL_MODEL_NAME', 'gemma:2b'))
+            base_url = self.config.get('LOCAL_BASE_URL', os.getenv('LOCAL_BASE_URL', 'http://localhost:11434/v1'))
+            self.provider = LocalProvider(model_name=model_name, base_url=base_url)
         else:
-             api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')
-             if not api_key: raise ValueError("Gemini API key not configured.")
-             self.provider = GeminiProvider(api_key=api_key)
+            api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')
+            if not api_key: raise ValueError("Gemini API key not configured.")
+            self.provider = GeminiProvider(api_key=api_key)
+             
+        self.provider_name = self.llm_provider
+        self.llm = self.provider
              
         print(f"Initialized Planner with {self.llm_provider} provider")
+
+        # Initialize Gemini Context Cache if using Google provider
+        if self.llm_provider == 'gemini':
+            self.init_context_cache()
 
         # Pre-warm KV cache for local providers (populates cache with static prompts)
         if self.llm_provider == 'local' and isinstance(self.provider, LocalProvider):
@@ -820,7 +871,7 @@ class PlannerService:
             # Warm up the router prompt cache (static, reused on every routing call)
             self.provider.warmup_cache(self.ROUTER_PROMPT)
 
-    # Static router prompt — identical across all requests → KV cache reuses it
+    # Static router prompt — identical across all requests -> KV cache reuses it
     ROUTER_PROMPT = """You are a routing agent for a Computer Automation AI. 
 Analyze the user command and determine which tool modules are required.
 Available Modules:
@@ -869,8 +920,8 @@ Return ONLY a JSON object exactly like this (no markdown):
         """Assembles the final system prompt with a STABLE PREFIX for KV cache reuse.
         
         Architecture:
-        [CACHEABLE_PREFIX] (identical across all requests → cached by KV cache)
-        [MODULE_SUFFIX]    (small, varies per request → minimal re-processing)
+        [CACHEABLE_PREFIX] (identical across all requests -> cached by KV cache)
+        [MODULE_SUFFIX]    (small, varies per request -> minimal re-processing)
         
         The CACHEABLE_PREFIX is always sent first and never changes,
         so the local LLM server can reuse its KV cache for that portion.
@@ -888,14 +939,14 @@ Return ONLY a JSON object exactly like this (no markdown):
             return MODULE_FLEXISIGN.format(**safe_config)
         
         # === KV CACHE-OPTIMIZED PROMPT ASSEMBLY ===
-        # The CACHEABLE_PREFIX is always identical → KV cache reuses it 100%
+        # The CACHEABLE_PREFIX is always identical -> KV cache reuses it 100%
         final_prompt = CACHEABLE_PREFIX.format(**safe_config)
         
         # Append module-specific content as SUFFIX (small, varies per request)
         if "ui_os" in modules: final_prompt += "\n" + MODULE_UI_OS
         if "email" in modules: final_prompt += "\n" + MODULE_EMAIL
         if "shell" in modules: final_prompt += "\n" + MODULE_SHELL
-        if "file_editing" in modules: final_prompt += "\n" + MODULE_FILE_EDITING
+        if "file_editing" in modules: final_prompt += "\n" + MODULE_FILE_EDITING + "\n" + MODULE_WORKSPACE_CONTROL
         if "file_navigation" in modules or "web_auto" in modules: final_prompt += "\n" + MODULE_FILE_NAV
         
         # Always add the mandatory output requirements at the end
@@ -946,12 +997,7 @@ Return ONLY a JSON object exactly like this (no markdown):
                 response_text = '\n'.join(lines)
             
             try:
-                import sys
-                from pathlib import Path
-                local_client_path = Path(__file__).parent.parent / "local_client"
-                if str(local_client_path) not in sys.path:
-                    sys.path.insert(0, str(local_client_path))
-                from json_utils import safe_json_loads
+                from local_client.json_utils import safe_json_loads
                 plan = safe_json_loads(response_text)
             except ImportError:
                 plan = json.loads(response_text)
@@ -1033,7 +1079,7 @@ Return ONLY a JSON object exactly like this (no markdown):
             'keyboard', 'visual_click', 'click_text_fast',
             'create_text', 'set_dimensions', 'set_font', 'apply_style', 'move_object', 'ensure_designcentral',
             'open_file', 'open_folder', 'save_file', 'shell_command',
-            'write_file', 'read_file', 'append_file', 'create_directory',
+            'write_file', 'read_file', 'path_exists', 'directory_exists', 'append_file', 'create_directory',
             'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
             'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email', 'web_automation'
         }
@@ -1107,7 +1153,7 @@ Return ONLY a JSON object exactly like this (no markdown):
                 if 'content' not in step:
                     raise ValueError(f"write_file step {i+1} missing 'content' field")
             
-            if step_type in ('read_file', 'create_directory') and 'path' not in step:
+            if step_type in ('read_file', 'path_exists', 'directory_exists', 'create_directory') and 'path' not in step:
                 raise ValueError(f"{step_type} step {i+1} missing 'path' field")
             
             if step_type == 'append_file':
@@ -1155,3 +1201,164 @@ Return ONLY a JSON object exactly like this (no markdown):
                     raise ValueError(f"send_email step {i+1} missing 'subject' field")
                 if 'body' not in step:
                     raise ValueError(f"send_email step {i+1} missing 'body' field")
+
+    def generate_next_steps(self, session) -> dict:
+        """
+        ReAct Loop: Generate the next batch of steps based on session history.
+        Uses the full system prompt plus ReAct instructions for iterative reasoning.
+        """
+        route_data = session.route_data
+        if not route_data:
+            route_data = self.route_command(session.user_command)
+            session.route_data = route_data
+
+        # Build the full system prompt (same as generate_plan uses)
+        system_prompt = self.build_prompt(route_data)
+        system_prompt += "\n" + MODULE_REACT  # Append ReAct instructions
+        
+        # Format conversation history
+        history_context = session.get_history_for_planner()
+        
+        user_prompt = f"""USER COMMAND: {session.user_command}
+CURRENT MODE: {session.mode}
+
+EXECUTION HISTORY:
+{history_context}
+
+Generate the next 1-3 steps. If the task is complete, set is_complete to true with an empty sequence."""
+        
+        try:
+            # Use cached generation for Gemini to save tokens/latency
+            if self.provider_name == 'gemini':
+                response_text = self._generate_with_cache(system_prompt, user_prompt)
+            else:
+                response_text = self.llm.generate_content(system_prompt=system_prompt, user_prompt=user_prompt)
+                
+            plan = self._parse_json_response(response_text)
+            plan = self._resolve_placeholders(plan)
+            plan = self._validate_react_plan(plan)
+            plan['mode'] = route_data.get("mode", "general")
+            return plan
+            
+        except Exception as e:
+            print(f"✗ ReAct planning failed: {e}")
+            raise
+
+    def _validate_react_plan(self, plan: dict) -> dict:
+        """Ensure ReAct plan follows the required schema."""
+        if not isinstance(plan, dict):
+            raise ValueError("ReAct plan must be a dictionary")
+        if 'sequence' not in plan:
+            plan['sequence'] = []
+        if plan['sequence'] is None:
+            plan['sequence'] = []
+        if not isinstance(plan['sequence'], list):
+            raise ValueError("ReAct plan 'sequence' must be a list")
+        if 'is_complete' not in plan:
+            plan['is_complete'] = False
+        if 'thought' not in plan:
+            plan['thought'] = "Continuing execution..."
+            
+        # Ensure steps have correct format
+        for i, step in enumerate(plan['sequence']):
+            if not isinstance(step, dict):
+                raise ValueError(f"ReAct step {i+1} must be a dictionary")
+            parameters = step.pop('parameters', None)
+            if isinstance(parameters, dict):
+                for key, value in parameters.items():
+                    step.setdefault(key, value)
+            if 'order' not in step:
+                step['order'] = i + 1
+            if 'desc' not in step:
+                step['desc'] = f"Executing {step.get('type', 'step')}"
+                
+        return plan
+
+    def _parse_json_response(self, response_text: str) -> dict:
+        """Parse JSON from LLM response, handling markdown fences."""
+        response_text = response_text.strip()
+        if response_text.startswith('```'):
+            lines = response_text.split('\n')[1:]
+            if lines and lines[-1].strip() == '```':
+                lines = lines[:-1]
+            response_text = '\n'.join(lines)
+        
+        try:
+            import sys
+            from pathlib import Path
+            local_client_path = Path(__file__).parent.parent / "local_client"
+            if str(local_client_path) not in sys.path:
+                sys.path.insert(0, str(local_client_path))
+            from json_utils import safe_json_loads
+            return safe_json_loads(response_text)
+        except ImportError:
+            return json.loads(response_text)
+
+    def _generate_with_cache(self, system_prompt: str, user_prompt: str) -> str:
+        """Generate content using Gemini Context Cache if available, else standard call."""
+        if hasattr(self, '_cached_content_name') and self._cached_content_name:
+            try:
+                from google.genai import types
+
+                cached_text = getattr(self, '_cached_content_text', '')
+                contents = user_prompt
+                if cached_text and system_prompt.startswith(cached_text):
+                    dynamic_system = system_prompt[len(cached_text):].strip()
+                    if dynamic_system:
+                        contents = f"{dynamic_system}\n\n{user_prompt}"
+                else:
+                    contents = f"{system_prompt}\n\n{user_prompt}"
+
+                response = self.provider.client.models.generate_content(
+                    model=self.provider.model_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        cached_content=self._cached_content_name,
+                        temperature=0.1
+                    )
+                )
+                return response.text
+            except Exception as e:
+                print(f"⚠️ Gemini Context Cache failed, falling back: {e}")
+        
+        # Standard generation fallback
+        return self.llm.generate_content(system_prompt=system_prompt, user_prompt=user_prompt)
+
+    def init_context_cache(self):
+        """Initialize the Gemini Context Cache with the static prefix prompt."""
+        if self.llm_provider != 'gemini':
+            print("Context caching only available for Gemini provider")
+            return
+
+        try:
+            from google.genai import types
+
+            safe_config = {k: f"{{{k}}}" for k in self.config.keys()}
+            cache_content = CACHEABLE_PREFIX.format(**safe_config)
+            cache_api = getattr(self.provider.client, 'caches', None) or getattr(self.provider.client, 'caching', None)
+            if cache_api is None:
+                raise AttributeError("Gemini client does not expose a cache API")
+
+            create_config = getattr(types, 'CreateCachedContentConfig', None)
+            if create_config:
+                cached = cache_api.create(
+                    model=self.provider.model_name,
+                    config=create_config(
+                        contents=[cache_content],
+                        ttl="3600s"
+                    )
+                )
+            else:
+                cached = cache_api.create(
+                    model=self.provider.model_name,
+                    contents=[cache_content],
+                    ttl="3600s"
+                )
+
+            self._cached_content_name = cached.name
+            self._cached_content_text = cache_content
+            print(f"Gemini Context Cache created: {cached.name}")
+        except Exception as e:
+            print(f"⚠️ Failed to create Gemini Context Cache: {e}")
+            self._cached_content_name = None
+            self._cached_content_text = ""

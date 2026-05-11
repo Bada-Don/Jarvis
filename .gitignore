@@ -4,6 +4,7 @@ debug_logs/
 local_client/debug_logs/
 local_client/data/logs/
 data/logs/
+data/sessions/
 *.pyc
 venv/
 node_modules/

@@ -6,6 +6,7 @@ Supports both general computer automation and FlexiSIGN-specific tasks.
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add the script's directory to Python path so imports work correctly
@@ -29,6 +30,7 @@ import psutil
 import win32gui
 import win32con
 import requests
+from observation_module import ObservationModule
 
 # Load configuration from environment variables
 SERVER_URL = os.environ.get('BACKEND_URL', 'http://localhost:5000')
@@ -140,6 +142,9 @@ firebase_enabled = False
 
 # Error handler instance
 error_handler = None
+
+# Global executor for ReAct (persistent state)
+_global_executor = None
 
 
 @sio.event
@@ -381,6 +386,18 @@ def execute_command(command_data):
     
     if action == 'execute_plan':
         execute_two_model_plan(command_data)
+        
+    elif action == 'execute_step':
+        # ReAct: Execute a single atomic step
+        session_id = command_data.get('session_id')
+        step = command_data.get('step')
+        execute_single_step(session_id, step)
+        
+    elif action == 'verify_task':
+        # ReAct: Verify task completion
+        session_id = command_data.get('session_id')
+        expected_state = command_data.get('expected_state')
+        execute_verify_task(session_id, expected_state)
     
     elif action == 'flexisign_workflow':
         # Legacy support
@@ -771,6 +788,99 @@ def main():
                             details={'type': 'api_unreachable', 'server_url': SERVER_URL}
                         )
                         err_handler.handle_network_error(error)
+
+
+def execute_single_step(session_id: str, step: dict):
+    """Execute a single step for ReAct loop and report back."""
+    global _global_executor
+    
+    try:
+        # Initialize executor if needed
+        if _global_executor is None:
+            if not TWO_MODEL_PIPELINE_AVAILABLE:
+                _send_step_result(session_id, step, False, "Pipeline components not available")
+                return
+            from vision_service import VisionService
+            from plan_executor import PlanExecutor
+            vision_service = VisionService()
+            _global_executor = PlanExecutor(vision_service, status_callback=send_status)
+            if PERMISSION_SERVICE_AVAILABLE and permission_service:
+                _global_executor.set_permission_service(permission_service)
+        
+        # Execute step
+        result = _global_executor.execute_single_step(step)
+        
+        # Capture observation (screenshot + context)
+        obs_module = ObservationModule()
+        obs_data = obs_module.capture_state(step.get('type', ''))
+        result_with_obs = dict(result)
+        result_with_obs.update({
+            'success': result.get('success', False),
+            'stdout': result.get('stdout', ''),
+            'stderr': result.get('stderr', ''),
+            'error_message': result.get('error_message'),
+            'raw_observation': result.get('observation', ''),
+            'active_window': obs_data.get('active_window', ''),
+            'foreground_app': obs_data.get('foreground_app', ''),
+            'files_modified': result.get('files_modified', []),
+        })
+        observation = obs_module.build_observation_text(result_with_obs)
+        result_with_obs['observation'] = observation
+
+        
+        # Send result back to server
+        _send_step_result(session_id, step, result.get('success', False), observation, result_with_obs)
+        
+    except Exception as e:
+        print(f"✗ Step execution error: {e}")
+        import traceback
+        traceback.print_exc()
+        _send_step_result(session_id, step, False, f"Error: {str(e)}")
+
+def execute_verify_task(session_id: str, expected_state: str):
+    """Perform visual verification of task completion."""
+    global _global_executor
+    try:
+        if _global_executor is None:
+            # Should already be initialized by first step, but just in case
+            from vision_service import VisionService
+            from plan_executor import PlanExecutor
+            _global_executor = PlanExecutor(VisionService(), status_callback=send_status)
+            
+        result = _global_executor.execute_verify_task(expected_state)
+        
+        # Send verification result back
+        sio.emit('verification_result', {
+            'session_id': session_id,
+            'success': result.get('success', False),
+            'observation': result.get('observation', 'Verification complete'),
+            'confidence': result.get('confidence', 0)
+        })
+    except Exception as e:
+        sio.emit('verification_result', {
+            'session_id': session_id,
+            'success': False,
+            'observation': f"Verification error: {str(e)}"
+        })
+
+def _send_step_result(session_id: str, step: dict, success: bool, observation: str, result_data: dict = None):
+    """Send step result back to server via WebSocket."""
+    payload = {
+        'session_id': session_id,
+        'step_order': step.get('order'),
+        'step_type': step.get('type'),
+        'success': success,
+        'observation': observation,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    if result_data:
+        payload.update(result_data)
+        payload['success'] = success
+        payload['observation'] = observation
+        
+    if sio.connected:
+        sio.emit('step_result', payload)
 
 
 if __name__ == '__main__':
