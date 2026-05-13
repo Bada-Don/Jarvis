@@ -1,46 +1,39 @@
-"""
-JARVIS Local Client
-Connects to the backend server and executes automation commands on the local machine.
-Supports both general computer automation and FlexiSIGN-specific tasks.
-"""
-
 import os
 import sys
-from datetime import datetime
-from pathlib import Path
-
-# Add the script's directory to Python path so imports work correctly
-script_dir = Path(__file__).parent.resolve()
-if str(script_dir) not in sys.path:
-    sys.path.insert(0, str(script_dir))
-
-# Load environment variables first (before any other imports that use them)
-try:
-    from dotenv import load_dotenv
-    env_path = script_dir / '.env'
-    load_dotenv(dotenv_path=env_path)  # Load from local_client/.env
-except ImportError:
-    pass  # python-dotenv not installed, will use system environment variables
-
-import socketio
-import pyautogui
 import time
+import json
+import uuid
+import traceback
+import requests
+import pyautogui
 import subprocess
 import psutil
 import win32gui
 import win32con
-import requests
+import socketio
+from datetime import datetime
+from pathlib import Path
+from dataclasses import asdict
+
+# Add the script's directory and project root to Python path
+script_dir = Path(__file__).parent.resolve()
+project_root = script_dir.parent.resolve()
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=script_dir / '.env')
+except ImportError:
+    pass
+
+# Import core modules
 from observation_module import ObservationModule
 
-# Load configuration from environment variables
-SERVER_URL = os.environ.get('BACKEND_URL', 'http://localhost:5000')
-LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'gemini')
-LOCAL_MODEL_NAME = os.environ.get('LOCAL_MODEL_NAME', 'gemma:2b')
-LOCAL_BASE_URL = os.environ.get('LOCAL_BASE_URL', 'http://localhost:11434/v1')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
-
-# Timing defaults
+# Timing defaults from environment
 ACTION_DELAY = float(os.environ.get('ACTION_DELAY', 0.3))
 APP_LAUNCH_WAIT = float(os.environ.get('APP_LAUNCH_WAIT', 3.0))
 HOTKEY_DELAY = float(os.environ.get('HOTKEY_DELAY', 0.5))
@@ -51,269 +44,103 @@ WINDOW_POLL_INTERVAL = float(os.environ.get('WINDOW_POLL_INTERVAL', 0.5))
 RETRY_DELAY = float(os.environ.get('RETRY_DELAY', 2.0))
 VERIFICATION_DELAY = float(os.environ.get('VERIFICATION_DELAY', 1.0))
 
-# Verification settings
+# Configuration settings
+SERVER_URL = os.environ.get('BACKEND_URL', 'http://localhost:5000')
 VERIFICATION_ENABLED = os.environ.get('VERIFICATION_ENABLED', 'false').lower() == 'true'
 MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 0))
-CONFIDENCE_THRESHOLD = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.7))
-
-# Firebase settings
 FIREBASE_ENABLED = os.environ.get('FIREBASE_ENABLED', 'true').lower() == 'true'
-FIREBASE_PAIRED = os.environ.get('FIREBASE_PAIRED', 'false').lower() == 'true'
-FIREBASE_PAIRED_DEVICE_ID = os.environ.get('FIREBASE_PAIRED_DEVICE_ID', '')
 
-# Import FlexiSign Manager (for FlexiSIGN mode)
+# Specialized managers and services
 try:
     from flexisign_manager import FlexiSignManager
     FLEXISIGN_MANAGER_AVAILABLE = True
 except ImportError:
-    print("⚠️ Warning: flexisign_manager.py not found")
     FLEXISIGN_MANAGER_AVAILABLE = False
 
-# Import Two-Model Pipeline components
 try:
     from vision_service import VisionService
     from plan_executor import PlanExecutor
     TWO_MODEL_PIPELINE_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Warning: Two-Model Pipeline components not available: {e}")
+except ImportError:
     TWO_MODEL_PIPELINE_AVAILABLE = False
 
-# Import Firebase Service
 try:
     from firebase_service import FirebaseService
     FIREBASE_SERVICE_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Warning: Firebase Service not available: {e}")
+except ImportError:
     FIREBASE_SERVICE_AVAILABLE = False
 
-# Import debug logger
 try:
     from debug_logger import create_new_session, get_debug_logger
     DEBUG_LOGGER_AVAILABLE = True
 except ImportError:
     DEBUG_LOGGER_AVAILABLE = False
 
-# Import permission service
 try:
     from permission_service import (
-        PermissionService, 
-        register_abort_handler, 
-        is_abort_requested, 
-        reset_abort
+        PermissionService, register_abort_handler, 
+        is_abort_requested, reset_abort
     )
     PERMISSION_SERVICE_AVAILABLE = True
 except ImportError:
-    print("⚠️ Warning: permission_service.py not found")
     PERMISSION_SERVICE_AVAILABLE = False
 
-# Import error handler
 try:
-    from error_handler import (
-        ErrorHandler,
-        ConfigurationError,
-        NetworkError,
-        ComponentError,
-        PairingError,
-        RuntimeError as JarvisRuntimeError,
-        get_error_handler,
-        set_error_handler
-    )
+    from error_handler import ErrorHandler, set_error_handler, get_error_handler, NetworkError
     ERROR_HANDLER_AVAILABLE = True
 except ImportError:
-    print("⚠️ Warning: error_handler.py not found")
     ERROR_HANDLER_AVAILABLE = False
 
-# Initialize SocketIO Client with reconnection settings
+# Initialize SocketIO Client
 sio = socketio.Client(
     reconnection=True,
-    reconnection_attempts=0,  # Infinite reconnection attempts
-    reconnection_delay=1,  # Start with 1 second delay
-    reconnection_delay_max=5,  # Max 5 seconds between attempts
+    reconnection_attempts=0,
+    reconnection_delay=1,
+    reconnection_delay_max=5,
     logger=False,
     engineio_logger=False
 )
 
-# Permission service instance (initialized after connection)
+# Global instances
 permission_service = None
-
-# Firebase service instance (initialized if credentials available)
 firebase_service = None
 firebase_enabled = False
-
-# Error handler instance
 error_handler = None
-
-# Global executor for ReAct (persistent state)
 _global_executor = None
 
-
-@sio.event
-def connect():
-    global permission_service, error_handler
-    
-    # Prevent duplicate initialization logging
-    if hasattr(connect, '_initialized'):
-        print('✅ Reconnected to JARVIS Server')
-        return
-        
-    print('✅ Connected to JARVIS Server')
-    
+def get_paired_device_id():
+    """Get the ID of the paired mobile device from device_config.json."""
     try:
-        # Initialize error handler
-        if ERROR_HANDLER_AVAILABLE and error_handler is None:
-            error_handler = ErrorHandler(status_callback=send_status)
-            set_error_handler(error_handler)
-            print('✅ Error handler initialized')
-        
-        # Initialize permission service after connection
-        if PERMISSION_SERVICE_AVAILABLE:
-            permission_service = PermissionService(sio, status_callback=send_status)
-            register_abort_handler(sio)
-            print('✅ Permission service initialized')
-        
-        # Mark as initialized
-        connect._initialized = True
-        print('✅ Connection setup complete')
-    except Exception as e:
-        print(f'❌ Error in connect handler: {e}')
-        import traceback
-        traceback.print_exc()
-
-
-@sio.event
-def disconnect():
-    print('❌ Disconnected from Server')
-
-
-@sio.event
-def connect_error(data):
-    print(f'❌ Connection error: {data}')
-    import traceback
-    traceback.print_exc()
-
-
-@sio.event
-def command(data):
-    print(f'📥 Received command: {data.get("action", "unknown")}')
-    execute_command(data)
-
+        config_path = project_root / 'data' / 'device_config.json'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                return config.get('paired_device_id')
+    except Exception:
+        pass
+    return None
 
 def get_or_create_device_id():
-    """
-    Get or create a unique device ID for this client instance.
-    Reads from canonical data/device_config.json (created by PairingManager).
-    Falls back to data/device_id.txt for backward compatibility.
-    """
-    from pathlib import Path
-    import json
-    
-    # Try canonical device_config.json first (created by PairingManager)
-    device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
-    if device_config_path.exists():
+    """Get or create a unique device ID from device_config.json."""
+    config_path = project_root / 'data' / 'device_config.json'
+    if config_path.exists():
         try:
-            with open(device_config_path, 'r') as f:
+            with open(config_path, 'r') as f:
                 config = json.load(f)
                 device_id = config.get('device_id')
-                if device_id:
-                    print(f"✓ Using device ID from device_config.json: {device_id}")
-                    return device_id
-        except Exception as e:
-            print(f"⚠️ Error reading device_config.json: {e}")
+                if device_id: return device_id
+        except Exception:
+            pass
     
-    # Fall back to legacy device_id.txt
-    device_id_path = Path(__file__).parent / 'data' / 'device_id.txt'
-    
-    # Try to load existing device ID
-    if device_id_path.exists():
-        try:
-            with open(device_id_path, 'r') as f:
-                device_id = f.read().strip()
-                if device_id:
-                    print(f"✓ Using device ID from device_id.txt: {device_id}")
-                    return device_id
-        except Exception as e:
-            print(f"⚠️ Error reading device ID: {e}")
-    
-    # Generate new device ID
-    import uuid
     device_id = f"desktop_{uuid.uuid4().hex[:16]}"
-    
-    # Save to canonical location (device_config.json)
     try:
-        device_config_path.parent.mkdir(parents=True, exist_ok=True)
-        config = {
-            'device_id': device_id,
-            'device_type': 'desktop',
-            'created_at': time.time()
-        }
-        with open(device_config_path, 'w') as f:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config = {'device_id': device_id, 'device_type': 'desktop', 'created_at': time.time()}
+        with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
-        print(f"✓ Generated new device ID and saved to device_config.json: {device_id}")
     except Exception as e:
-        print(f"⚠️ Error saving device_config.json: {e}")
-        # Fall back to saving in device_id.txt
-        try:
-            device_id_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(device_id_path, 'w') as f:
-                f.write(device_id)
-            print(f"✓ Saved device ID to device_id.txt: {device_id}")
-        except Exception as e:
-            print(f"⚠️ Error saving device ID: {e}")
-    
+        print(f"⚠️ Error saving device ID: {e}")
     return device_id
-
-
-def handle_firebase_command(command_data):
-    """
-    Handle commands received from Firebase.
-    Route raw text commands through the backend planner.
-    
-    Args:
-        command_data: Command data from Firebase
-    """
-    import requests
-    
-    # Log the received command
-    command_type = command_data.get('type', 'unknown')
-    command_text = command_data.get('text', '')
-    print(f'📥 Firebase command received: type={command_type}, text={command_text}')
-    
-    # Check if this is a raw text command (from mobile app)
-    if command_type == 'command' and command_text:
-        # Route through backend planner to get proper execution plan
-        try:
-            print(f'🔄 Routing command through backend planner: {command_text}')
-            
-            # Send to backend's /api/process endpoint
-            response = requests.post(
-                f'{SERVER_URL}/api/process',
-                json={'text': command_text},
-                timeout=120
-            )
-            
-            if response.status_code == 200:
-                print('✅ Command routed to backend successfully')
-                # Backend will send the execution plan via WebSocket/Firebase
-                # with proper action: "execute_plan" structure
-            else:
-                error_msg = f'Backend returned error: {response.status_code}'
-                print(f'❌ {error_msg}')
-                send_status(error_msg, "error")
-                
-        except Exception as e:
-            error_msg = f'Failed to route command to backend: {e}'
-            print(f'❌ {error_msg}')
-            send_status(error_msg, "error")
-    
-    # If it's already a structured command with action field, execute directly
-    elif command_data.get('action'):
-        print(f'📥 Executing structured command: {command_data.get("action")}')
-        execute_command(command_data)
-    
-    else:
-        print(f'⚠️ Unknown command format: {command_data}')
-        send_status(f"Unknown command format", "error")
-
 
 def send_status(message, status_type="info"):
     """Send status update to server via WebSocket and Firebase."""
@@ -325,8 +152,6 @@ def send_status(message, status_type="info"):
                 'type': message.get('status', status_type),
                 'timestamp': time.time()
             }
-            # Task 10: Milestone-based log filtering (commented out as requested)
-            # if message.get('progress') in [5, 20, 50, 95, 100]:
             print(f"📤 Progress: {message.get('message', '')} ({message.get('progress', 0)}%)")
         else:
             status_data = {
@@ -334,522 +159,193 @@ def send_status(message, status_type="info"):
                 'type': status_type,
                 'timestamp': time.time()
             }
-            # Only log important status messages
             if status_type in ['error', 'success', 'warning', 'info']:
                 print(f"📤 Status: {message}")
         
-        # Send via WebSocket if connected
+        # 1. Send via WebSocket
         if sio.connected:
             sio.emit('status_update', status_data)
         
-        # Send via Firebase if enabled
-        if firebase_enabled and firebase_service and firebase_service.device_id:
-            # Get paired mobile device ID from config
-            try:
-                from config import FIREBASE_PAIRED_DEVICE_ID
-                paired_mobile_id = FIREBASE_PAIRED_DEVICE_ID
-            except ImportError:
-                paired_mobile_id = None
-            
-            # If no paired device in config, try reading from device_config.json
-            if not paired_mobile_id:
-                try:
-                    from pathlib import Path
-                    import json
-                    device_config_path = Path(__file__).parent.parent / 'data' / 'device_config.json'
-                    if device_config_path.exists():
-                        with open(device_config_path, 'r') as f:
-                            config = json.load(f)
-                            paired_mobile_id = config.get('paired_device_id')
-                except Exception as e:
-                    print(f"⚠️ Error reading paired device ID: {e}")
-            
-            # Send status to paired mobile device (not desktop's own ID)
-            if paired_mobile_id:
-                firebase_service.send_status(paired_mobile_id, 
-                                            message if isinstance(message, dict) else {'message': message, 'type': status_type})
+        # 2. Send via Firebase if enabled
+        if firebase_enabled and firebase_service:
+            paired_id = get_paired_device_id()
+            if paired_id:
+                msg_payload = message if isinstance(message, dict) else {'message': message, 'type': status_type}
+                firebase_service.send_status(paired_id, msg_payload)
             
     except Exception as e:
-        # Only log errors, not every status send failure
         if status_type == 'error':
             print(f"Failed to send status: {e}")
 
+@sio.event
+def connect():
+    global permission_service, error_handler
+    if hasattr(connect, '_initialized'):
+        print('✅ Reconnected to JARVIS Server')
+        return
+        
+    print('✅ Connected to JARVIS Server')
+    try:
+        if ERROR_HANDLER_AVAILABLE and error_handler is None:
+            error_handler = ErrorHandler(status_callback=send_status)
+            set_error_handler(error_handler)
+        
+        if PERMISSION_SERVICE_AVAILABLE:
+            permission_service = PermissionService(sio, status_callback=send_status)
+            register_abort_handler(sio)
+            
+        connect._initialized = True
+        print('✅ Connection setup complete')
+    except Exception as e:
+        print(f'❌ Error in connect handler: {traceback.format_exc()}')
+
+@sio.event
+def disconnect():
+    print('❌ Disconnected from Server')
+
+@sio.event
+def command(data):
+    action = data.get('action')
+    print(f'📥 Received command: {action}')
+    execute_command(data)
+
+def handle_firebase_command(command_data):
+    """Handle commands from Firebase by routing to backend or executing directly."""
+    command_type = command_data.get('type', 'unknown')
+    command_text = command_data.get('text', '')
+    
+    if command_type == 'command' and command_text:
+        try:
+            print(f'🔄 Routing Firebase command to backend: {command_text}')
+            response = requests.post(f'{SERVER_URL}/api/process', json={'text': command_text}, timeout=120)
+            if response.status_code != 200:
+                send_status(f'Backend error: {response.status_code}', "error")
+        except Exception as e:
+            send_status(f'Routing failed: {e}', "error")
+    elif command_data.get('action'):
+        execute_command(command_data)
 
 def execute_command(command_data):
-    """
-    Execute commands received from the server.
-    Supports:
-    - execute_plan: Two-Model Pipeline (general or FlexiSIGN)
-    - flexisign_workflow: Legacy FlexiSIGN workflow
-    """
+    """Execute commands received from the server."""
     action = command_data.get('action')
-    
     if action == 'execute_plan':
         execute_two_model_plan(command_data)
-        
     elif action == 'execute_step':
-        # ReAct: Execute a single atomic step
-        session_id = command_data.get('session_id')
-        step = command_data.get('step')
-        execute_single_step(session_id, step)
-        
+        execute_single_step(command_data.get('session_id'), command_data.get('step'))
     elif action == 'verify_task':
-        # ReAct: Verify task completion
-        session_id = command_data.get('session_id')
-        expected_state = command_data.get('expected_state')
-        execute_verify_task(session_id, expected_state)
-    
+        execute_verify_task(command_data.get('session_id'), command_data.get('expected_state'))
     elif action == 'flexisign_workflow':
-        # Legacy support
         execute_flexisign_legacy(command_data)
-    
-    elif action == 'two_model_workflow':
-        # Backward compatibility alias
-        execute_two_model_plan(command_data)
-    
     else:
         print(f"⚠️ Unknown action: {action}")
         send_status(f"Unknown action: {action}", "error")
 
-
 def execute_two_model_plan(command_data, retry_count: int = 0):
-    """
-    Execute a plan using the Two-Model Pipeline.
-    Works for both general tasks and FlexiSIGN-specific tasks.
-    Includes verification and automatic retry on failure.
-    
-    Args:
-        command_data: Command data from server
-        retry_count: Current retry attempt
-    """
-    # Reset abort flag at start of new execution
+    """Execute a full plan using the Two-Model Pipeline with retries."""
     if PERMISSION_SERVICE_AVAILABLE:
         reset_abort()
     
-    # Load settings from environment variables
-    max_retries = int(os.environ.get('MAX_RETRIES', 0))
-    enable_verification = os.environ.get('VERIFICATION_ENABLED', 'false').lower() == 'true'
-    retry_delay = float(os.environ.get('RETRY_DELAY', 2.0))
-    
     if not TWO_MODEL_PIPELINE_AVAILABLE:
-        send_status("Two-Model Pipeline not available. Missing dependencies.", "error")
+        send_status("Two-Model Pipeline not available.", "error")
         return
     
     plan = command_data.get('plan')
     user_command = command_data.get('user_command', '')
     mode = command_data.get('mode', plan.get('mode', 'general'))
-    # Allow command_data to override config (for testing/debugging)
-    enable_verification = command_data.get('verify', enable_verification)
+    enable_verification = command_data.get('verify', VERIFICATION_ENABLED)
     
-    if not plan:
-        send_status("No execution plan received", "error")
-        return
-    
-    # Initialize debug logger
     debug_logger = None
     if DEBUG_LOGGER_AVAILABLE:
         try:
             debug_logger = create_new_session()
             debug_logger.set_user_command(user_command)
             debug_logger.log_planner_output(plan)
-            print(f"📁 Debug session: {debug_logger.session_id}")
-        except Exception as e:
-            print(f"⚠️ Debug logger error: {e}")
+        except Exception: pass
     
     try:
         retry_msg = f" (retry {retry_count}/{MAX_RETRIES})" if retry_count > 0 else ""
-        send_status({
-            'message': f'Starting execution (mode: {mode}){retry_msg}...',
-            'progress': 5,
-            'status': 'info'
-        }, "info")
+        send_status({'message': f'Starting execution ({mode}){retry_msg}...', 'progress': 5}, "info")
         
-        # Check for abort before starting
-        if PERMISSION_SERVICE_AVAILABLE and is_abort_requested():
-            send_status({
-                'message': 'Task aborted by user',
-                'progress': 0,
-                'status': 'error'
-            }, "error")
-            return
-        
-        # For FlexiSIGN mode, ensure the app is ready
         if mode == 'flexisign' and FLEXISIGN_MANAGER_AVAILABLE:
-            send_status({
-                'message': 'Preparing FlexiSIGN...',
-                'progress': 8,
-                'status': 'info'
-            }, "info")
-            
             manager = FlexiSignManager(status_callback=send_status)
             if not manager.ensure_proper_state():
-                send_status({
-                    'message': 'Failed to start FlexiSIGN Pro',
-                    'progress': 0,
-                    'status': 'error'
-                }, "error")
+                send_status("Failed to prepare FlexiSIGN", "error")
                 return
         
-        # For general mode, just wait a moment for any app to be ready
-        elif mode == 'general':
-            time.sleep(0.5)
-        
-        # Initialize Vision Service
-        try:
-            vision_service = VisionService()
-            send_status({
-                'message': 'Vision service ready',
-                'progress': 23,
-                'status': 'info'
-            }, "info")
-        except Exception as e:
-            send_status(f"Vision service error: {e}", "error")
-            return
-        
-        # Initialize Plan Executor with permission service
+        vision_service = VisionService()
         executor = PlanExecutor(vision_service, status_callback=send_status)
-        
-        # Pass permission service to executor if available
         if PERMISSION_SERVICE_AVAILABLE and permission_service:
             executor.set_permission_service(permission_service)
         
-        # Log execution start
-        sequence = plan.get('sequence', [])
-        expected_state = plan.get('expected_final_state', '')
-        print(f"📋 Executing {len(sequence)} steps for: {user_command}")
-        if expected_state:
-            print(f"📋 Expected final state: {expected_state}")
-        
-        # Execute the plan with verification
         result = executor.execute_plan(plan, verify=enable_verification)
         
-        # Check if aborted
-        if result.get("aborted", False):
-            send_status({
-                'message': 'Task aborted by user',
-                'progress': 0,
-                'status': 'error'
-            }, "error")
-            if debug_logger:
-                debug_logger.log_error("Task aborted by user")
-                debug_logger.complete(success=False)
+        if result.get("aborted"):
+            send_status("Task aborted", "error")
             return
-        
-        exec_success = result.get("success", False)
-        verified = result.get("verified", True)
-        verification_result = result.get("verification_result")
-        
-        # Handle verification failure with retry
-        if exec_success and not verified and retry_count < MAX_RETRIES:
-            corrective_actions = []
-            if verification_result:
-                corrective_actions = verification_result.get("corrective_actions", [])
-                current_state = verification_result.get("current_state", "Unknown")
-                print(f"⚠️ Verification failed. Current: {current_state}")
-                print(f"⚠️ Suggested corrections: {corrective_actions}")
             
-            send_status({
-                'message': f'Verification failed, retrying... ({retry_count + 1}/{MAX_RETRIES})',
-                'progress': 50,
-                'status': 'warning'
-            }, "warning")
-            
-            # Log retry attempt
-            if debug_logger:
-                debug_logger.log_error(f"Verification failed, retry {retry_count + 1}")
-            
-            # Wait before retry (configurable delay)
-            time.sleep(retry_delay)
-            
-            # Retry execution
+        if result.get("success") and result.get("verified", True):
+            send_status({'message': 'Task completed!', 'progress': 100}, "success")
+            if debug_logger: debug_logger.complete(success=True)
+        elif result.get("success") and not result.get("verified") and retry_count < MAX_RETRIES:
+            send_status("Verification failed, retrying...", "warning")
+            time.sleep(RETRY_DELAY)
             execute_two_model_plan(command_data, retry_count + 1)
-            return
-        
-        # Final status
-        if exec_success and verified:
-            send_status({
-                'message': 'Task completed and verified successfully!',
-                'progress': 100,
-                'status': 'success'
-            }, "success")
-            
-            if debug_logger:
-                debug_logger.complete(success=True)
-                
-        elif exec_success and not verified:
-            # Verification failed after all retries
-            send_status({
-                'message': 'Task executed but verification failed after retries',
-                'progress': 100,
-                'status': 'warning'
-            }, "warning")
-            
-            if debug_logger:
-                debug_logger.complete(success=False)
         else:
-            send_status({
-                'message': 'Task execution failed',
-                'progress': 100,
-                'status': 'error'
-            }, "error")
-            
-            if debug_logger:
-                debug_logger.complete(success=False)
+            send_status("Task failed", "error")
+            if debug_logger: debug_logger.complete(success=False)
                 
     except Exception as e:
-        error_msg = f"Execution error: {str(e)}"
-        print(f"❌ {error_msg}")
-        
-        # Use error handler if available
-        if error_handler:
-            error_handler.handle_generic_error(e, context="Two-Model Pipeline execution")
-        else:
-            send_status({
-                'message': f'Error: {str(e)}',
-                'progress': 0,
-                'status': 'error',
-                'error': str(e)
-            }, "error")
-        
-        if debug_logger:
-            debug_logger.log_error(str(e))
-            debug_logger.complete(success=False)
-
-
-def execute_flexisign_legacy(command_data):
-    """Legacy FlexiSIGN workflow execution."""
-    if FLEXISIGN_MANAGER_AVAILABLE:
-        try:
-            send_status("Starting FlexiSign automation...", "info")
-            manager = FlexiSignManager(status_callback=send_status)
-            success = manager.ensure_proper_state()
-            
-            if success:
-                send_status("FlexiSign Pro is ready!", "success")
-                
-                steps = command_data.get('steps', [])
-                for step in steps:
-                    step_type = step.get('type')
-                    
-                    if step_type in ['check_process', 'check_window', 'wait_for_modal']:
-                        continue
-                    
-                    if step_type == 'notification':
-                        send_status(step.get('message'), "info")
-                    elif step_type == 'press_key':
-                        pyautogui.press(step.get('key'))
-                    elif step_type == 'click_center':
-                        cx, cy = pyautogui.size()
-                        pyautogui.click(cx // 2, cy // 2)
-                    elif step_type == 'type_text':
-                        pyautogui.write(step.get('text'), interval=0.05)
-                    
-                    time.sleep(0.5)
-            else:
-                send_status("Failed to start FlexiSign Pro", "error")
-                
-        except Exception as e:
-            print(f"Error: {e}")
-            send_status(f"Error: {e}", "error")
-
-
-def main():
-    global firebase_service, firebase_enabled
-    
-    print("=" * 50)
-    print("🤖 JARVIS Local Client Starting...")
-    print("=" * 50)
-    print(f"Server URL: {SERVER_URL}")
-    print(f"FlexiSign Manager: {'✅' if FLEXISIGN_MANAGER_AVAILABLE else '❌'}")
-    print(f"Two-Model Pipeline: {'✅' if TWO_MODEL_PIPELINE_AVAILABLE else '❌'}")
-    print(f"Debug Logger: {'✅' if DEBUG_LOGGER_AVAILABLE else '❌'}")
-    print(f"Permission Service: {'✅' if PERMISSION_SERVICE_AVAILABLE else '❌'}")
-    print(f"Firebase Service: {'✅' if FIREBASE_SERVICE_AVAILABLE else '❌'}")
-    print(f"Error Handler: {'✅' if ERROR_HANDLER_AVAILABLE else '❌'}")
-    
-    # Show device ID info
-    try:
-        device_id = get_or_create_device_id()
-        print(f"Device ID: {device_id}")
-    except Exception as e:
-        print(f"⚠️ Could not get device ID: {e}")
-        device_id = None
-    
-    # Show paired device info
-    try:
-        from config import FIREBASE_PAIRED, FIREBASE_PAIRED_DEVICE_ID
-        if FIREBASE_PAIRED and FIREBASE_PAIRED_DEVICE_ID:
-            print(f"Paired with mobile: {FIREBASE_PAIRED_DEVICE_ID}")
-        else:
-            print("Not paired with mobile device")
-    except ImportError:
-        print("Pairing info not available")
-    
-    print("=" * 50)
-    
-    # Check if Firebase is enabled in .env file
-    firebase_config_enabled = True
-    try:
-        from dotenv import load_dotenv
-        import os
-        load_dotenv()  # Load from local_client/.env
-        firebase_enabled_env = os.getenv('FIREBASE_ENABLED', 'true').lower()
-        firebase_config_enabled = firebase_enabled_env in ['true', '1', 'yes']
-    except Exception as e:
-        print(f"⚠️ Could not read FIREBASE_ENABLED from .env: {e}")
-    
-    # Initialize Firebase BEFORE connecting to SocketIO
-    if firebase_config_enabled and FIREBASE_SERVICE_AVAILABLE and device_id:
-        try:
-            from pathlib import Path
-            firebase_creds_path = Path(__file__).parent.parent / 'data' / 'firebase-admin-credentials.json'
-            print(f'🔍 Looking for Firebase credentials at: {firebase_creds_path}')
-            
-            if firebase_creds_path.exists():
-                print('🔥 Initializing Firebase service...')
-                firebase_service = FirebaseService(str(firebase_creds_path))
-                
-                firebase_service.set_device_id(device_id)
-                firebase_service.register_device(device_id, device_type="desktop")
-                
-                # Start presence tracking (guarded for compatibility)
-                if hasattr(firebase_service, 'start_presence_tracking'):
-                    firebase_service.start_presence_tracking(device_id)
-                else:
-                    print('⚠️ start_presence_tracking not available, skipping')
-                
-                # Listen for commands from Firebase
-                firebase_service.listen_for_commands(device_id, handle_firebase_command)
-                
-                firebase_enabled = True
-                print('✅ Firebase service initialized and listening')
-                print(f'   Device ID: {device_id}')
-                
-                # Log paired device info
-                try:
-                    from config import FIREBASE_PAIRED_DEVICE_ID
-                    if FIREBASE_PAIRED_DEVICE_ID:
-                        print(f'   Paired with mobile: {FIREBASE_PAIRED_DEVICE_ID}')
-                except ImportError:
-                    pass
-            else:
-                print(f'⚠️ Firebase credentials not found at: {firebase_creds_path}')
-                print('⚠️ Firebase features disabled')
-        except Exception as e:
-            print(f'❌ Firebase initialization error: {e}')
-            import traceback
-            traceback.print_exc()
-    elif not firebase_config_enabled:
-        print('⚠️ Firebase disabled in .env (FIREBASE_ENABLED=false)')
-    
-    print("=" * 50)
-    print("🔌 Connecting to backend server...")
-    
-    max_retries = 5
-    retry_delay = 3
-    connected = False
-    
-    for attempt in range(1, max_retries + 1):
-        try:
-            print(f"🔌 Connection attempt {attempt}/{max_retries}...")
-            sio.connect(SERVER_URL, wait_timeout=10)
-            print("✅ Connected to backend server")
-            connected = True
-            sio.wait()
-            break
-        except KeyboardInterrupt:
-            print("\n👋 Shutting down...")
-            
-            # Cleanup Firebase
-            if firebase_enabled and firebase_service:
-                firebase_service.close()
-            
-            if sio.connected:
-                sio.disconnect()
-            return
-        except Exception as e:
-            print(f"❌ Connection attempt {attempt} failed: {e}")
-            
-            if sio.connected:
-                sio.disconnect()
-            
-            if attempt < max_retries:
-                print(f"   Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-            else:
-                print(f"❌ All {max_retries} connection attempts failed.")
-                
-                # Use error handler if available
-                if ERROR_HANDLER_AVAILABLE:
-                    err_handler = get_error_handler()
-                    if err_handler:
-                        error = NetworkError(
-                            f"Failed to connect to server after {max_retries} attempts: {str(e)}",
-                            details={'type': 'api_unreachable', 'server_url': SERVER_URL}
-                        )
-                        err_handler.handle_network_error(error)
-
+        print(f"❌ Execution error: {traceback.format_exc()}")
+        send_status(f"Execution error: {str(e)}", "error")
 
 def execute_single_step(session_id: str, step: dict):
-    """Execute a single step for ReAct loop and report back."""
+    """Execute a single atomic step for ReAct loop."""
     global _global_executor
-    
     try:
-        # Initialize executor if needed
         if _global_executor is None:
             if not TWO_MODEL_PIPELINE_AVAILABLE:
-                _send_step_result(session_id, step, False, "Pipeline components not available")
+                _send_step_result(session_id, step, False, "Pipeline components missing")
                 return
-            from vision_service import VisionService
-            from plan_executor import PlanExecutor
-            vision_service = VisionService()
-            _global_executor = PlanExecutor(vision_service, status_callback=send_status)
+            _global_executor = PlanExecutor(VisionService(), status_callback=send_status)
             if PERMISSION_SERVICE_AVAILABLE and permission_service:
                 _global_executor.set_permission_service(permission_service)
         
-        # Execute step
+        obs_module = ObservationModule(status_callback=send_status)
+        pre_state = obs_module.capture_pre_step_state()
+        
         result = _global_executor.execute_single_step(step)
         
-        # Capture observation (screenshot + context)
-        obs_module = ObservationModule()
-        obs_data = obs_module.capture_state(step.get('type', ''))
+        bundle = obs_module.collect_evidence_bundle(pre_state, result, step)
+        observation_result = obs_module.verify(bundle, step)
+        
         result_with_obs = dict(result)
         result_with_obs.update({
-            'success': result.get('success', False),
+            'success': observation_result.verified,
+            'verified': observation_result.verified,
+            'confidence': observation_result.confidence,
+            'strategy_used': observation_result.strategy_used,
+            'reasoning': observation_result.reasoning,
+            'evidence': observation_result.evidence,
+            'bundle': asdict(bundle) if hasattr(bundle, '__dataclass_fields__') else {},
             'stdout': result.get('stdout', ''),
             'stderr': result.get('stderr', ''),
-            'error_message': result.get('error_message'),
-            'raw_observation': result.get('observation', ''),
-            'active_window': obs_data.get('active_window', ''),
-            'foreground_app': obs_data.get('foreground_app', ''),
-            'files_modified': result.get('files_modified', []),
+            'error_message': result.get('error_message')
         })
-        observation = obs_module.build_observation_text(result_with_obs)
-        result_with_obs['observation'] = observation
-
         
-        # Send result back to server
-        _send_step_result(session_id, step, result.get('success', False), observation, result_with_obs)
+        _send_step_result(session_id, step, observation_result.verified, observation_result.reasoning, result_with_obs)
         
     except Exception as e:
-        print(f"✗ Step execution error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"✗ Step error: {traceback.format_exc()}")
         _send_step_result(session_id, step, False, f"Error: {str(e)}")
 
 def execute_verify_task(session_id: str, expected_state: str):
-    """Perform visual verification of task completion."""
+    """Perform visual verification for ReAct."""
     global _global_executor
     try:
         if _global_executor is None:
-            # Should already be initialized by first step, but just in case
-            from vision_service import VisionService
-            from plan_executor import PlanExecutor
             _global_executor = PlanExecutor(VisionService(), status_callback=send_status)
             
         result = _global_executor.execute_verify_task(expected_state)
-        
-        # Send verification result back
         sio.emit('verification_result', {
             'session_id': session_id,
             'success': result.get('success', False),
@@ -857,14 +353,13 @@ def execute_verify_task(session_id: str, expected_state: str):
             'confidence': result.get('confidence', 0)
         })
     except Exception as e:
+        print(f"✗ Verification error: {traceback.format_exc()}")
         sio.emit('verification_result', {
-            'session_id': session_id,
-            'success': False,
-            'observation': f"Verification error: {str(e)}"
+            'session_id': session_id, 'success': False, 'observation': str(e)
         })
 
 def _send_step_result(session_id: str, step: dict, success: bool, observation: str, result_data: dict = None):
-    """Send step result back to server via WebSocket."""
+    """Report step result back to server."""
     payload = {
         'session_id': session_id,
         'step_order': step.get('order'),
@@ -873,15 +368,74 @@ def _send_step_result(session_id: str, step: dict, success: bool, observation: s
         'observation': observation,
         'timestamp': datetime.now().isoformat()
     }
-    
-    if result_data:
-        payload.update(result_data)
-        payload['success'] = success
-        payload['observation'] = observation
-        
+    if result_data: payload.update(result_data)
     if sio.connected:
         sio.emit('step_result', payload)
 
+def execute_flexisign_legacy(command_data):
+    """Legacy FlexiSIGN workflow."""
+    if FLEXISIGN_MANAGER_AVAILABLE:
+        try:
+            send_status("Starting FlexiSign automation...", "info")
+            manager = FlexiSignManager(status_callback=send_status)
+            if manager.ensure_proper_state():
+                send_status("FlexiSign Pro is ready!", "success")
+                steps = command_data.get('steps', [])
+                for step in steps:
+                    step_type = step.get('type')
+                    if step_type == 'press_key': pyautogui.press(step.get('key'))
+                    elif step_type == 'type_text': pyautogui.write(step.get('text'), interval=0.05)
+                    time.sleep(0.5)
+        except Exception as e:
+            send_status(f"Flexisign error: {e}", "error")
+
+def main():
+    global firebase_service, firebase_enabled
+    
+    print("=" * 50)
+    print("🤖 JARVIS Local Client Starting...")
+    print("=" * 50)
+    
+    device_id = get_or_create_device_id()
+    print(f"Device ID: {device_id}")
+    
+    # Show paired device info
+    paired_mobile_id = get_paired_device_id()
+    if paired_mobile_id:
+        print(f"Paired with mobile: {paired_mobile_id}")
+    else:
+        print("Not paired with mobile device")
+    
+    # Firebase Setup
+    if FIREBASE_ENABLED and FIREBASE_SERVICE_AVAILABLE and device_id:
+        try:
+            creds_path = project_root / 'data' / 'firebase-admin-credentials.json'
+            if creds_path.exists():
+                print('🔥 Initializing Firebase service...')
+                firebase_service = FirebaseService(str(creds_path))
+                firebase_service.set_device_id(device_id)
+                firebase_service.register_device(device_id, device_type="desktop")
+                if hasattr(firebase_service, 'start_presence_tracking'):
+                    firebase_service.start_presence_tracking(device_id)
+                firebase_service.listen_for_commands(device_id, handle_firebase_command)
+                firebase_enabled = True
+                print('✅ Firebase initialized')
+            else:
+                print(f'⚠️ Firebase credentials missing at: {creds_path}')
+        except Exception as e:
+            print(f'❌ Firebase initialization error: {traceback.format_exc()}')
+
+    print("=" * 50)
+    print(f"🔌 Connecting to {SERVER_URL}...")
+    try:
+        sio.connect(SERVER_URL, wait_timeout=10)
+        sio.wait()
+    except KeyboardInterrupt:
+        print("\n👋 Shutting down...")
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        if ERROR_HANDLER_AVAILABLE:
+            get_error_handler().handle_network_error(NetworkError(f"Connection failed: {e}"))
 
 if __name__ == '__main__':
     main()
