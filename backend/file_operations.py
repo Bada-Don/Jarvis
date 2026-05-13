@@ -87,6 +87,11 @@ def read_file(path: str, encoding: str = 'utf-8') -> Tuple[bool, str, Optional[s
         expanded_path = os.path.expandvars(path)
         file_path = Path(expanded_path).expanduser()
         
+        # Extension check for binary documents
+        ext = file_path.suffix.lower()
+        if ext in ('.docx', '.doc', '.xlsx', '.xls', '.pdf', '.pptx', '.zip', '.exe', '.dll', '.bin'):
+            return False, f"Binary file detected ({ext}). Use specialized skills (word_docs, spreadsheets, pdf_handling) instead of read_file.", None
+
         if not file_path.exists():
             return False, f"File not found: {path}", None
         
@@ -99,7 +104,7 @@ def read_file(path: str, encoding: str = 'utf-8') -> Tuple[bool, str, Optional[s
     except PermissionError:
         return False, f"Permission denied: {path}", None
     except UnicodeDecodeError:
-        return False, f"Encoding error (try different encoding): {path}", None
+        return False, f"Encoding error (binary file or wrong encoding): {path}", None
     except Exception as e:
         return False, f"Error reading file: {e}", None
 

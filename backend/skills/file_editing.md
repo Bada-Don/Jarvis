@@ -1,220 +1,234 @@
 ---
 name: file_editing
-description: "Use this skill whenever the user wants to create, edit, modify, or manipulate the content of files — especially Word (.docx), Excel (.xlsx), or Text (.txt) files using AI-powered editing, or when writing/reading/replacing content in code files. Triggers include: 'edit document', 'modify file', 'create Word', 'update Excel', 'write code', 'replace text in file', 'fix code', 'debug', 'write file', 'read file', 'append', 'create directory'. REQUIRED when user asks to edit, modify, or change content in any document or code file. Do NOT use for opening files by path (use file_navigation skill), sending emails (use email skill), or FlexiSIGN operations (use flexisign skill)."
+description: "Use this skill whenever the user wants to create, edit, modify, or write the content of files — code files, plain text, structured data, or any document. This is the PRIMARY entry point for all file operations. It handles code/text files directly and DELEGATES to specialized skills for heavy document types. Triggers: 'edit', 'modify', 'write', 'create file', 'update', 'fix code', 'debug', 'replace text in file', 'append', 'write program', 'read file'. DELEGATES to: word_docs (.docx), spreadsheets (.xlsx/.csv), pdf_handling (.pdf), file_reading (read-only inspection). Do NOT use for opening files by path (file_navigation), sending emails (email), or FlexiSIGN (flexisign)."
 ---
 
-## AI-POWERED FILE EDITING (RECOMMENDED FOR WORD/EXCEL/TEXT FILES):
+# File Editing — Entry Point & Delegation Hub
 
-For editing Word (.docx), Excel (.xlsx), or Text (.txt) files with natural language instructions:
+## Step 0: Choose the Right Skill
 
-**REQUIRED FIELDS:**
-- "type": Must be "ai_edit_word" (for .docx), "ai_edit_excel" (for .xlsx), or "ai_edit_text" (for .txt)
-- "path": Fuzzy path to the file (e.g., "desktop/report" or "desktop/input")
-- "prompt": Natural language instructions describing what to change (e.g., "Replace Harshit with Ayushi")
-- "desc": Brief description of the action
+Check the file extension BEFORE proceeding:
 
-**CRITICAL: Both "path" and "prompt" are REQUIRED. DO NOT omit either field.**
+| File type | Correct skill |
+|-----------|-------------|
+| `.docx`, `.doc` | → **word_docs** skill |
+| `.xlsx`, `.xlsm`, `.xls`, `.csv`, `.tsv` | → **spreadsheets** skill |
+| `.pdf` | → **pdf_handling** skill |
+| Read-only inspection of any file | → **file_reading** skill |
+| `.py`, `.js`, `.ts`, `.txt`, `.md`, `.json`, code | ✅ Continue here |
 
-**Example - Edit Word document:**
-{
-  "order": 1,
-  "type": "ai_edit_word",
-  "path": "desktop/input",
-  "prompt": "Replace the name Harshit Singla with Ayushi and replace the phone number with 9872113958",
-  "desc": "Update name and phone in Word document"
-}
+---
 
-**Example - Edit Excel spreadsheet:**
-{
-  "order": 1,
-  "type": "ai_edit_excel",
-  "path": "desktop/sales_data",
-  "prompt": "Add a Commission column that calculates 5% of Sales",
-  "desc": "Add commission calculations"
-}
+## Workflow for Code & Text Files
 
-**Example - Edit text file:**
-{
-  "order": 1,
-  "type": "ai_edit_text",
-  "path": "desktop/notes",
-  "prompt": "Organize into sections: Attendees, Discussion, Action Items",
-  "desc": "Restructure meeting notes"
-}
+**CRITICAL: Always follow Read → Analyze → Edit. Never skip the read step on existing files.**
 
-## PLANE 2: CODE WORKSPACE CONTROL (RECOMMENDED FOR CODE FILES):
-For creating/editing code files and structured content, use these direct file operations. They are MUCH faster and more reliable than UI-based editing.
-
-**CRITICAL: The Modern Workflow for Code Files:**
-1. **Create folder** using `shell_command` (e.g., `mkdir "{DESKTOP_PATH}\LabCode"`)
-2. **Write file content** using `write_file` with full code (NO UI interaction needed!)
-3. **Open in editor** using `shell_command` (e.g., `code "path\to\file.py"` for VS Code)
-4. **Run program** using keyboard shortcuts (Ctrl+` for terminal, then type command)
-
-**INTELLIGENT FILE MODIFICATION WORKFLOW (CRITICAL FOR EDITING EXISTING FILES):**
-When user asks to modify, edit, update, change, or fix an existing file:
-
-**STEP 1: READ THE FILE FIRST**
+### Step 1: Read first
+```json
 {
   "type": "read_file",
-  "path": "{DESKTOP_PATH}\\form.txt",
-  "desc": "Read current file content to understand what needs to be changed"
+  "path": "{DESKTOP_PATH}\\script.py",
+  "desc": "Read current content before making any changes"
 }
+```
 
-**STEP 2: MODIFY USING SEARCH/REPLACE**
-Use `replace_in_file` for targeted changes (PREFERRED - works like IDE Find & Replace):
+### Step 2: Edit with the right operation
+
+**Targeted find-and-replace (PREFERRED):**
+```json
 {
   "type": "replace_in_file",
-  "path": "{DESKTOP_PATH}\\form.txt",
-  "old_text": "Name: John Doe",
-  "new_text": "Name: Harshit Singla",
-  "desc": "Replace the name field with new value"
+  "path": "{DESKTOP_PATH}\\script.py",
+  "old_text": "def old_function():\n    return False",
+  "new_text": "def old_function():\n    return True",
+  "desc": "Fix return value"
 }
+```
 
-**CRITICAL: For replace_in_file:**
-- `old_text` must be the COMPLETE text you want to replace (e.g., "Name: John Doe", not just "Name:")
-- `new_text` is the COMPLETE replacement text (e.g., "Name: Harshit Singla")
-- The operation finds `old_text` and replaces it entirely with `new_text`
-- Think of it like: Find "Name: John Doe" → Replace with "Name: Harshit Singla"
+⚠️ `old_text` must be the **COMPLETE** text to replace — not a partial key:
 
-**WRONG (will result in "Name: Harshit Singla John Doe"):**
-{
-  "old_text": "Name:",
-  "new_text": "Name: Harshit Singla"
-}
+❌ **WRONG** (appends instead of replacing):
+```json
+{ "old_text": "name:", "new_text": "name: Harshit" }
+```
+✅ **CORRECT:**
+```json
+{ "old_text": "name: John Doe", "new_text": "name: Harshit Singla" }
+```
 
-**CORRECT (will result in "Name: Harshit Singla"):**
-{
-  "old_text": "Name: John Doe",
-  "new_text": "Name: Harshit Singla"
-}
-
-OR use `modify_lines` for line-specific changes:
+**Line-specific edit:**
+```json
 {
   "type": "modify_lines",
   "path": "{DESKTOP_PATH}\\form.txt",
   "line_number": 5,
   "new_content": "Name: Harshit Singla",
   "num_lines": 1,
-  "desc": "Update line 5 with new name"
+  "desc": "Update line 5"
 }
+```
 
-OR use `write_file` ONLY if you need to rewrite the entire file:
+**Complete file rewrite** (only when necessary):
+```json
 {
   "type": "write_file",
-  "path": "{DESKTOP_PATH}\\form.txt",
-  "content": "Full updated content here...",
-  "desc": "Rewrite entire file with modifications"
+  "path": "{DESKTOP_PATH}\\LabCode\\script.py",
+  "content": "# full content here...",
+  "desc": "Rewrite entire file"
 }
+```
 
-**STEP 3: VERIFY (OPTIONAL)**
-{
-  "type": "shell_command",
-  "command": "start \"\" \"{DESKTOP_PATH}\\form.txt\"",
-  "desc": "Open file to verify changes"
-}
-
-**CRITICAL RULES FOR FILE MODIFICATIONS:**
-1. ALWAYS use `read_file` FIRST when modifying existing files
-2. NEVER use placeholder text like {UPDATED_CONTENT} - always provide actual content
-3. For `replace_in_file`: `old_text` must be the COMPLETE text to replace (e.g., "Name: John Doe", not just "Name:")
-4. For small changes, use `replace_in_file` (fastest and most reliable)
-5. For line-specific edits, use `modify_lines`
-6. Only use `write_file` when rewriting the entire file is necessary
-7. The system will automatically handle the actual text replacement
-
-**IMPORTANT:** When user asks to "debug", "fix", "modify", or "copy code from" a file:
-- ALWAYS use `read_file` FIRST to get the actual file content
-- Analyze what needs to be changed
-- Use `replace_in_file` or `modify_lines` for targeted edits
-- Use `write_file` only for complete rewrites
-- Then open in editor and run
-
-### Write File (RECOMMENDED FOR CODE):
-Use "write_file" to create or overwrite a file with content directly. NO UI needed!
-{
-  "type": "write_file",
-  "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py",
-  "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n\ndata =[64, 34, 25, 12, 22, 11, 90]\nbubble_sort(data)\nprint(data)",
-  "desc": "Write bubble sort program"
-}
-- "path": Full absolute path to file (use {DESKTOP_PATH} or {DOCUMENTS_PATH} for user directories)
-- "content": Complete file content (use \n for newlines, escape quotes)
-- Creates parent directories automatically if they don't exist
-- Overwrites file if it already exists
-
-### Read File:
-Use "read_file" to read file contents.
-{
-  "type": "read_file",
-  "path": "{DESKTOP_PATH}\\script.py",
-  "desc": "Read script contents"
-}
-
-### Append File:
-Use "append_file" to add content to existing file.
+**Append to file:**
+```json
 {
   "type": "append_file",
   "path": "{DESKTOP_PATH}\\log.txt",
   "content": "New log entry\n",
-  "desc": "Append to log file"
+  "desc": "Append to log"
 }
+```
 
-### Create Directory:
-Use "create_directory" to create folders.
+### Step 3: Verify (optional)
+```json
+{
+  "type": "shell_command",
+  "command": "python \"{DESKTOP_PATH}\\LabCode\\script.py\"",
+  "desc": "Run to verify changes"
+}
+```
+
+---
+
+## AI-Powered Document Editing
+
+For `.docx`, `.xlsx`, `.txt` files with natural language instructions:
+
+### Edit Word document
+```json
+{
+  "type": "ai_edit_word",
+  "path": "desktop/report",
+  "prompt": "Replace 'John Doe' with 'Ayushi Singla' and update the date to today",
+  "desc": "Update name and date"
+}
+```
+
+### Edit Excel spreadsheet
+```json
+{
+  "type": "ai_edit_excel",
+  "path": "desktop/sales_data",
+  "prompt": "Add a Commission column that calculates 5% of the Sales column",
+  "desc": "Add commission formula column"
+}
+```
+
+### Edit text file
+```json
+{
+  "type": "ai_edit_text",
+  "path": "desktop/notes",
+  "prompt": "Organize the content into sections: Attendees, Discussion, Action Items",
+  "desc": "Restructure meeting notes"
+}
+```
+
+**REQUIRED:** Both `path` and `prompt` are mandatory — never omit either.
+
+---
+
+## Creating New Code Files
+
+```json
+{
+  "sequence": [
+    {
+      "order": 1,
+      "type": "shell_command",
+      "command": "mkdir \"{DESKTOP_PATH}\\LabCode\"",
+      "desc": "Create folder"
+    },
+    {
+      "order": 2,
+      "type": "write_file",
+      "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py",
+      "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n\ndata = [64, 34, 25, 12, 22]\nbubble_sort(data)\nprint(data)",
+      "desc": "Write bubble sort program"
+    },
+    {
+      "order": 3,
+      "type": "shell_command",
+      "command": "code \"{DESKTOP_PATH}\\LabCode\"",
+      "desc": "Open in VS Code"
+    }
+  ]
+}
+```
+
+### Create directory
+```json
 {
   "type": "create_directory",
   "path": "{DESKTOP_PATH}\\Projects\\Python",
   "desc": "Create Python projects folder"
 }
+```
 
-**Example - Create Python program and run in VS Code (MODERN APPROACH):**
+---
+
+## Debug Workflow (READ → ANALYZE → FIX)
+
+```json
 {
-  "sequence":[
-    {"order": 1, "type": "shell_command", "command": "mkdir \"{DESKTOP_PATH}\\LabCode\"", "desc": "Create LabCode folder"},
-    {"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        swapped = False\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                swapped = True\n        if not swapped:\n            break\n    return arr\n\nif __name__ == \"__main__\":\n    data = input(\"Enter numbers separated by spaces: \").strip()\n    if not data:\n        print(\"No input provided.\")\n    else:\n        arr = list(map(int, data.split()))\n        bubble_sort(arr)\n        print(\"Sorted array:\", *arr)", "desc": "Write bubble sort program"},
-    {"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\"", "desc": "Open folder in VS Code"},
-    {"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"},
-    {"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"},
-    {"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}
-  ],
-  "expected_final_state": "VS Code showing bubble_sort.py with terminal ready to run the program"
+  "sequence": [
+    {
+      "order": 1,
+      "type": "read_file",
+      "path": "{DESKTOP_PATH}\\LabCode\\script.py",
+      "desc": "Read file to identify the bug"
+    },
+    {
+      "order": 2,
+      "type": "replace_in_file",
+      "path": "{DESKTOP_PATH}\\LabCode\\script.py",
+      "old_text": "if x = 5:",
+      "new_text": "if x == 5:",
+      "desc": "Fix assignment operator used as comparison"
+    },
+    {
+      "order": 3,
+      "type": "shell_command",
+      "command": "python \"{DESKTOP_PATH}\\LabCode\\script.py\"",
+      "desc": "Run to verify fix"
+    }
+  ]
 }
+```
 
-**Example - Debug existing code (READ → ANALYZE → FIX → WRITE):**
-{
-  "sequence":[
-    {"order": 1, "type": "read_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "desc": "Read existing code to analyze"},
-    {"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\bubble_sort.py", "content": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        swapped = False\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                swapped = True\n        if not swapped:\n            break\n    return arr\n\nif __name__ == \"__main__\":\n    data =[64, 34, 25, 12, 22, 11, 90]\n    result = bubble_sort(data)\n    print(\"Sorted array:\", result)", "desc": "Write corrected code with bug fixes"},
-    {"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\\bubble_sort.py\"", "desc": "Open fixed file in VS Code"},
-    {"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"},
-    {"order": 5, "type": "keyboard", "value": "python bubble_sort.py", "desc": "Type run command"},
-    {"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}
-  ],
-  "expected_final_state": "VS Code showing debugged bubble_sort.py with terminal displaying sorted output"
-}
+---
 
-**Example - Copy code from document to new file:**
-{
-  "sequence":[
-    {"order": 1, "type": "read_file", "path": "{DESKTOP_PATH}\\AI Lab\\Practical 1.txt", "desc": "Read code from document"},
-    {"order": 2, "type": "write_file", "path": "{DESKTOP_PATH}\\LabCode\\dfs.py", "content": "# DFS Algorithm Implementation\ndef dfs(graph, start, visited=None):\n    if visited is None:\n        visited = set()\n    visited.add(start)\n    print(start, end=' ')\n    for neighbor in graph[start]:\n        if neighbor not in visited:\n            dfs(graph, neighbor, visited)\n    return visited\n\nif __name__ == \"__main__\":\n    graph = {\n        'A': ['B', 'C'],\n        'B':['D', 'E'],\n        'C': ['F'],\n        'D':[],\n        'E': ['F'],\n        'F':[]\n    }\n    print(\"DFS Traversal:\")\n    dfs(graph, 'A')", "desc": "Write extracted code to new Python file"},
-    {"order": 3, "type": "shell_command", "command": "code \"{DESKTOP_PATH}\\LabCode\\dfs.py\"", "desc": "Open new file in VS Code"},
-    {"order": 4, "type": "keyboard", "value": "ctrl+`", "desc": "Open integrated terminal"},
-    {"order": 5, "type": "keyboard", "value": "python dfs.py", "desc": "Type run command"},
-    {"order": 6, "type": "keyboard", "value": "enter", "desc": "Execute program"}
-  ],
-  "expected_final_state": "VS Code showing dfs.py with terminal displaying DFS traversal output"
-}
+## Critical Rules
 
-**ADVANTAGES OF write_file:**
-- ✓ No UI interaction needed (no Ctrl+A, no typing, no Save dialog)
-- ✓ Handles long code perfectly (no character limits, no timing issues)
-- ✓ Preserves exact formatting (indentation, newlines, special characters)
-- ✓ Much faster (instant file creation vs slow typing simulation)
-- ✓ More reliable (no permission dialogs, no UI detection failures)
-- ✓ Works even if editor is not open
+1. **ALWAYS `read_file` first** before modifying existing files
+2. **NEVER use placeholder text** like `{UPDATED_CONTENT}` — always write actual content
+3. **`replace_in_file`:** `old_text` must be the full, complete text being replaced
+4. Small changes → `replace_in_file` (fastest, most reliable)
+5. Line-specific → `modify_lines`
+6. Full rewrites → `write_file` (only when necessary)
+7. **Document types** → delegate to the correct specialized skill (see Step 0)
 
-**WHEN TO USE write_file vs shell_command + keyboard:**
-- Use `write_file` for: Code files, structured content, long text, precise formatting
-- Use `shell_command + keyboard` for: Simple text files, user-visible editing process
+---
+
+## Operation Reference
+
+| Operation | Use for | Key fields |
+|-----------|---------|-----------|
+| `read_file` | Read any file before editing | `path` |
+| `write_file` | Create or overwrite entire file | `path`, `content` |
+| `replace_in_file` | Targeted find-and-replace | `path`, `old_text`, `new_text` |
+| `modify_lines` | Edit specific line numbers | `path`, `line_number`, `new_content`, `num_lines` |
+| `append_file` | Add content to end of file | `path`, `content` |
+| `create_directory` | Create a folder | `path` |
+| `ai_edit_word` | NL editing of `.docx` | `path`, `prompt` |
+| `ai_edit_excel` | NL editing of `.xlsx` | `path`, `prompt` |
+| `ai_edit_text` | NL editing of `.txt` | `path`, `prompt` |

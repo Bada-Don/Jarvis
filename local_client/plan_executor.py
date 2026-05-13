@@ -1,9 +1,12 @@
 import os
+import sys
 import time
 import json
 import re
 import pyautogui
 import platform
+import tempfile
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Union
 from importlib import import_module
@@ -61,11 +64,17 @@ try:
 except ImportError:
     READINESS_DETECTOR_AVAILABLE = False
 
+# Try to import file operations for write/read
+# NOTE: _backend_dir is already on sys.path, so import directly (not via package)
 try:
     from file_operations import write_file, read_file, append_file, create_directory
     FILE_OPERATIONS_AVAILABLE = True
 except ImportError:
-    FILE_OPERATIONS_AVAILABLE = False
+    try:
+        from backend.file_operations import write_file, read_file, append_file, create_directory
+        FILE_OPERATIONS_AVAILABLE = True
+    except ImportError:
+        FILE_OPERATIONS_AVAILABLE = False
 
 try:
     from file_editor import FileEditor
@@ -144,6 +153,7 @@ class PlanExecutor:
         self.status_callback = status_callback
         self.window_manager = None
         self._permission_service = None
+        self.last_error = None  # To capture detailed internal errors
         
         # Internal state
         self._id_map = None
@@ -416,6 +426,9 @@ class PlanExecutor:
         }
         
         try:
+            # Reset last error
+            self.last_error = None
+
             # Check for permission on critical operations
             if self._permission_service and self._permission_service.is_critical_operation(step):
                 if not self._permission_service.request_permission_for_step(step):
@@ -446,8 +459,11 @@ class PlanExecutor:
                 
             elif step_type == 'write_file':
                 result['success'] = self._execute_write_file_step(step)
-                if result['success'] and step.get('path'):
-                    result['files_modified'] = [step.get('path')]
+                if result['success']:
+                    if step.get('path'):
+                        result['files_modified'] = [step.get('path')]
+                else:
+                    result['error_message'] = self.last_error or "Unknown write error"
                 
             elif step_type == 'read_file':
                 path = self._resolve_placeholders(step.get('path', ''))
@@ -459,10 +475,14 @@ class PlanExecutor:
                 else:
                     result['success'] = self._execute_read_file_step(step)
                     read_performed = True
-                if read_performed and result['success'] and hasattr(self, 'last_read_content'):
-                    result['content'] = self.last_read_content
-                    result['stdout'] = self.last_read_content
-                    result['observation'] = f"Read file content ({len(self.last_read_content)} chars)"
+                
+                if read_performed:
+                    if result['success'] and hasattr(self, 'last_read_content'):
+                        result['content'] = self.last_read_content
+                        result['stdout'] = self.last_read_content
+                        result['observation'] = f"Read file content ({len(self.last_read_content)} chars)"
+                    elif not result['success']:
+                        result['error_message'] = self.last_error or "Unknown read error"
 
             elif step_type in ('path_exists', 'directory_exists'):
                 path = self._resolve_placeholders(step.get('path', ''))
@@ -471,16 +491,34 @@ class PlanExecutor:
                 result['success'] = is_dir if step_type == 'directory_exists' else exists
                 result['stdout'] = f"path={path}; exists={exists}; is_dir={is_dir}"
                 result['observation'] = result['stdout']
+                if not result['success']:
+                    # Provide a clear error for the ReAct loop
+                    if not exists:
+                        result['error_message'] = f"Path does not exist: {path}"
+                    elif step_type == 'directory_exists' and not is_dir:
+                        result['error_message'] = f"Path exists but is not a directory: {path}"
                     
             elif step_type == 'open_file':
                 res = self._execute_open_file_step(step)
                 result['success'] = res.success
-                result['error_message'] = getattr(res, 'error_message', None)
+                result['error_message'] = getattr(res, 'error_message', self.last_error)
                 
             elif step_type == 'open_folder':
                 res = self._execute_open_folder_step(step)
                 result['success'] = res.success
-                result['error_message'] = getattr(res, 'error_message', None)
+                result['error_message'] = getattr(res, 'error_message', self.last_error)
+            
+            elif step_type in ('word_docs', 'ai_edit_word', 'spreadsheets', 'ai_edit_excel', 'pdf_handling', 'file_reading'):
+                res = self._execute_document_skill_step(step_type, step)
+                result['success'] = res.get('success', False)
+                result['stdout'] = res.get('stdout', '')
+                result['stderr'] = res.get('stderr', '')
+                result['error_message'] = res.get('error_message') or (self.last_error if not result['success'] else None)
+                # Populate observation AND raw_observation so the server-side
+                # expected_observation text-overlap check has content to match against.
+                obs = res.get('observation', result['stdout'])
+                result['observation'] = obs
+                result['raw_observation'] = obs
             
             # Add other step types as needed...
             else:
@@ -493,9 +531,11 @@ class PlanExecutor:
                     # Robust result handling for different return types (bool, object, dict)
                     if isinstance(res, bool):
                         result['success'] = res
+                        if not res:
+                            result['error_message'] = self.last_error or f"{step_type} failed"
                     elif isinstance(res, dict):
                         result['success'] = res.get('success', False)
-                        result['error_message'] = res.get('error_message')
+                        result['error_message'] = res.get('error_message') or (self.last_error if not res.get('success') else None)
                         result['stdout'] = res.get('stdout', '')
                         result['stderr'] = res.get('stderr', '')
                         if 'observation' in res:
@@ -503,7 +543,7 @@ class PlanExecutor:
                     else:
                         # Assume object with .success attribute (e.g. ExecutionResult, ClickResult)
                         result['success'] = getattr(res, 'success', False)
-                        result['error_message'] = getattr(res, 'error_message', None)
+                        result['error_message'] = getattr(res, 'error_message', self.last_error)
                 else:
                     result['success'] = False
                     result['error_message'] = f"Unknown step type: {step_type}"
@@ -512,7 +552,7 @@ class PlanExecutor:
         except Exception as e:
             self._send_status(f"Error in single step: {e}", "error")
             result['success'] = False
-            result['error_message'] = str(e)
+            result['error_message'] = f"Exception: {str(e)}"
             
         return result
 
@@ -1568,32 +1608,48 @@ class PlanExecutor:
     
     def _execute_write_file_step(self, step: dict) -> bool:
         """Execute a write_file step."""
-        if not FILE_OPERATIONS_AVAILABLE: return False
+        if not FILE_OPERATIONS_AVAILABLE:
+            self.last_error = "File operations module not available"
+            return False
         path = step.get('path', '')
         content = step.get('content', '')
-        if not path: return False
+        if not path:
+            self.last_error = "Path parameter is required for write_file"
+            return False
         try:
-            success, _ = write_file(path, content)
+            success, message = write_file(path, content)
+            if not success:
+                self.last_error = message
             return success
-        except Exception: return False
+        except Exception as e:
+            self.last_error = str(e)
+            return False
     
     def _execute_read_file_step(self, step: dict) -> bool:
         """Execute a read_file step."""
-        if not FILE_OPERATIONS_AVAILABLE: return False
+        if not FILE_OPERATIONS_AVAILABLE:
+            self.last_error = "File operations module not available"
+            return False
         path = step.get('path', '')
-        if not path: return False
+        if not path:
+            self.last_error = "Path parameter is required for read_file"
+            return False
         path = self._resolve_placeholders(path)
         if os.path.isdir(path):
             self.last_read_content = f"Directory exists: {path}"
             self.last_read_path = path
             return True
         try:
-            success, _, content = read_file(path)
+            success, message, content = read_file(path)
             if success:
                 self.last_read_content = content
                 self.last_read_path = path
+            else:
+                self.last_error = message
             return success
-        except Exception: return False
+        except Exception as e:
+            self.last_error = str(e)
+            return False
 
     def _execute_path_exists_step(self, step: dict) -> bool:
         """Execute a path_exists step."""
@@ -1712,6 +1768,107 @@ class PlanExecutor:
             # This shouldn't happen in pure direct mode, but handle it
             return False
         return False
+
+    def _execute_document_skill_step(self, skill_id: str, step: dict) -> dict:
+        """
+        Execute a document-heavy skill by generating and running a Python script.
+        This uses the skill's .md documentation as a few-shot prompt for Gemini.
+        """
+        # Normalize skill ID
+        mapping = {
+            'ai_edit_word': 'word_docs',
+            'ai_edit_excel': 'spreadsheets',
+            'word_docs': 'word_docs',
+            'spreadsheets': 'spreadsheets',
+            'pdf_handling': 'pdf_handling',
+            'file_reading': 'file_reading'
+        }
+        canonical_id = mapping.get(skill_id, skill_id)
+        
+        prompt = step.get('prompt', step.get('desc', ''))
+        file_path = step.get('path', '')
+        
+        self._send_status(f"🧠 Generating automation script for {canonical_id}...", "info")
+        
+        try:
+            # 1. Load skill documentation
+            root_dir = Path(__file__).parent.parent
+            skill_file = root_dir / "backend" / "skills" / f"{canonical_id}.md"
+            
+            if not skill_file.exists():
+                return {"success": False, "error_message": f"Skill documentation not found: {skill_file}"}
+            
+            skill_doc = skill_file.read_text(encoding='utf-8')
+            
+            # 2. Construct prompt for Gemini
+            system_prompt = f"""You are a Python automation expert for the JARVIS system.
+Your task is to write a standalone Python script to accomplish a document task.
+
+## Available Skill Documentation:
+{skill_doc}
+
+## User Request:
+{prompt}
+
+## Target File:
+{file_path}
+
+## Instructions:
+1. Write a complete, standalone Python script.
+2. Use the patterns and libraries (python-docx, openpyxl, pandas, pywin32, pdfplumber) described in the skill documentation.
+3. Handle errors gracefully.
+4. Print a summary of what was done to stdout.
+5. If modifying a file, ensure it is saved.
+6. DO NOT include any explanatory text, ONLY the Python code block.
+7. Wrap your code in a ```python block.
+"""
+            
+            # 3. Call Gemini via VisionService client
+            if not hasattr(self.vision_service, 'client') or self.vision_service.client is None:
+                return {"success": False, "error_message": "LLM client not available in VisionService"}
+            
+            response = self.vision_service.client.models.generate_content(
+                model=self.vision_service.model_name,
+                contents=[system_prompt]
+            )
+            
+            code_match = re.search(r"```python\n(.*?)\n```", response.text, re.DOTALL)
+            if not code_match:
+                # Fallback to entire text if no code block
+                script_code = response.text.strip()
+                if script_code.startswith("```"): script_code = "\n".join(script_code.split("\n")[1:-1])
+            else:
+                script_code = code_match.group(1)
+            
+            # 4. Save and run the script
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode='w', encoding='utf-8') as tmp:
+                tmp.write(script_code)
+                tmp_path = tmp.name
+            
+            self._send_status(f"🚀 Running automation script...", "info")
+            
+            process = subprocess.run(
+                [sys.executable, tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            # Clean up
+            try: os.remove(tmp_path)
+            except: pass
+            
+            success = process.returncode == 0
+            return {
+                "success": success,
+                "stdout": process.stdout,
+                "stderr": process.stderr,
+                "error_message": None if success else f"Script failed with exit code {process.returncode}",
+                "observation": process.stdout if success else f"Script Error: {process.stderr}"
+            }
+            
+        except Exception as e:
+            return {"success": False, "error_message": f"Document skill execution error: {str(e)}"}
 
 def get_click_coordinates(element_id: int, box_map: dict) -> tuple[float, float] | None:
     """Calculate click coordinates from box map."""

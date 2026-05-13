@@ -429,6 +429,17 @@ def _check_expected_observation(plan_data: dict, sequence: list[dict], step_resu
                 else:
                     add_check(f"file exists/readable: {path}", os.path.isfile(path))
 
+        elif step_type in ('word_docs', 'ai_edit_word', 'file_reading', 'pdf_handling',
+                           'spreadsheets', 'ai_edit_excel'):
+            # Document skill: verify the source file exists and was readable.
+            # The actual content extraction is confirmed by the step success flag;
+            # we add only a weak check here so a missing source file is caught
+            # deterministically, but the planner's vague expected_observation text
+            # doesn't cause a false failure when the step succeeded.
+            path = _resolve_runtime_path(step.get('path', ''))
+            if path:
+                add_check(f"document exists: {path}", os.path.isfile(path), "weak")
+
         elif step_type == 'shell_command':
             command = _resolve_runtime_path(step.get('command', ''))
             for path in _extract_command_paths(command, r"(?:mkdir|md)"):
@@ -482,15 +493,25 @@ def _check_expected_observation(plan_data: dict, sequence: list[dict], step_resu
         return {'matched': True, 'confidence': 'text', 'message': 'Expected observation had no concrete tokens to compare.'}
 
     matched_tokens = {token for token in expected_tokens if token in actual_text}
-    required = max(1, min(len(expected_tokens), round(len(expected_tokens) * 0.5)))
+    # Use a lower threshold (30%) when the batch actually succeeded, because the
+    # planner's expected_observation is often phrased in future tense ("will be
+    # extracted and available") which won't appear verbatim in the stdout.
+    any_step_succeeded = any(r.get('success') for r in step_results)
+    threshold = 0.3 if any_step_succeeded else 0.5
+    required = max(1, min(len(expected_tokens), round(len(expected_tokens) * threshold)))
     if len(matched_tokens) >= required:
         return {'matched': True, 'confidence': 'text', 'message': 'Expected observation matched by text overlap.'}
 
     missing = sorted(expected_tokens - matched_tokens)
+    # If we have NO matches at all, or we are missing critical tokens, it's a STRONG failure.
+    # Otherwise, it's weak (might just be a slightly different window title).
+    match_rate = len(matched_tokens) / len(expected_tokens)
+    severity = 'strong' if match_rate < 0.2 else 'weak'
+
     return {
         'matched': False,
         'confidence': 'text',
-        'severity': 'weak',
+        'severity': severity,
         'message': f"Actual observation did not match expected_observation. Missing signals: {', '.join(missing[:8])}"
     }
 
@@ -822,7 +843,9 @@ def _react_loop(session_id: str):
                         session_manager.update_session(session)
                 else:
                     mismatch = expectation_result.get('message', 'Expected observation was not met.')
-                    if expectation_result.get('severity') == 'weak':
+                    # Only ignore weak mismatches if we have SOME confidence or if it's a non-critical step
+                    # In practice, 'weak' should only be used for minor UI differences.
+                    if expectation_result.get('severity') == 'weak' and expectation_result.get('confidence') != 'text':
                         session.add_observation(
                             f"Weak expected_observation mismatch ignored after successful execution. "
                             f"Expected: {expected_observation} | {mismatch}",
@@ -830,7 +853,7 @@ def _react_loop(session_id: str):
                         )
                         session_manager.update_session(session)
                         send_status_dual({
-                            'message': 'Execution succeeded; weak observation mismatch ignored',
+                            'message': 'Execution succeeded; minor observation mismatch ignored',
                             'status': 'warning',
                             'progress': min(10 + (session.steps_executed * 10), 90),
                             'session_id': session_id

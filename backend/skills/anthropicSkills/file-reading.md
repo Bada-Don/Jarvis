@@ -1,7 +1,6 @@
 ---
 name: file-reading
 description: "Use this skill when a file has been uploaded but its content is NOT in your context — only its path at /mnt/user-data/uploads/ is listed. This skill is a router: it tells you which tool to use for each file type (pdf, docx, xlsx, csv, json, images, archives, ebooks) so you read the right amount the right way instead of blindly running cat on a binary. Triggers: any mention of uploaded files or /mnt/user-data/uploads/"
-license: Proprietary. LICENSE.txt has complete terms
 ---
 
 # Reading Uploaded Files

@@ -25,11 +25,43 @@
       "always_include": false
     },
     {
+      "id": "file_reading",
+      "name": "File Reading & Dispatch Router",
+      "description": "Routes file-reading tasks to the correct tool by extension. Handles CSV, JSON, JSONL, ZIP, TAR, plain text and logs. Delegates to word_docs, spreadsheets, or pdf_handling for heavy document types.",
+      "file": "file_reading.md",
+      "triggers": ["read file", "open file", "check file", "what's in", "contents of", "inspect", "preview", ".csv", ".json", ".zip", ".log", ".txt", "uploaded file"],
+      "always_include": false
+    },
+    {
+      "id": "word_docs",
+      "name": "Word Documents (DOCX)",
+      "description": "Create, read, and edit Word .docx files using python-docx. Handles headings, tables, images, lists, tracked changes, comments, headers/footers, and XML-level manipulation.",
+      "file": "word_docs.md",
+      "triggers": ["word", "docx", "doc", "word document", "word doc", "report", "letter", "memo", "template", "tracked changes", "comment in document", "insert table in word", "heading"],
+      "always_include": false
+    },
+    {
+      "id": "spreadsheets",
+      "name": "Spreadsheets (XLSX / CSV)",
+      "description": "Create and edit Excel spreadsheets and CSV files using openpyxl and pandas. Formula-first principle, financial model color coding, data validation, and formula recalculation via LibreOffice.",
+      "file": "spreadsheets.md",
+      "triggers": ["excel", "xlsx", "xlsm", "xls", "spreadsheet", "csv", "tsv", "ods", "formula", "pivot table", "financial model", "data analysis", "add column", "update excel"],
+      "always_include": false
+    },
+    {
+      "id": "pdf_handling",
+      "name": "PDF Handling",
+      "description": "Read, extract, merge, split, rotate, and create PDF files. Handles text extraction, table extraction with pdfplumber, OCR for scanned PDFs, form fields, embedded attachments, and PDF creation with reportlab.",
+      "file": "pdf_handling.md",
+      "triggers": ["pdf", ".pdf", "extract from pdf", "read pdf", "pdf table", "scan to text", "merge pdf", "split pdf", "watermark", "pdf form", "ocr", "how many pages"],
+      "always_include": false
+    },
+    {
       "id": "file_editing",
-      "name": "AI File Editing & Code Workspace",
-      "description": "AI-powered editing of Word/Excel/Text files, and direct code/text file operations (write_file, read_file, replace_in_file, modify_lines, ai_edit_word, ai_edit_excel, ai_edit_text).",
+      "name": "File Editing & Code Workspace",
+      "description": "PRIMARY entry point for all file edits. Handles code and plain-text files directly (write_file, read_file, replace_in_file, modify_lines, append_file). Delegates to word_docs (.docx), spreadsheets (.xlsx/.csv), or pdf_handling (.pdf) for document-heavy tasks. AI-powered editing: ai_edit_word, ai_edit_excel, ai_edit_text.",
       "file": "file_editing.md",
-      "triggers": ["edit", "modify", "write", "read file", "create file", "word", "docx", "excel", "xlsx", "code", "python", "debug", "fix", "replace", "append", "program", "script file"],
+      "triggers": ["edit", "modify", "write", "create file", "update", "code", "python", "debug", "fix", "replace", "append", "program", "script file", "write file"],
       "always_include": false
     },
     {

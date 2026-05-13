@@ -40,7 +40,11 @@ The following skills are available. Each skill's description tells you WHEN to u
 - **ui_os**: Use when interacting with the OS UI — opening apps, typing, clicking, keyboard shortcuts, web browsing.
 - **shell**: Use for command prompt operations — creating folders/files, running scripts, CLI file manipulation.
 - **email**: Use for sending background emails — composing and dispatching emails with optional attachments.
-- **file_editing**: Use for editing file content — AI-powered Word/Excel/Text editing, write_file, read_file, replace_in_file, code workspace.
+- **file_reading**: Use when reading or inspecting any file whose content is not yet in context — routes to the correct tool per extension (.pdf, .docx, .xlsx, .csv, .json, .zip, .log, .txt).
+- **file_editing**: PRIMARY entry point for all file edits — handles code/text files directly (write_file, read_file, replace_in_file, modify_lines, append_file) and delegates document types to specialized skills below.
+- **word_docs**: Use for all Word document tasks — creating, editing, or reading .docx files; tables, headings, tracked changes, comments, images, headers/footers.
+- **spreadsheets**: Use for all spreadsheet tasks — .xlsx, .xlsm, .xls, .csv, .ods; formula creation, formatting, financial models, data analysis.
+- **pdf_handling**: Use for all PDF tasks — text extraction, table extraction, OCR, merge, split, rotate, watermark, create new PDFs, form fields.
 - **file_navigation**: Use for opening files/folders by path, saving files, web automation and internet search.
 - **flexisign**: Use ONLY for FlexiSIGN — number plates, vinyl cutting, govt plates, bike/car plates. Overrides all other skills.
 </available_skills>
@@ -49,5 +53,5 @@ The following skills are available. Each skill's description tells you WHEN to u
 Return a valid JSON object with a "sequence" array containing ordered steps.
 Each step must have:
 - "order": integer (1, 2, 3, ...)
-- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", "shell_command", "write_file", "read_file", "replace_in_file", "modify_lines", "open_file", "open_folder", "save_file", "web_automation", or "create_directory"
+- "type": "keyboard", "click_text_fast", "visual_click", "ai_edit_text", "ai_edit_excel", "ai_edit_word", "send_email", "shell_command", "write_file", "read_file", "replace_in_file", "modify_lines", "append_file", "open_file", "open_folder", "save_file", "web_automation", or "create_directory"
 - "desc": brief description of the action

@@ -35,3 +35,17 @@ firebase-admin
 
 
 mss
+
+# Document processing dependencies
+python-docx
+openpyxl
+pandas
+pypdf
+pdfplumber
+reportlab
+pdf2image
+lxml
+python-magic-bin; platform_system == 'Windows'
+python-magic; platform_system != 'Windows'
+chardet
+pywin32
