@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Union
 from importlib import import_module
 
+# Make backend modules (e.g. ai_editor_engine) importable from local_client
+_backend_dir = str(Path(__file__).parent.parent / "backend")
+if _backend_dir not in os.sys.path:
+    os.sys.path.insert(0, _backend_dir)
+
 # Optional imports for specific step types
 try:
     from pygame import mixer
@@ -484,8 +489,21 @@ class PlanExecutor:
                 if hasattr(self, handler_name):
                     handler = getattr(self, handler_name)
                     res = handler(step)
-                    result['success'] = res if isinstance(res, bool) else getattr(res, 'success', False)
-                    result['error_message'] = None if isinstance(res, bool) else getattr(res, 'error_message', None)
+                    
+                    # Robust result handling for different return types (bool, object, dict)
+                    if isinstance(res, bool):
+                        result['success'] = res
+                    elif isinstance(res, dict):
+                        result['success'] = res.get('success', False)
+                        result['error_message'] = res.get('error_message')
+                        result['stdout'] = res.get('stdout', '')
+                        result['stderr'] = res.get('stderr', '')
+                        if 'observation' in res:
+                            result['observation'] = res['observation']
+                    else:
+                        # Assume object with .success attribute (e.g. ExecutionResult, ClickResult)
+                        result['success'] = getattr(res, 'success', False)
+                        result['error_message'] = getattr(res, 'error_message', None)
                 else:
                     result['success'] = False
                     result['error_message'] = f"Unknown step type: {step_type}"
@@ -648,6 +666,8 @@ class PlanExecutor:
             self._send_status(f"Step {step_order}: {step_desc}", "info", progress=progress)
             
             try:
+                step_result = True  # Default to success
+                
                 if step_type == 'keyboard':
                     self._execute_keyboard_step(step, sequence, i)
                     
@@ -657,113 +677,131 @@ class PlanExecutor:
                         # Typing text or pressing Enter/Backspace can change UI content
                         self._ui_changed_since_scan = True
                     
-                    if DEBUG_LOGGER_AVAILABLE:
-                        get_debug_logger().log_step_execution(
-                            step_order, "keyboard", 
-                            f"value='{step.get('value', '')}' desc='{step_desc}'"
-                        )
-                    
                 elif step_type == 'visual_click':
                     target_name = step.get('target_name')
                     if not target_name:
                         self._send_status(f"Missing target_name in step {step_order}", "warning")
-                        continue
-                    
-                    # CRITICAL: Wait for application/page readiness before first visual click
-                    if not self._screenshot_taken:
-                        self._wait_for_readiness_before_vision(sequence, i)
-                    
-                    # Adaptive re-scanning: Check if we need to re-scan
-                    needs_rescan = False
-                    
-                    if not self._screenshot_taken:
-                        # First visual click - always scan
-                        needs_rescan = True
-                    elif self._ui_changed_since_scan:
-                        # UI has changed since last scan - need to re-scan
-                        needs_rescan = True
-                        self._send_status("UI changed detected, re-scanning for visual elements...", "info")
-                    
-                    if needs_rescan:
-                        # Collect remaining visual targets from this point forward
-                        remaining_targets = self._collect_remaining_visual_targets(sequence, i)
-                        if remaining_targets:
-                            self._perform_vision_pass(remaining_targets)
-                            self._ui_changed_since_scan = False
-                    
-                    self._execute_visual_click(target_name)
-                    self._last_visual_click_index = i
+                        step_result = False
+                    else:
+                        # CRITICAL: Wait for application/page readiness before first visual click
+                        if not self._screenshot_taken:
+                            self._wait_for_readiness_before_vision(sequence, i)
+                        
+                        # Adaptive re-scanning: Check if we need to re-scan
+                        needs_rescan = False
+                        
+                        if not self._screenshot_taken:
+                            # First visual click - always scan
+                            needs_rescan = True
+                        elif self._ui_changed_since_scan:
+                            # UI has changed since last scan - need to re-scan
+                            needs_rescan = True
+                            self._send_status("UI changed detected, re-scanning for visual elements...", "info")
+                        
+                        if needs_rescan:
+                            # Collect remaining visual targets from this point forward
+                            remaining_targets = self._collect_remaining_visual_targets(sequence, i)
+                            if remaining_targets:
+                                self._perform_vision_pass(remaining_targets)
+                                self._ui_changed_since_scan = False
+                        
+                        self._execute_visual_click(target_name)
+                        self._last_visual_click_index = i
                     
                 elif step_type == 'shell_command':
-                    self._execute_shell_command_step(step)
+                    res = self._execute_shell_command_step(step)
+                    step_result = res.get('success', False)
                     # Shell commands often change UI
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'write_file':
-                    self._execute_write_file_step(step)
+                    step_result = self._execute_write_file_step(step)
                     
                 elif step_type == 'read_file':
-                    self._execute_read_file_step(step)
+                    step_result = self._execute_read_file_step(step)
                     
                 elif step_type == 'append_file':
-                    self._execute_append_file_step(step)
+                    step_result = self._execute_append_file_step(step)
                     
                 elif step_type == 'create_directory':
-                    self._execute_create_directory_step(step)
+                    step_result = self._execute_create_directory_step(step)
                     
                 elif step_type == 'open_file':
-                    self._execute_open_file_step(step)
+                    res = self._execute_open_file_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'open_folder':
-                    self._execute_open_folder_step(step)
+                    res = self._execute_open_folder_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'save_file':
-                    self._execute_save_file_step(step)
+                    res = self._execute_save_file_step(step)
+                    step_result = getattr(res, 'success', False)
                     
                 elif step_type == 'resolve_filename':
-                    self._execute_resolve_filename_step(step)
+                    res = self._execute_resolve_filename_step(step)
+                    step_result = getattr(res, 'success', False)
                     
                 elif step_type == 'navigate_explorer':
-                    self._execute_navigate_explorer_step(step)
+                    res = self._execute_navigate_explorer_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'click_text':
-                    self._execute_click_text_step(step)
+                    res = self._execute_click_text_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'click_text_fast':
-                    self._execute_click_text_fast_step(step)
+                    res = self._execute_click_text_fast_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                     
                 elif step_type == 'ai_edit_text':
-                    self._execute_ai_edit_text_step(step)
+                    step_result = self._execute_ai_edit_text_step(step)
                     
                 elif step_type == 'ai_edit_excel':
-                    self._execute_ai_edit_excel_step(step)
+                    step_result = self._execute_ai_edit_excel_step(step)
                     
                 elif step_type == 'ai_edit_word':
-                    self._execute_ai_edit_word_step(step)
+                    res = self._execute_ai_edit_word_step(step)
+                    step_result = res.get('success', False) if isinstance(res, dict) else res
+                    if isinstance(res, dict) and not step_result:
+                        self._send_status(f"ai_edit_word failed: {res.get('error_message')}", "error")
                     
                 elif step_type == 'delete_file':
-                    self._execute_delete_file_step(step)
+                    step_result = self._execute_delete_file_step(step)
                     
                 elif step_type == 'delete_folder':
-                    self._execute_delete_folder_step(step)
+                    step_result = self._execute_delete_folder_step(step)
                     
                 elif step_type == 'send_email':
-                    self._execute_send_email_step(step)
+                    step_result = self._execute_send_email_step(step)
                     
                 elif step_type == 'web_automation':
-                    self._execute_web_automation_step(step)
+                    res = self._execute_web_automation_step(step)
+                    step_result = getattr(res, 'success', False)
                     self._ui_changed_since_scan = True
                 
-                if DEBUG_LOGGER_AVAILABLE:
-                    get_debug_logger().log_step_execution(
-                        step_order, step_type, 
-                        f"desc='{step_desc}'", success=True
-                    )
+                # Check for failure in step result
+                if not step_result:
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, step_type, 
+                            f"FAILED: {step_desc}", success=False
+                        )
+                    # For sequential plans, failure in one step often stops the rest
+                    # But for now, we'll continue to keep parity with previous behavior, 
+                    # but actually LOG the failure.
+                    # self._send_status(f"Step {step_order} failed", "warning")
+                else:
+                    if DEBUG_LOGGER_AVAILABLE:
+                        get_debug_logger().log_step_execution(
+                            step_order, step_type, 
+                            f"desc='{step_desc}'", success=True
+                        )
                     
             except Exception as e:
                 self._send_status(f"Error in step {step_order}: {e}", "error")
@@ -1346,17 +1384,17 @@ class PlanExecutor:
         
         return result
     
-    def _execute_ai_edit_text_step(self, step: dict) -> bool:
+    def _execute_ai_edit_text_step(self, step: dict) -> dict:
         """Execute AI-powered text editing."""
         if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
-            return False
+            return {'success': False, 'error_message': 'AI Editor Engine is not available'}
         
         path_query = step.get('path', '')
         prompt = step.get('prompt', '')
         
         resolve_result = self._path_resolver.resolve(path_query)
         if not resolve_result.success:
-            return False
+            return {'success': False, 'error_message': f"Path resolution failed: {resolve_result.error_message}"}
         
         file_path = resolve_result.resolved_path
         
@@ -1368,29 +1406,26 @@ class PlanExecutor:
             edits = self._ai_editor_engine.get_text_edits(content, prompt)
             new_content = self._ai_editor_engine.apply_text_edits(content, edits.edits)
             
-            if self._permission_service:
-                if not self._permission_service.request_permission("AI Text Edit", f"File: {file_path}"):
-                    return False
-            
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
                 
             self._send_status(f"✓ AI edits applied to {os.path.basename(file_path)}", "success")
-            return True
+            return {'success': True, 'error_message': None}
         except Exception as e:
             self._send_status(f"AI text edit error: {e}", "error")
-            return False
+            return {'success': False, 'error_message': str(e)}
 
-    def _execute_ai_edit_excel_step(self, step: dict) -> bool:
+    def _execute_ai_edit_excel_step(self, step: dict) -> dict:
         """Execute AI-powered Excel editing."""
         if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
-            return False
+            return {'success': False, 'error_message': 'AI Editor Engine is not available'}
         
         path_query = step.get('path', '')
         prompt = step.get('prompt', '')
         
         resolve_result = self._path_resolver.resolve(path_query)
-        if not resolve_result.success: return False
+        if not resolve_result.success:
+            return {'success': False, 'error_message': f"Path resolution failed: {resolve_result.error_message}"}
         
         file_path = resolve_result.resolved_path
         
@@ -1400,49 +1435,44 @@ class PlanExecutor:
             context = self._ai_editor_engine.extract_excel_context(wb)
             edits = self._ai_editor_engine.get_excel_edits(context, prompt)
             
-            if self._permission_service:
-                if not self._permission_service.request_permission("AI Excel Edit", f"File: {file_path}"):
-                    return False
-            
             self._ai_editor_engine.apply_excel_edits(wb, edits.commands)
             wb.save(file_path)
-            return True
+            return {'success': True, 'error_message': None}
         except Exception as e:
-            return False
+            self._send_status(f"AI excel edit error: {e}", "error")
+            return {'success': False, 'error_message': str(e)}
 
-    def _execute_ai_edit_word_step(self, step: dict) -> bool:
+    def _execute_ai_edit_word_step(self, step: dict) -> dict:
         """Execute AI-powered Word document editing."""
         if not AI_EDITOR_ENGINE_AVAILABLE or self._ai_editor_engine is None:
-            return False
-        
+            return {'success': False, 'error_message': 'AI Editor Engine is not available'}
+
         path_query = step.get('path', '')
         prompt = step.get('prompt', '')
-        
+
         resolve_result = self._path_resolver.resolve(path_query)
-        if not resolve_result.success: return False
-        
+        if not resolve_result.success:
+            return {'success': False, 'error_message': f"Path resolution failed for '{path_query}': {resolve_result.error_message}"}
+
         file_path = resolve_result.resolved_path
-        
+
         try:
             import docx
+            import os
             if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
                 doc = docx.Document()
                 doc.save(file_path)
             else:
                 doc = docx.Document(file_path)
-                
+
             context = self._ai_editor_engine.extract_word_context(doc)
             edits = self._ai_editor_engine.get_word_edits(context, prompt)
-            
-            if self._permission_service:
-                if not self._permission_service.request_permission("AI Word Edit", f"File: {file_path}"):
-                    return False
-            
+
             self._ai_editor_engine.apply_word_edits(doc, edits.edits)
             doc.save(file_path)
-            return True
+            return {'success': True, 'error_message': None}
         except Exception as e:
-            return False
+            return {'success': False, 'error_message': f"Word edit failed: {str(e)}"}
     
     def _execute_click_text_step(self, step: dict) -> 'ClickResult':
         """

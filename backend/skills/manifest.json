@@ -1,0 +1,70 @@
+{
+  "skills": [
+    {
+      "id": "ui_os",
+      "name": "UI & OS Controls",
+      "description": "Core OS controls: Opening apps, typing, web browsing, clicking buttons (keyboard, click_text_fast, visual_click).",
+      "file": "ui_os.md",
+      "triggers": ["open", "launch", "type", "press", "click", "shortcut", "browse", "navigate", "url", "website", "whatsapp", "chrome", "notepad", "app", "keyboard", "mouse", "tab", "menu", "button"],
+      "always_include": false
+    },
+    {
+      "id": "shell",
+      "name": "Shell Commands",
+      "description": "Command prompt operations, creating directories, running scripts, file/folder manipulation via CLI.",
+      "file": "shell.md",
+      "triggers": ["create folder", "mkdir", "delete", "copy", "move", "rename", "run", "script", "command", "terminal", "powershell", "cmd", "folder", "directory", "explorer", "start"],
+      "always_include": false
+    },
+    {
+      "id": "email",
+      "name": "Background Email",
+      "description": "Sending background emails with optional attachments (send_email). No UI interaction needed.",
+      "file": "email.md",
+      "triggers": ["email", "mail", "send email", "compose email", "forward", "attachment"],
+      "always_include": false
+    },
+    {
+      "id": "file_editing",
+      "name": "AI File Editing & Code Workspace",
+      "description": "AI-powered editing of Word/Excel/Text files, and direct code/text file operations (write_file, read_file, replace_in_file, modify_lines, ai_edit_word, ai_edit_excel, ai_edit_text).",
+      "file": "file_editing.md",
+      "triggers": ["edit", "modify", "write", "read file", "create file", "word", "docx", "excel", "xlsx", "code", "python", "debug", "fix", "replace", "append", "program", "script file"],
+      "always_include": false
+    },
+    {
+      "id": "file_navigation",
+      "name": "File Navigation & Web Automation",
+      "description": "Opening files/folders by fuzzy path, saving files, web automation and search (open_file, open_folder, save_file, web_automation).",
+      "file": "file_navigation.md",
+      "triggers": ["open file", "open folder", "save", "search", "web", "internet", "google", "weather", "find info", "look up", "browse", "stickers", "new briefcase", "what is", "who is"],
+      "always_include": false
+    },
+    {
+      "id": "flexisign",
+      "name": "FlexiSIGN Automation",
+      "description": "FlexiSIGN automation: number plates, vinyl cutting, govt plates, bike/car plates. Overrides normal prompt entirely.",
+      "file": "flexisign.md",
+      "triggers": ["plate", "number plate", "numberplate", "bike", "car plate", "iron plate", "glass plate", "govt plate", "flexisign", "flexi sign", "nameplate", "name plate", "vinyl", "plotter", "sticker design"],
+      "always_include": false,
+      "overrides_prompt": true
+    },
+    {
+      "id": "out_req",
+      "name": "Output Requirements",
+      "description": "Mandatory output format requirements for JSON responses. Auto-appended to every prompt.",
+      "file": "out_req.md",
+      "triggers": [],
+      "always_include": true
+    },
+    {
+      "id": "react",
+      "name": "ReAct Loop Instructions",
+      "description": "Iterative Thought-Action-Observation loop instructions. Auto-appended when running in ReAct mode.",
+      "file": "react.md",
+      "triggers": [],
+      "always_include": false,
+      "react_only": true
+    }
+  ]
+}

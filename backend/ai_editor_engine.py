@@ -37,6 +37,9 @@ class WordEditCommand(BaseModel):
 class WordFileEdits(BaseModel):
     edits: List[WordEditCommand]
 
+# Type alias for optional type hints
+AIEditorEngineType = Optional['AIEditorEngine']
+
 # --- 2. AI Editor Engine Class ---
 
 class AIEditorEngine:
