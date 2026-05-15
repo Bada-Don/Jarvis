@@ -11,12 +11,37 @@ Requirements: 4.1, 4.2, 4.3, 4.4, 3.3
 import time
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
+import win32api
+import win32con
 
-import pyautogui
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
 
-# Configure pyautogui
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0.05
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    # Convert to absolute screen coordinates (0-65535)
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
+
+def _double_click(x, y):
+    """Simulates a mouse double-click at absolute coordinates."""
+    _click(x, y)
+    time.sleep(0.1) # Small delay between clicks
+    _click(x, y)
 
 try:
     import numpy as np
@@ -269,7 +294,7 @@ class TextBasedClicker:
             click_x, click_y = best_match.center
             
             # Perform the click
-            pyautogui.click(click_x, click_y)
+            _click(click_x, click_y)
             time.sleep(self.DELAY_AFTER_CLICK)
             
             return create_success_result(
@@ -381,7 +406,7 @@ class TextBasedClicker:
             click_x, click_y = best_match.center
             
             # Perform double-click
-            pyautogui.doubleClick(click_x, click_y)
+            _double_click(click_x, click_y)
             time.sleep(self.DELAY_AFTER_CLICK)
             
             return create_success_result(

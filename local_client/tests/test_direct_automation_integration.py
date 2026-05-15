@@ -56,7 +56,9 @@ class TestDirectAutomationPlanGeneration(unittest.TestCase):
             raise unittest.SkipTest("GEMINI_API_KEY not set - skipping integration tests")
         
         from planner_service import GeminiPlannerService
+        from backend.session_manager import Session, SessionManager
         cls.GeminiPlannerService = GeminiPlannerService
+        cls.session_manager = SessionManager()
     
     def test_plan_generation_uses_direct_mode(self):
         """
@@ -65,7 +67,8 @@ class TestDirectAutomationPlanGeneration(unittest.TestCase):
         Requirement 7.1: Standard number plate requests use direct mode
         """
         planner = self.GeminiPlannerService()
-        plan = planner.generate_plan(self.SAMPLE_COMMAND)
+        session = self.session_manager.create_session(user_command=self.SAMPLE_COMMAND)
+        plan = planner.generate_plan(session, self.SAMPLE_COMMAND)
         
         # Verify plan uses direct mode
         mode = plan.get('mode', 'vision')
@@ -91,7 +94,8 @@ class TestDirectAutomationPlanGeneration(unittest.TestCase):
         Requirement 2.1: Create text with specified content
         """
         planner = self.GeminiPlannerService()
-        plan = planner.generate_plan(self.SAMPLE_COMMAND)
+        session = self.session_manager.create_session(user_command=self.SAMPLE_COMMAND)
+        plan = planner.generate_plan(session, self.SAMPLE_COMMAND)
         
         # Check for plate number in create_text or keyboard steps
         found_plate = False
@@ -118,7 +122,8 @@ class TestDirectAutomationPlanGeneration(unittest.TestCase):
         Requirement 3.1: Set dimensions for number plates
         """
         planner = self.GeminiPlannerService()
-        plan = planner.generate_plan(self.SAMPLE_COMMAND)
+        session = self.session_manager.create_session(user_command=self.SAMPLE_COMMAND)
+        plan = planner.generate_plan(session, self.SAMPLE_COMMAND)
         
         # Look for set_dimensions commands
         dimension_steps = [

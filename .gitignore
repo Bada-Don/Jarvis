@@ -11,6 +11,7 @@ node_modules/
 self-operating-computer-main/
 Jarvis-aws-migration/
 test_prompts/
+warp-master/
 
 # Hypothesis test cache
 .hypothesis/

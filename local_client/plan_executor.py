@@ -260,8 +260,13 @@ class PlanExecutor:
         return resolved
 
     def _run_shell_command(self, command: str, timeout: int = 30) -> dict:
-        """Run a shell command with Windows-friendly handling for common file tasks."""
+        """
+        Run a shell command with real-time output streaming and Windows-friendly handling.
+        Sends terminal snapshots to the frontend.
+        """
         import subprocess as sp
+        import threading
+        import queue
 
         expanded = self._resolve_placeholders(command)
         result = {
@@ -271,52 +276,134 @@ class PlanExecutor:
             'error_message': None,
             'observation': '',
             'command': expanded,
+            'terminal_snapshot': '' # New field for terminal output
         }
 
         stripped = expanded.strip()
         lower = stripped.lower()
 
+        # Special handling for explorer.exe
+        if lower.startswith("explorer"):
+            target = stripped[len("explorer"):].strip()
+            if target:
+                target = target.strip('"')
+                sp.Popen(["explorer", target])
+                time.sleep(2.0)
+                result['success'] = True
+                result['observation'] = f"Explorer opened: {target}"
+                result['terminal_snapshot'] = f"Explorer opened: {target}"
+                return result
+
+        # Use Popen for real-time output
+        process = None
+        stdout_thread = None
+        stderr_thread = None
+        stdout_queue = queue.Queue()
+        stderr_queue = queue.Queue()
+
+        def enqueue_output(out, q):
+            for line in iter(out.readline, ''):
+                q.put(line)
+            out.close()
+
         try:
-            if lower.startswith("explorer"):
-                target = stripped[len("explorer"):].strip()
-                if target:
-                    target = target.strip('"')
-                    sp.Popen(["explorer", target])
-                    time.sleep(2.0)
-                    result['success'] = True
-                    result['observation'] = f"Explorer opened: {target}"
-                    return result
+            # Use powershell for better command compatibility on Windows
+            process = sp.Popen(
+                ["powershell.exe", "-Command", expanded],
+                stdout=sp.PIPE,
+                stderr=sp.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                bufsize=1 # Line-buffered
+            )
 
-            proc = sp.run(expanded, shell=True, capture_output=True, text=True, timeout=timeout)
-            result['stdout'] = proc.stdout
-            result['stderr'] = proc.stderr
+            stdout_thread = threading.Thread(target=enqueue_output, args=(process.stdout, stdout_queue))
+            stderr_thread = threading.Thread(target=enqueue_output, args=(process.stderr, stderr_queue))
+            stdout_thread.daemon = True
+            stderr_thread.daemon = True
+            stdout_thread.start()
+            stderr_thread.start()
 
-            combined_output = f"{proc.stdout}\n{proc.stderr}".lower()
+            start_time = time.time()
+            full_stdout = []
+            full_stderr = []
+            
+            # Send initial status
+            self._send_status(f"Running command: {expanded}", "info", progress=None)
+
+            while process.poll() is None:
+                # Read from queues and send updates
+                while not stdout_queue.empty():
+                    line = stdout_queue.get_nowait()
+                    full_stdout.append(line)
+                    self._send_status(f"Terminal Output: {line.strip()}", "terminal_output")
+                while not stderr_queue.empty():
+                    line = stderr_queue.get_nowait()
+                    full_stderr.append(line)
+                    self._send_status(f"Terminal Error: {line.strip()}", "terminal_error")
+                
+                # Update terminal snapshot
+                result['terminal_snapshot'] = "".join(full_stdout + full_stderr)
+                self._send_status(result['terminal_snapshot'], "terminal_snapshot")
+
+                if time.time() - start_time > timeout:
+                    process.terminate()
+                    raise sp.TimeoutExpired(expanded, timeout)
+                
+                time.sleep(0.1) # Small delay to prevent busy-waiting
+
+            # Ensure threads are joined to drain all output
+            stdout_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
+
+            # Collect remaining output after threads finish
+            while not stdout_queue.empty():
+                full_stdout.append(stdout_queue.get())
+            while not stderr_queue.empty():
+                full_stderr.append(stderr_queue.get())
+
+            result['stdout'] = "".join(full_stdout)
+            result['stderr'] = "".join(full_stderr)
+            result['terminal_snapshot'] = "".join(full_stdout + full_stderr) # Final snapshot
+
+            combined_output = (result['stdout'] + result['stderr']).lower()
             mkdir_already_exists = (
-                proc.returncode != 0
+                process.returncode != 0
                 and ("mkdir" in lower or lower.startswith("md "))
                 and "already exists" in combined_output
             )
 
-            result['success'] = proc.returncode == 0 or mkdir_already_exists
+            result['success'] = process.returncode == 0 or mkdir_already_exists
             if result['success']:
                 if mkdir_already_exists:
                     result['observation'] = "Directory already exists; treating as complete."
                 else:
-                    result['observation'] = f"Command succeeded. Output: {proc.stdout[:200]}"
+                    result['observation'] = f"Command succeeded. Output: {result['stdout'][:200]}"
             else:
-                result['observation'] = f"Command failed (exit code {proc.returncode}). Error: {proc.stderr[:200]}"
+                result['observation'] = f"Command failed (exit code {process.returncode}). Error: {result['stderr'][:200]}"
 
             if lower.startswith("start ") or " start " in lower:
                 time.sleep(4.0)
 
         except sp.TimeoutExpired:
-            result['stderr'] = f'Command timed out after {timeout} seconds'
+            result['stderr'] += f'\nCommand timed out after {timeout} seconds'
             result['observation'] = 'Shell command timed out'
+            result['terminal_snapshot'] = result['stdout'] + result['stderr'] # Final snapshot
         except Exception as e:
             result['error_message'] = str(e)
             result['observation'] = f"Shell execution error: {str(e)}"
+            result['terminal_snapshot'] = result['stdout'] + result['stderr'] + f"\nError: {str(e)}" # Final snapshot
+        finally:
+            if process and process.poll() is None:
+                process.terminate()
+            # Ensure threads are joined if they are still alive
+            if stdout_thread and stdout_thread.is_alive():
+                stdout_thread.join(timeout=1)
+            if stderr_thread and stderr_thread.is_alive():
+                stderr_thread.join(timeout=1)
 
+        self._send_status(result['terminal_snapshot'], "terminal_snapshot") # Send final snapshot
         return result
     
     def set_permission_service(self, permission_service: 'PermissionService'):

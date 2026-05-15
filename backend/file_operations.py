@@ -70,36 +70,67 @@ def write_file(path: str, content: str, encoding: str = 'utf-8') -> Tuple[bool, 
         return False, f"Error writing file: {e}"
 
 
-def read_file(path: str, encoding: str = 'utf-8') -> Tuple[bool, str, Optional[str]]:
+def read_file(path: str, encoding: str = 'utf-8', max_bytes: int = 50 * 1024) -> Tuple[bool, str, Optional[str]]:
     """
-    Read content from a file.
+    Read content from a file with a byte limit and binary file detection.
     
     Args:
         path: Absolute or relative file path (supports ~ for home directory)
         encoding: File encoding (default: utf-8)
+        max_bytes: Maximum number of bytes to read from the file.
     
     Returns:
         Tuple[bool, str, Optional[str]]: (success, message, content)
-        If success is False, content will be None
+        If success is False, content will be None.
+        Message will include total line count and truncation status.
     """
     try:
         # Expand environment variables first, then user home
         expanded_path = os.path.expandvars(path)
         file_path = Path(expanded_path).expanduser()
         
-        # Extension check for binary documents
-        ext = file_path.suffix.lower()
-        if ext in ('.docx', '.doc', '.xlsx', '.xls', '.pdf', '.pptx', '.zip', '.exe', '.dll', '.bin'):
-            return False, f"Binary file detected ({ext}). Use specialized skills (word_docs, spreadsheets, pdf_handling) instead of read_file.", None
-
         if not file_path.exists():
             return False, f"File not found: {path}", None
         
         if not file_path.is_file():
             return False, f"Path is not a file: {path}", None
         
-        content = file_path.read_text(encoding=encoding)
-        return True, f"File read successfully: {file_path}", content
+        # Binary file detection (more robust check)
+        # Read a small chunk to sniff for binary content
+        with open(file_path, 'rb') as f:
+            initial_bytes = f.read(1024)
+        
+        # Heuristic: if more than 10% of the first 1KB are null bytes, it's likely binary
+        if initial_bytes.count(b'\x00') > len(initial_bytes) * 0.1:
+            return False, f"Binary file detected: {path}. Use specialized skills (e.g., word_docs, spreadsheets, pdf_handling) instead of read_file.", None
+
+        # Extension check for known binary documents (as a fallback/additional check)
+        ext = file_path.suffix.lower()
+        if ext in ('.docx', '.doc', '.xlsx', '.xls', '.pdf', '.pptx', '.zip', '.exe', '.dll', '.bin', '.jpg', '.png', '.gif', '.bmp', '.mp3', '.mp4', '.avi', '.mov'):
+            return False, f"Binary file detected ({ext}). Use specialized skills (e.g., word_docs, spreadsheets, pdf_handling) instead of read_file.", None
+
+        file_size = file_path.stat().st_size
+        
+        with open(file_path, 'r', encoding=encoding, errors='replace') as f:
+            content = f.read(max_bytes)
+            
+            # Count lines in the read content
+            lines_in_content = content.count('\n') + (1 if content and not content.endswith('\n') else 0)
+            
+            truncated = f.read(1) != "" # Try reading one more char to detect truncation
+            
+            if truncated:
+                # If truncated, we need to count the remaining lines to get the total
+                remaining_lines = sum(1 for _ in f)
+                total_lines = lines_in_content + remaining_lines
+            else:
+                total_lines = lines_in_content
+            
+            message = f"File read successfully: {file_path}. Total lines: {total_lines}."
+            if truncated:
+                message += f" Content truncated to {max_bytes} characters."
+            
+            return True, message, content
         
     except PermissionError:
         return False, f"Permission denied: {path}", None

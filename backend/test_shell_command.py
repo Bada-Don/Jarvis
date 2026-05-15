@@ -45,9 +45,10 @@ def test_killer_combo_workflow():
     print("Expected workflow:")
     print("1. shell_command: cd %USERPROFILE%\\Desktop & type nul > test_notes.txt")
     print("2. shell_command: start test_notes.txt")
-    print("3. keyboard: Hello from JARVIS!")
-    print("4. keyboard: ctrl+s")
-    print()
+    print("3. keyboard: Hello from backend.session_manager import Session, SessionManager
+
+# Initialize SessionManager (for persistence, though not strictly needed for this test)
+session_manager = SessionManager()
 
 def test_folder_creation():
     """Test folder creation using shell commands."""
@@ -62,7 +63,10 @@ def test_folder_creation():
     print(f"User Command: {user_command}")
     print()
     
-    plan = planner.generate_plan(user_command, mode="general")
+    # Create a dummy session for the test
+    session = session_manager.create_session(user_command=user_command)
+    
+    plan = planner.generate_plan(session, user_command, mode="general")
     
     print("Generated Plan:")
     print(json.dumps(plan, indent=2))

@@ -18,12 +18,29 @@ import sys
 import time
 import ctypes
 
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
+
 try:
     import pygetwindow as gw
     import win32gui
     import win32con
     import win32process
-    import pyautogui
 except ImportError as e:
     print(f"❌ Error: Missing required module: {e}")
     print("Install with: pip install pygetwindow pywin32 pyautogui")
@@ -196,7 +213,7 @@ def method_2_click_window(window, verbose=True):
             print(f"    Clicking at ({center_x}, {center_y})")
         
         # Click the window
-        pyautogui.click(center_x, center_y)
+        _click(center_x, center_y)
         time.sleep(0.3)
         
         # Verify

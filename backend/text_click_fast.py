@@ -17,17 +17,36 @@ Do NOT use this for:
 
 import time
 from typing import Optional, Tuple
-import pyautogui
 import pygetwindow as gw
 import pytesseract
 from PIL import Image
+import win32api
+import win32con
+
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+
+def _move_to(x, y):
+    """Simulates moving the mouse to absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    _move_to(x, y) # Move to the location first
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 # Configure pytesseract path
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
-# Configure pyautogui
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0
 
 
 class FastTextClicker:
@@ -96,7 +115,8 @@ class FastTextClicker:
             
             # 2. Take screenshot of ONLY that window
             region = (window.left, window.top, window.width, window.height)
-            screenshot = pyautogui.screenshot(region=region)
+            screenshot_pil = ImageGrab.grab(bbox=region)
+            screenshot = cv2.cvtColor(np.array(screenshot_pil), cv2.COLOR_RGB2BGR)
             
             # 3. Use OCR to get text and coordinates
             data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
@@ -135,8 +155,8 @@ class FastTextClicker:
                     click_y = window.top + y + (h / 2)
                     
                     # Move and click
-                    pyautogui.moveTo(click_x, click_y)
-                    pyautogui.click()
+                    _move_to(click_x, click_y)
+                    _click(click_x, click_y)
                     
                     return {
                         'success': True,
@@ -169,8 +189,8 @@ class FastTextClicker:
                 click_x = window.left + x + (w / 2)
                 click_y = window.top + y + (h / 2)
                 
-                pyautogui.moveTo(click_x, click_y)
-                pyautogui.click()
+                _move_to(click_x, click_y)
+                _click(click_x, click_y)
                 
                 return {
                     'success': True,
@@ -220,7 +240,8 @@ class FastTextClicker:
         """
         try:
             # Take full screenshot
-            screenshot = pyautogui.screenshot()
+            screenshot_pil = ImageGrab.grab()
+            screenshot = cv2.cvtColor(np.array(screenshot_pil), cv2.COLOR_RGB2BGR)
             
             # Use OCR to get text and coordinates
             data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
@@ -250,8 +271,8 @@ class FastTextClicker:
                     click_y = y + (h / 2)
                     
                     # Move and click
-                    pyautogui.moveTo(click_x, click_y)
-                    pyautogui.click()
+                    _move_to(click_x, click_y)
+                    _click(click_x, click_y)
                     
                     return {
                         'success': True,

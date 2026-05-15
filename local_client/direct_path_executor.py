@@ -8,15 +8,100 @@ accept full absolute paths in the filename field.
 Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 5.1
 """
 
+from typing import Optional, Callable, List, Tuple, Dict, Any
+import win32api
+import win32con
 import time
 from dataclasses import dataclass
-from typing import Optional, Callable
 
-import pyautogui
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
 
-# Configure pyautogui
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0.05
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _hotkey(key1, key2):
+    """Simulates pressing a hotkey combination."""
+    key_map = {
+        'ctrl': win32con.VK_CONTROL,
+        'shift': win32con.VK_SHIFT,
+        'alt': win32con.VK_MENU,
+        'win': win32con.VK_LWIN,
+        'esc': win32con.VK_ESCAPE,
+        'enter': win32con.VK_RETURN,
+        'tab': win32con.VK_TAB,
+        'a': 0x41, 's': 0x53, 'o': 0x4F, 'l': 0x4C, 'e': 0x45,
+    }
+    vk1 = key_map.get(key1.lower())
+    vk2 = key_map.get(key2.lower())
+
+    if vk1 and vk2:
+        _send_key(vk1, True)
+        _send_key(vk2, True)
+        _send_key(vk2, False)
+        _send_key(vk1, False)
+    else:
+        print(f"Warning: Hotkey '{key1}+{key2}' not supported by pywin32 mapping.")
+
+def _press(key):
+    """Simulates pressing a single key."""
+    key_map = {
+        'enter': win32con.VK_RETURN,
+        'esc': win32con.VK_ESCAPE,
+        'tab': win32con.VK_TAB,
+    }
+    vk_code = key_map.get(key.lower())
+    if vk_code:
+        _send_key(vk_code, True)
+        _send_key(vk_code, False)
+    else:
+        print(f"Warning: Key '{key}' not supported by pywin32 mapping.")
+
+def _typewrite(text, interval=0.0):
+    """Simulates typing a string of text."""
+    for char in text:
+        if 'a' <= char.lower() <= 'z' or '0' <= char <= '9':
+            vk_code = ord(char.upper())
+            _send_key(vk_code, True)
+            _send_key(vk_code, False)
+        elif char == ' ':
+            _send_key(win32con.VK_SPACE, True)
+            _send_key(win32con.VK_SPACE, False)
+        elif char == ':':
+            _send_key(win32con.VK_SHIFT, True)
+            _send_key(win32con.VK_OEM_1, True)
+            _send_key(win32con.VK_OEM_1, False)
+            _send_key(win32con.VK_SHIFT, False)
+        elif char == '\\':
+            _send_key(win32con.VK_OEM_5, True)
+            _send_key(win32con.VK_OEM_5, False)
+        elif char == '.':
+            _send_key(win32con.VK_OEM_PERIOD, True)
+            _send_key(win32con.VK_OEM_PERIOD, False)
+        # Add more character mappings as needed
+        time.sleep(interval)
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
 
 try:
     from path_config import PathConfig
@@ -329,16 +414,16 @@ class DirectPathExecutor:
             # Click Yes/Replace - typically Tab to select Yes, then Enter
             # Or just press 'y' for Yes in many dialogs
             self._send_status("Overwrite policy: replacing existing file", "info")
-            pyautogui.press('tab')
+            _press('tab')
             time.sleep(0.1)
-            pyautogui.press('enter')
+            _press('enter')
             time.sleep(self.DELAY_AFTER_ENTER)
             return True
         
         elif policy == "abort":
             # Click No/Cancel - press Escape or 'n'
             self._send_status("Overwrite policy: aborting save operation", "info")
-            pyautogui.press('escape')
+            _press('escape')
             time.sleep(self.DELAY_AFTER_ENTER)
             return True
         
@@ -346,7 +431,7 @@ class DirectPathExecutor:
             # This would require modifying the filename - complex to implement
             # For now, treat as abort and report
             self._send_status("Overwrite policy: rename not yet implemented, aborting", "warning")
-            pyautogui.press('escape')
+            _press('escape')
             time.sleep(self.DELAY_AFTER_ENTER)
             return False
         
@@ -388,7 +473,7 @@ class DirectPathExecutor:
         try:
             # Step 1: Press Ctrl+S to open Save dialog
             self._send_status("Opening Save dialog (Ctrl+S)...", "info")
-            pyautogui.hotkey('ctrl', 's')
+            _hotkey('ctrl', 's')
             time.sleep(self.DELAY_AFTER_HOTKEY)
             
             # Step 2: Wait for dialog
@@ -403,16 +488,16 @@ class DirectPathExecutor:
             # Step 3: Type the full path
             self._send_status(f"Typing path: {full_path}", "info")
             # Clear any existing text first
-            pyautogui.hotkey('ctrl', 'a')
+            _hotkey('ctrl', 'a')
             time.sleep(0.1)
             
             # Type the path character by character for reliability
-            pyautogui.typewrite(full_path, interval=0.02)
+            _typewrite(full_path, interval=0.02)
             time.sleep(self.DELAY_AFTER_TYPING)
             
             # Step 4: Press Enter to confirm
             self._send_status("Confirming save (Enter)...", "info")
-            pyautogui.press('enter')
+            _press('enter')
             time.sleep(self.DELAY_AFTER_ENTER)
             
             # Step 5: Check for dialogs
@@ -493,7 +578,7 @@ class DirectPathExecutor:
         try:
             # Step 1: Press Ctrl+O to open Open dialog
             self._send_status("Opening Open dialog (Ctrl+O)...", "info")
-            pyautogui.hotkey('ctrl', 'o')
+            _hotkey('ctrl', 'o')
             time.sleep(self.DELAY_AFTER_HOTKEY)
             
             # Step 2: Wait for dialog
@@ -508,16 +593,16 @@ class DirectPathExecutor:
             # Step 3: Type the full path
             self._send_status(f"Typing path: {full_path}", "info")
             # Clear any existing text first
-            pyautogui.hotkey('ctrl', 'a')
+            _hotkey('ctrl', 'a')
             time.sleep(0.1)
             
             # Type the path
-            pyautogui.typewrite(full_path, interval=0.02)
+            _typewrite(full_path, interval=0.02)
             time.sleep(self.DELAY_AFTER_TYPING)
             
             # Step 4: Press Enter to confirm
             self._send_status("Confirming open (Enter)...", "info")
-            pyautogui.press('enter')
+            _press('enter')
             time.sleep(self.DELAY_AFTER_ENTER)
             
             # Step 5: Check for error dialog
@@ -577,8 +662,8 @@ class DirectPathExecutor:
             # Fallback: just launch with hotkey if provided
             if launch_hotkey:
                 self._send_status(f"Opening {app_name} ({launch_hotkey})...", "info")
-                keys = launch_hotkey.split('+')
-                pyautogui.hotkey(*keys)
+                key1, key2 = launch_hotkey.split('+')
+                _hotkey(key1, key2)
                 time.sleep(1.5)
                 return True
             return False
@@ -597,10 +682,11 @@ class DirectPathExecutor:
                 
                 # Click center of window to ensure keyboard shortcuts work
                 # This is needed for Windows Explorer to properly respond to Ctrl+L
-                screen_width, screen_height = pyautogui.size()
+                screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+                screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
                 center_x = screen_width // 2
                 center_y = screen_height // 2
-                pyautogui.click(center_x, center_y)
+                _click(center_x, center_y)
                 time.sleep(0.2)  # Wait for click to register
                 
                 return True
@@ -610,8 +696,8 @@ class DirectPathExecutor:
         # Step 2: Window not found or couldn't activate, launch new instance
         if launch_hotkey:
             self._send_status(f"Opening {app_name} ({launch_hotkey})...", "info")
-            keys = launch_hotkey.split('+')
-            pyautogui.hotkey(*keys)
+            key1, key2 = launch_hotkey.split('+')
+            _hotkey(key1, key2)
             
             # Wait for window to appear and activate
             if self._window_manager.wait_and_activate(app_name, timeout=timeout):
@@ -620,10 +706,11 @@ class DirectPathExecutor:
                 
                 # Click center of window to ensure keyboard shortcuts work
                 # This is needed for Windows Explorer to properly respond to Ctrl+L
-                screen_width, screen_height = pyautogui.size()
+                screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+                screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
                 center_x = screen_width // 2
                 center_y = screen_height // 2
-                pyautogui.click(center_x, center_y)
+                _click(center_x, center_y)
                 time.sleep(0.2)  # Wait for click to register
                 
                 return True
@@ -633,10 +720,11 @@ class DirectPathExecutor:
                 time.sleep(1.0)
                 
                 # Even on timeout, try the center click
-                screen_width, screen_height = pyautogui.size()
+                screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+                screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
                 center_x = screen_width // 2
                 center_y = screen_height // 2
-                pyautogui.click(center_x, center_y)
+                _click(center_x, center_y)
                 time.sleep(0.2)
                 
                 return True
@@ -744,22 +832,22 @@ class DirectPathExecutor:
             
             # Step 1: Press Ctrl+L to focus address bar
             self._send_status("Focusing address bar (Ctrl+L)...", "info")
-            pyautogui.hotkey('ctrl', 'l')
+            _hotkey('ctrl', 'l')
             time.sleep(self.DELAY_AFTER_HOTKEY)
             
             # Step 2: Type the directory path
             self._send_status(f"Typing path: {directory_path}", "info")
             # The address bar should already be selected, but clear just in case
-            pyautogui.hotkey('ctrl', 'a')
+            _hotkey('ctrl', 'a')
             time.sleep(0.1)
             
             # Type the path
-            pyautogui.typewrite(directory_path, interval=0.02)
+            _typewrite(directory_path, interval=0.02)
             time.sleep(self.DELAY_AFTER_TYPING)
             
             # Step 3: Press Enter to navigate
             self._send_status("Navigating (Enter)...", "info")
-            pyautogui.press('enter')
+            _press('enter')
             time.sleep(self.DELAY_AFTER_ENTER)
             
             # Step 4: Wait for navigation to complete

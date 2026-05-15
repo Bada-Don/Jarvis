@@ -4,7 +4,94 @@ Orchestrates complex workflows using lower-level components.
 """
 
 import time
-import pyautogui
+import win32api
+import win32con
+
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _hotkey(key1, key2):
+    """Simulates pressing a hotkey combination."""
+    key_map = {
+        'ctrl': win32con.VK_CONTROL,
+        'shift': win32con.VK_SHIFT,
+        'alt': win32con.VK_MENU,
+        'esc': win32con.VK_ESCAPE,
+        'enter': win32con.VK_RETURN,
+        'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45, 'f': 0x46, 'g': 0x47, 'h': 0x48, 'i': 0x49, 'j': 0x4A, 'k': 0x4B, 'l': 0x4C, 'm': 0x4D, 'n': 0x4E, 'o': 0x4F, 'p': 0x50, 'q': 0x51, 'r': 0x52, 's': 0x53, 't': 0x54, 'u': 0x55, 'v': 0x56, 'w': 0x57, 'x': 0x58, 'y': 0x59, 'z': 0x5A,
+        'up': win32con.VK_UP, 'down': win32con.VK_DOWN, 'left': win32con.VK_LEFT, 'right': win32con.VK_RIGHT,
+    }
+    vk1 = key_map.get(key1.lower())
+    vk2 = key_map.get(key2.lower())
+
+    if vk1 and vk2:
+        _send_key(vk1, True)
+        _send_key(vk2, True)
+        _send_key(vk2, False)
+        _send_key(vk1, False)
+    else:
+        print(f"Warning: Hotkey '{key1}+{key2}' not supported by pywin32 mapping.")
+
+def _press(key):
+    """Simulates pressing a single key."""
+    key_map = {
+        'enter': win32con.VK_RETURN,
+        'esc': win32con.VK_ESCAPE,
+        'up': win32con.VK_UP, 'down': win32con.VK_DOWN, 'left': win32con.VK_LEFT, 'right': win32con.VK_RIGHT,
+    }
+    vk_code = key_map.get(key.lower())
+    if vk_code:
+        _send_key(vk_code, True)
+        _send_key(vk_code, False)
+    else:
+        print(f"Warning: Key '{key}' not supported by pywin32 mapping.")
+
+def _typewrite(text, interval=0.0):
+    """Simulates typing a string of text."""
+    for char in text:
+        # This is a simplified approach. For full character support,
+        # one would need to map characters to virtual key codes or use SendInput.
+        # For now, we'll assume basic alphanumeric and symbols that map directly.
+        if 'a' <= char.lower() <= 'z' or '0' <= char <= '9':
+            vk_code = ord(char.upper())
+            _send_key(vk_code, True)
+            _send_key(vk_code, False)
+        elif char == ' ':
+            _send_key(win32con.VK_SPACE, True)
+            _send_key(win32con.VK_SPACE, False)
+        elif char == '.':
+            _send_key(win32con.VK_OEM_PERIOD, True)
+            _send_key(win32con.VK_OEM_PERIOD, False)
+        elif char == '/':
+            _send_key(win32con.VK_OEM_2, True)
+            _send_key(win32con.VK_OEM_2, False)
+        # Add more character mappings as needed
+        time.sleep(interval)
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
 
 from .exceptions import FlexiSignUIAError
 
@@ -47,7 +134,7 @@ class AutomationActions:
         if rect:
             center_x = (rect[0] + rect[2]) / 2
             center_y = (rect[1] + rect[3]) / 2
-            pyautogui.click(center_x, center_y)
+            _click(center_x, center_y)
             return True
         return False
     
@@ -79,11 +166,12 @@ class AutomationActions:
             True if click successful, False otherwise.
         """
         try:
-            screen_width, screen_height = pyautogui.size()
+            screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+            screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
             # Offset slightly left and down to account for toolbars/panels
             canvas_x = screen_width // 2
             canvas_y = screen_height // 2
-            pyautogui.click(canvas_x, canvas_y)
+            _click(canvas_x, canvas_y)
             time.sleep(0.2)
             return True
         except Exception:
@@ -135,7 +223,7 @@ class AutomationActions:
         
         # Step 3: Type the specified text
         time.sleep(0.2)
-        pyautogui.typewrite(text, interval=0.02)
+        _typewrite(text, interval=0.02)
         time.sleep(0.2)
         
         # Step 4: Click Select Tool to finalize
@@ -214,12 +302,12 @@ class AutomationActions:
             # Fallback: click, select all, and type
             self.click_element_center(width_input)
             time.sleep(0.2)
-            pyautogui.hotkey('ctrl', 'a')
+            _hotkey('ctrl', 'a')
             time.sleep(0.1)
-            pyautogui.typewrite(width, interval=0.02)
+            _typewrite(width, interval=0.02)
         
         # Confirm width value
-        pyautogui.press('enter')
+        _press('enter')
         time.sleep(0.4)
         
         # Step 4: Set height using UIA ValuePattern
@@ -228,12 +316,12 @@ class AutomationActions:
             # Fallback: click, select all, and type
             self.click_element_center(height_input)
             time.sleep(0.2)
-            pyautogui.hotkey('ctrl', 'a')
+            _hotkey('ctrl', 'a')
             time.sleep(0.1)
-            pyautogui.typewrite(height, interval=0.02)
+            _typewrite(height, interval=0.02)
         
         # Confirm height value
-        pyautogui.press('enter')
+        _press('enter')
         time.sleep(0.4)
         
         return True
@@ -287,11 +375,11 @@ class AutomationActions:
         time.sleep(0.2)
         
         # Step 3: Type font name and press Enter
-        pyautogui.hotkey('ctrl', 'a')
+        _hotkey('ctrl', 'a')
         time.sleep(0.05)
-        pyautogui.typewrite(font_name, interval=0.02)
+        _typewrite(font_name, interval=0.02)
         time.sleep(0.1)
-        pyautogui.press('enter')
+        _press('enter')
         time.sleep(0.2)
         
         return True
@@ -304,7 +392,7 @@ class AutomationActions:
             True if Apply Styles window opened successfully, False otherwise.
         """
         try:
-            pyautogui.hotkey('shift', 's')
+            _hotkey('shift', 's')
             # Wait for the Apply Styles window to open
             time.sleep(0.5)
             return True
@@ -336,9 +424,9 @@ class AutomationActions:
         
         # Step 3: If style_name provided, search and apply
         if style_name:
-            pyautogui.typewrite(style_name, interval=0.02)
+            _typewrite(style_name, interval=0.02)
             time.sleep(0.2)
-            pyautogui.press('enter')
+            _press('enter')
             time.sleep(0.2)
         
         return True
@@ -368,18 +456,18 @@ class AutomationActions:
         arrow_key = self._DIRECTION_KEY_MAP[direction_lower]
         
         # Press Esc first to ensure objects are deselected
-        pyautogui.hotkey('esc')
+        _hotkey('esc')
         time.sleep(0.1)  # Wait for deselection to complete
-        pyautogui.hotkey('esc')
+        _hotkey('esc')
         time.sleep(0.1)  # Wait for deselection to complete
         
         # Press Ctrl+A first to ensure object is selected
-        pyautogui.hotkey('ctrl', 'a')
+        _hotkey('ctrl', 'a')
         time.sleep(0.1)  # Wait for selection to complete
         
         # Execute key press the specified number of times with Shift modifier
         for _ in range(distance):
-            pyautogui.hotkey('shift', arrow_key)
+            _hotkey('shift', arrow_key)
             time.sleep(0.05)  # Small delay between presses
         
         time.sleep(0.1)  # Final delay for UI to settle

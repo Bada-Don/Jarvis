@@ -20,12 +20,56 @@ import sys
 import time
 import ctypes
 
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _hotkey(key1, key2):
+    """Simulates pressing a hotkey combination."""
+    key_map = {
+        'alt': win32con.VK_MENU,
+        'tab': win32con.VK_TAB,
+    }
+    vk1 = key_map.get(key1.lower())
+    vk2 = key_map.get(key2.lower())
+
+    if vk1 and vk2:
+        _send_key(vk1, True)
+        _send_key(vk2, True)
+        _send_key(vk2, False)
+        _send_key(vk1, False)
+    else:
+        print(f"Warning: Hotkey '{key1}+{key2}' not supported by pywin32 mapping.")
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
+
 try:
     import pygetwindow as gw
     import win32gui
     import win32con
     import win32process
-    import pyautogui
 except ImportError as e:
     print(f"❌ Error: Missing required module: {e}")
     print("Install with: pip install pygetwindow pywin32 pyautogui")
@@ -151,8 +195,8 @@ def method_4_alttab_simulation(window):
         
         # Try Alt+Tab multiple times to find FlexiSIGN
         max_attempts = 10
-        for i in range(max_attempts):
-            pyautogui.hotkey('alt', 'tab')
+            for i in range(max_attempts):
+                _hotkey('alt', 'tab')
             time.sleep(0.3)
             
             current_hwnd, current_title = get_foreground_window_info()
@@ -271,7 +315,7 @@ def method_7_click_window(window):
         print(f"Clicking at ({center_x}, {center_y})")
         
         # Click the window
-        pyautogui.click(center_x, center_y)
+        _click(center_x, center_y)
         time.sleep(0.5)
         
         current_hwnd, _ = get_foreground_window_info()
@@ -332,7 +376,7 @@ def method_8_combined_aggressive(window):
         print("Step 8: Click window center...")
         center_x = window.left + (window.width // 2)
         center_y = window.top + (window.height // 2)
-        pyautogui.click(center_x, center_y)
+        _click(center_x, center_y)
         
         time.sleep(0.5)
         
@@ -394,7 +438,7 @@ def main():
         # Switch away from FlexiSIGN before each test
         if window.isActive:
             print(f"\n⚠️ Switching away from FlexiSIGN before testing {method_name}...")
-            pyautogui.hotkey('alt', 'tab')
+            _hotkey('alt', 'tab')
             time.sleep(0.5)
         
         # Test the method

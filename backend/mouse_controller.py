@@ -4,16 +4,66 @@ Performs deterministic mouse actions based on Set-of-Mark output
 """
 
 import time
-import json
 from typing import List, Dict, Tuple
-import pyautogui
+import win32api
+import win32con
 
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
 
-def setup_pyautogui():
-    """Configure pyautogui settings"""
-    # Disable fail-safes as requested
-    pyautogui.FAILSAFE = False
-    pyautogui.PAUSE = 0  # No automatic pause between actions
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _hotkey(key1, key2):
+    """Simulates pressing a hotkey combination."""
+    # Map common keys to virtual key codes
+    key_map = {
+        'win': win32con.VK_LWIN,
+        'alt': win32con.VK_MENU,
+        'tab': win32con.VK_TAB,
+        'shift': win32con.VK_SHIFT,
+        'ctrl': win32con.VK_CONTROL,
+        'enter': win32con.VK_RETURN,
+        '6': 0x36 # Virtual key code for '6'
+    }
+    vk1 = key_map.get(key1.lower())
+    vk2 = key_map.get(key2.lower())
+
+    if vk1 and vk2:
+        _send_key(vk1, True)
+        _send_key(vk2, True)
+        _send_key(vk2, False)
+        _send_key(vk1, False)
+    else:
+        print(f"Warning: Hotkey '{key1}+{key2}' not supported by pywin32 mapping.")
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    # Convert to absolute screen coordinates (0-65535)
+    # Get screen dimensions
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
 
 
 def calculate_center(x1: float, y1: float, x2: float, y2: float) -> Tuple[int, int]:
@@ -31,13 +81,11 @@ def perform_click_sequence(order: List[int], box_map: Dict[int, List[float]]) ->
         order: List of element IDs to click in sequence, e.g. [42, 61, 35]
         box_map: Dict mapping element ID to bounding box [x1, y1, x2, y2]
     """
-    setup_pyautogui()
-    
     print("Starting click sequence...")
     
     # Press Win + 6 first
     print("Pressing Win + 6...")
-    pyautogui.hotkey('win', '6')
+    _hotkey('win', '6')
     time.sleep(1)  # Fixed 1sec sleep
     
     # Execute clicks in order
@@ -55,7 +103,7 @@ def perform_click_sequence(order: List[int], box_map: Dict[int, List[float]]) ->
         print(f"Step {i+1}: Clicking element {element_id} at ({center_x}, {center_y})")
         
         # Perform absolute click
-        pyautogui.click(center_x, center_y)
+        _click(center_x, center_y)
         
         # Fixed 1sec sleep between actions
         time.sleep(1)

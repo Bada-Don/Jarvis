@@ -12,10 +12,14 @@ import os
 import re
 import json
 import sys
+import yaml # Import yaml for frontmatter parsing
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Optional # Import Optional
 from llm_provider import GeminiProvider, OpenAIProvider, LocalProvider
+from langchain_mcp_adapters.client import MultiServerMCPClient # Import MCP client
+from credential_manager import CredentialManager # Import CredentialManager
 
 load_dotenv()
 
@@ -35,21 +39,116 @@ class SkillManager:
         if skills_dir is None:
             skills_dir = str(Path(__file__).parent / "skills")
         self.skills_dir = Path(skills_dir)
-        self.manifest = []
+        self.manifest = [] # Will store parsed skill metadata
         self._skill_cache = {}  # filename -> content (after frontmatter removal)
-        self._load_manifest()
+        self._discover_skills() # Call new discovery method
+        self.mcp_client: Optional[MultiServerMCPClient] = None # Initialize MCP client here
 
-    def _load_manifest(self):
-        manifest_path = self.skills_dir / "manifest.json"
-        if not manifest_path.exists():
-            raise FileNotFoundError(f"Skills manifest not found: {manifest_path}")
-        with open(manifest_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.manifest = data.get("skills", [])
-        print(f"SkillManager: Loaded {len(self.manifest)} skills from manifest")
+    def set_mcp_client(self, client: MultiServerMCPClient):
+        self.mcp_client = client
+        self._load_mcp_tools()
+
+    def _load_mcp_tools(self):
+        """Loads tools from connected MCP servers and adds them to the manifest."""
+        if not self.mcp_client:
+            return
+
+        print("SkillManager: Loading tools from MCP servers...")
+        
+        try:
+            mcp_tools = self.mcp_client.get_tools()
+            
+            for tool in mcp_tools:
+                tool_id = tool.name
+                # Check if a local skill with the same ID already exists
+                if any(s["id"] == tool_id for s in self.manifest):
+                    print(f"  Skipping MCP tool '{tool_id}': local skill with same ID exists.")
+                    continue
+
+                # Create a minimal skill entry for the MCP tool
+                mcp_skill = {
+                    "id": tool_id,
+                    "file": f"mcp_tool_{tool_id}.md", # Placeholder filename
+                    "name": tool.name,
+                    "description": tool.description,
+                    "triggers": [tool.name.lower()] # Use tool name as a trigger
+                }
+                self.manifest.append(mcp_skill)
+                # Store tool description in cache for build_prompt
+                self._skill_cache[mcp_skill["file"]] = f"## MCP Tool: {tool.name}\n\n{tool.description}"
+                print(f"  Loaded MCP tool: {tool.name}")
+        except Exception as e:
+            print(f"⚠️ Error loading MCP tools: {e}")
+        
+        print(f"SkillManager: Total skills (local + MCP): {len(self.manifest)}")
+
+    def _discover_skills(self):
+        """Dynamically discovers skills from .md files and parses their frontmatter."""
+        self.manifest = []
+        self._skill_cache = {} # Clear cache for fresh discovery
+        
+        # List of directories to scan, in order of precedence (later ones override earlier ones)
+        skill_dirs = [
+            self.skills_dir, # Global skills directory
+            Path.cwd() / ".jarvis" / "skills" # Project-local skills directory
+        ]
+
+        for current_skill_dir in skill_dirs:
+            if not current_skill_dir.exists():
+                print(f"SkillManager: Skipping non-existent skill directory: {current_skill_dir}")
+                continue
+
+            print(f"SkillManager: Discovering skills in {current_skill_dir}")
+            for skill_file in current_skill_dir.glob("*.md"):
+                if skill_file.name.startswith("_"): # Skip partials like _prefix.md
+                    continue
+                
+                with open(skill_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                frontmatter_match = re.match(r"^\s*---\s*\n(.*?)\n---\s*\n(.*)", content, re.DOTALL)
+                if frontmatter_match:
+                    frontmatter_str = frontmatter_match.group(1)
+                    skill_content = frontmatter_match.group(2)
+                    try:
+                        metadata = yaml.safe_load(frontmatter_str)
+                        if metadata:
+                            skill_id = skill_file.stem
+                            metadata["id"] = skill_id
+                            metadata["file"] = skill_file.name
+                            
+                            # Implement precedence: project-local skills override global ones
+                            # Remove existing skill with same ID if found
+                            self.manifest = [s for s in self.manifest if s["id"] != skill_id]
+                            
+                            self.manifest.append(metadata)
+                            self._skill_cache[skill_file.name] = skill_content
+                            print(f"  Discovered skill: {metadata['id']} from {skill_file.name}")
+                    except yaml.YAMLError as e:
+                        print(f"⚠️ Error parsing YAML frontmatter in {skill_file.name}: {e}")
+                else:
+                    # If no frontmatter, treat the whole file as content and create minimal metadata
+                    skill_id = skill_file.stem
+                    metadata = {
+                        "id": skill_id,
+                        "file": skill_file.name,
+                        "name": skill_file.stem.replace("_", " ").title(),
+                        "description": f"Automatically discovered skill from {skill_file.name}",
+                        "triggers": [skill_file.stem.lower()]
+                    }
+                    # Implement precedence for no-frontmatter skills too
+                    self.manifest = [s for s in self.manifest if s["id"] != skill_id]
+                    
+                    self.manifest.append(metadata)
+                    self._skill_cache[skill_file.name] = content
+                    print(f"  Discovered skill (no frontmatter): {metadata['id']} from {skill_file.name}")
+        
+        print(f"SkillManager: Loaded {len(self.manifest)} skills dynamically.")
 
     def _strip_frontmatter(self, content: str) -> str:
         """Remove YAML frontmatter (--- ... ---) from a skill .md file."""
+        # This method is now mostly redundant as _discover_skills handles it,
+        # but kept for consistency if _read_skill_file is called directly.
         if content.startswith("---"):
             end = content.find("---", 3)
             if end != -1:
@@ -58,6 +157,7 @@ class SkillManager:
 
     def _read_skill_file(self, filename: str) -> str:
         """Read a skill .md file, strip frontmatter, and cache the result."""
+        # This method now primarily serves the cache lookup and fallback to disk read
         if filename in self._skill_cache:
             return self._skill_cache[filename]
 
@@ -69,7 +169,7 @@ class SkillManager:
         with open(filepath, "r", encoding="utf-8") as f:
             raw = f.read()
 
-        content = self._strip_frontmatter(raw)
+        content = self._strip_frontmatter(raw) # Still strip frontmatter if read directly
         self._skill_cache[filename] = content
         return content
 
@@ -90,8 +190,9 @@ class SkillManager:
         # Match other skills by triggers
         for skill in self.manifest:
             sid = skill["id"]
-            if sid in ("out_req", "react") or skill.get("overrides_prompt"):
-                continue  # Skip always-include and react_only skills here
+            # Skip always-include and react_only skills here, and flexisign (already handled)
+            if sid in ("out_req", "react") or skill.get("overrides_prompt") or sid == "flexisign":
+                continue
             
             is_matched = False
             for trigger in skill.get("triggers", []):
@@ -143,9 +244,13 @@ class SkillManager:
             if sid in ("out_req", "react", "flexisign"):
                 continue  # Handled separately
             if sid in modules:
-                skill_content = self._read_skill_file(skill["file"])
-                if skill_content:
-                    prompt += "\n\n" + skill_content
+                # For MCP tools, use the cached description
+                if skill["file"].startswith("mcp_tool_"):
+                    prompt += "\n\n" + self._skill_cache[skill["file"]]
+                else:
+                    skill_content = self._read_skill_file(skill["file"])
+                    if skill_content:
+                        prompt += "\n\n" + skill_content
 
         # Always append output requirements
         out_req = self._read_skill_file("out_req.md")
@@ -181,6 +286,9 @@ class SkillManager:
 
 class PlannerService:
     def __init__(self, api_key: str = None, config: dict = None):
+        # Initialize CredentialManager
+        self.credential_manager = CredentialManager()
+
         if config is None:
             config = {
                 'WINDOWS_USERNAME': os.getenv('WINDOWS_USERNAME', 'user'),
@@ -189,8 +297,8 @@ class PlannerService:
                 'DOWNLOADS_PATH': os.getenv('DOWNLOADS_PATH', r'C:\Users\user\Downloads'),
                 'STICKERS_PATH': os.getenv('STICKERS_PATH', r'D:\Stickers\New Briefcase'),
                 'LLM_PROVIDER': os.getenv('LLM_PROVIDER', 'gemini'),
-                'GEMINI_API_KEY': os.getenv('GEMINI_API_KEY', ''),
-                'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+                'GEMINI_API_KEY': self.credential_manager.get_credential('GEMINI_API_KEY'),
+                'OPENAI_API_KEY': self.credential_manager.get_credential('OPENAI_API_KEY'),
                 'LOCAL_MODEL_NAME': os.getenv('LOCAL_MODEL_NAME', 'google/gemma-4-e2b'),
                 'LOCAL_BASE_URL': os.getenv('LOCAL_BASE_URL', 'http://127.0.0.1:1234/v1')
             }
@@ -202,12 +310,24 @@ class PlannerService:
 
         # Initialize SkillManager (replaces all MODULE_* constants)
         self.skill_manager = SkillManager()
+        
+        # Initialize MCP Client
+        self.mcp_client = MultiServerMCPClient(
+            {
+                "default": {
+                    "transport": "stdio",
+                    "command": "mcp", # Assumes 'mcp' command is available in PATH
+                    "args": ["serve"]
+                }
+            }
+        )
+        self.skill_manager.set_mcp_client(self.mcp_client)
 
         self.init_provider(api_key)
 
     def init_provider(self, str_api_key_override=None):
         if self.llm_provider == 'openai':
-            api_key = str_api_key_override or self.openai_key or os.getenv('OPENAI_API_KEY')
+            api_key = str_api_key_override or self.openai_key
             if not api_key: raise ValueError("OpenAI API key not configured.")
             self.provider = OpenAIProvider(api_key=api_key)
         elif self.llm_provider == 'local':
@@ -215,7 +335,7 @@ class PlannerService:
             base_url = self.config.get('LOCAL_BASE_URL', os.getenv('LOCAL_BASE_URL', 'http://localhost:11434/v1'))
             self.provider = LocalProvider(model_name=model_name, base_url=base_url)
         else:
-            api_key = str_api_key_override or self.gemini_key or os.getenv('GEMINI_API_KEY')
+            api_key = str_api_key_override or self.gemini_key
             if not api_key: raise ValueError("Gemini API key not configured.")
             self.provider = GeminiProvider(api_key=api_key)
 
@@ -243,9 +363,12 @@ class PlannerService:
             if keyword in command_lower: return "flexisign"
         return "general"
 
-    def generate_plan(self, user_command: str, mode: str = None) -> dict:
+    def generate_plan(self, session, user_command: str, mode: str = None) -> dict:
         if not user_command or not user_command.strip():
             raise ValueError("User command cannot be empty")
+
+        # Create initial task for this session
+        session.create_task(user_command=user_command)
 
         # 1. Route the command (keyword-based skill selection)
         route_data = self.route_command(user_command)
@@ -495,6 +618,7 @@ class PlannerService:
 
         user_prompt = f"""USER COMMAND: {session.user_command}
 CURRENT MODE: {session.mode}
+CURRENT TASK: {session.tasks[session.current_task_id]['user_command']}
 
 EXECUTION HISTORY:
 {history_context}

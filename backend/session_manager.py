@@ -9,9 +9,40 @@ import json
 import time
 import uuid
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import Optional, List, Dict, Any, TypedDict
 
+
+# Type aliases for Warp's Task-Exchange model
+TaskId = str
+AIAgentExchangeId = str
+
+class Exchange(TypedDict, total=False):
+    exchange_id: AIAgentExchangeId
+    input: Dict[str, Any]  # User query or system trigger
+    output: Dict[str, Any] # LLM reasoning and requested AIAgentActions
+    result: Dict[str, Any] # Outcome of tool execution
+    timestamp: float
+    parent_task_id: TaskId
+
+class Task(TypedDict, total=False):
+    task_id: TaskId
+    parent_task_id: Optional[TaskId]
+    user_command: str
+    exchanges: List[Exchange]
+    status: str # e.g., "running", "completed", "failed"
+    created_at: float
+    updated_at: float
+
+class V4AHunk(TypedDict):
+    pre_context: List[str]
+    old: List[str]
+    new: List[str]
+    post_context: List[str]
+    change_context: str # e.g., "@@ -1,5 +1,5 @@"
+
+class FileEdit(TypedDict):
+    path: str
+    hunks: List[V4AHunk]
 
 # Session status constants
 SESSION_STATUS_RUNNING = "running"
@@ -30,7 +61,6 @@ class Session:
     def __init__(self, session_id: str = None, user_command: str = ""):
         self.session_id = session_id or f"sess_{uuid.uuid4().hex[:12]}"
         self.user_command = user_command
-        self.conversation_history: List[Dict[str, str]] = []
         self.execution_log: List[Dict[str, Any]] = []
         self.current_plan: Optional[Dict] = None
         self.steps_executed: int = 0
@@ -41,55 +71,104 @@ class Session:
         self.reflection_retries: int = 0
         self.max_reflection_retries: int = int(os.getenv('MAX_REFLECTION_RETRIES', '3'))
         self.route_data: Optional[Dict] = None  # Cached router result
-    
+
+        # Warp-inspired Task-Exchange model attributes
+        self.current_task_id: Optional[TaskId] = None
+        self.tasks: Dict[TaskId, Task] = {}
+
+    def create_task(self, user_command: str, parent_task_id: Optional[TaskId] = None) -> TaskId:
+        """Create a new task and set it as the current task."""
+        task_id: TaskId = f"task_{uuid.uuid4().hex[:12]}"
+        new_task: Task = {
+            "task_id": task_id,
+            "parent_task_id": parent_task_id,
+            "user_command": user_command,
+            "exchanges": [],
+            "status": SESSION_STATUS_RUNNING,
+            "created_at": time.time(),
+            "updated_at": time.time()
+        }
+        self.tasks[task_id] = new_task
+        self.current_task_id = task_id
+        self.updated_at = time.time()
+        return task_id
+
+    def add_exchange_to_task(self, task_id: TaskId, exchange: Exchange):
+        """Add an exchange to a specific task."""
+        if task_id not in self.tasks:
+            raise ValueError(f"Task with ID {task_id} not found.")
+        self.tasks[task_id]["exchanges"].append(exchange)
+        self.tasks[task_id]["updated_at"] = time.time()
+        self.updated_at = time.time()
+
+    def update_task_status(self, task_id: TaskId, status: str):
+        """Update the status of a specific task."""
+        if task_id not in self.tasks:
+            raise ValueError(f"Task with ID {task_id} not found.")
+        self.tasks[task_id]["status"] = status
+        self.tasks[task_id]["updated_at"] = time.time()
+        self.updated_at = time.time()
+
     def add_thought(self, content: str):
-        """Add a 'thought' entry to conversation (planner's reasoning)."""
-        self.conversation_history.append({
-            "role": "thought",
-            "content": content,
-            "timestamp": time.time()
-        })
-        self.updated_at = time.time()
-    
+        """Add a 'thought' entry to the current task's exchanges."""
+        if not self.current_task_id:
+            raise ValueError("No current task to add thought to.")
+        exchange: Exchange = {
+            "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
+            "input": {"role": "thought", "content": content},
+            "timestamp": time.time(),
+            "parent_task_id": self.current_task_id
+        }
+        self.add_exchange_to_task(self.current_task_id, exchange)
+
     def add_action(self, step: Dict):
-        """Add an 'action' entry to conversation (step being executed)."""
-        self.conversation_history.append({
-            "role": "action",
-            "content": f"Executing step {step.get('order', '?')}: {step.get('desc', step.get('type', 'unknown'))}",
-            "step": step,
-            "timestamp": time.time()
-        })
-        self.updated_at = time.time()
-    
+        """Add an 'action' entry to the current task's exchanges."""
+        if not self.current_task_id:
+            raise ValueError("No current task to add action to.")
+        exchange: Exchange = {
+            "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
+            "input": {"role": "action", "content": f"Executing step {step.get('order', '?')}: {step.get('desc', step.get('type', 'unknown'))}", "step": step},
+            "timestamp": time.time(),
+            "parent_task_id": self.current_task_id
+        }
+        self.add_exchange_to_task(self.current_task_id, exchange)
+
     def add_observation(self, content: str, success: bool = True):
-        """Add an 'observation' entry to conversation (result of step)."""
-        self.conversation_history.append({
-            "role": "observation",
-            "content": content,
-            "success": success,
-            "timestamp": time.time()
-        })
-        self.updated_at = time.time()
-    
+        """Add an 'observation' entry to the current task's exchanges."""
+        if not self.current_task_id:
+            raise ValueError("No current task to add observation to.")
+        exchange: Exchange = {
+            "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
+            "result": {"role": "observation", "content": content, "success": success},
+            "timestamp": time.time(),
+            "parent_task_id": self.current_task_id
+        }
+        self.add_exchange_to_task(self.current_task_id, exchange)
+
     def add_error(self, error_context: str):
-        """Add an error observation to conversation."""
-        self.conversation_history.append({
-            "role": "observation",
-            "content": error_context,
-            "success": False,
-            "timestamp": time.time()
-        })
-        self.updated_at = time.time()
+        """Add an error observation to the current task's exchanges."""
+        if not self.current_task_id:
+            raise ValueError("No current task to add error to.")
+        exchange: Exchange = {
+            "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
+            "result": {"role": "observation", "content": error_context, "success": False},
+            "timestamp": time.time(),
+            "parent_task_id": self.current_task_id
+        }
+        self.add_exchange_to_task(self.current_task_id, exchange)
         self.reflection_retries += 1
-    
+
     def add_user_response(self, response: str):
-        """Add a user clarification/permission response."""
-        self.conversation_history.append({
-            "role": "user",
-            "content": response,
-            "timestamp": time.time()
-        })
-        self.updated_at = time.time()
+        """Add a user clarification/permission response to the current task's exchanges."""
+        if not self.current_task_id:
+            raise ValueError("No current task to add user response to.")
+        exchange: Exchange = {
+            "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
+            "input": {"role": "user", "content": response},
+            "timestamp": time.time(),
+            "parent_task_id": self.current_task_id
+        }
+        self.add_exchange_to_task(self.current_task_id, exchange)
     
     def add_step_result(self, step_result: Dict):
         """Add step result to execution log."""
@@ -105,18 +184,23 @@ class Session:
         """Check if session is in a terminal state."""
         return self.status in [SESSION_STATUS_COMPLETED, SESSION_STATUS_FAILED, SESSION_STATUS_ABORTED]
     
-    def get_conversation_for_llm(self, max_observations: int = 10) -> List[Dict[str, str]]:
+    def get_conversation_for_llm(self, max_observations: int = 10) -> List[Dict[str, Any]]:
         """
-        Get conversation history formatted for LLM context.
+        Get conversation history formatted for LLM context from the current task's exchanges.
         Trims old observations to stay within token budget.
         """
-        # Keep all thoughts, actions, user responses
-        # Keep only last N observations in full
+        if not self.current_task_id or self.current_task_id not in self.tasks:
+            return []
+
+        current_task = self.tasks[self.current_task_id]
+        exchanges = current_task["exchanges"]
+        
         result = []
         observation_count = 0
         
-        for entry in reversed(self.conversation_history):
-            if entry["role"] == "observation":
+        for exchange in reversed(exchanges):
+            if "result" in exchange: # This is an observation
+                entry = exchange["result"]
                 observation_count += 1
                 if observation_count <= max_observations:
                     result.append({
@@ -131,7 +215,8 @@ class Session:
                         "content": f"[Earlier observation: {'success' if entry.get('success') else 'failure'}]",
                         "success": entry.get("success", True)
                     })
-            else:
+            elif "input" in exchange: # This is a thought, action, or user response
+                entry = exchange["input"]
                 result.append({
                     "role": entry["role"],
                     "content": entry["content"]
@@ -167,7 +252,6 @@ class Session:
         return {
             'session_id': self.session_id,
             'user_command': self.user_command,
-            'conversation_history': self.conversation_history,
             'execution_log': self.execution_log,
             'current_plan': self.current_plan,
             'steps_executed': self.steps_executed,
@@ -177,7 +261,9 @@ class Session:
             'updated_at': self.updated_at,
             'reflection_retries': self.reflection_retries,
             'max_reflection_retries': self.max_reflection_retries,
-            'route_data': self.route_data
+            'route_data': self.route_data,
+            'current_task_id': self.current_task_id,
+            'tasks': self.tasks
         }
     
     @classmethod
@@ -187,7 +273,6 @@ class Session:
             session_id=data.get('session_id'),
             user_command=data.get('user_command', '')
         )
-        session.conversation_history = data.get('conversation_history', [])
         session.execution_log = data.get('execution_log', [])
         session.current_plan = data.get('current_plan')
         session.steps_executed = data.get('steps_executed', 0)
@@ -198,6 +283,8 @@ class Session:
         session.reflection_retries = data.get('reflection_retries', 0)
         session.max_reflection_retries = data.get('max_reflection_retries', 3)
         session.route_data = data.get('route_data')
+        session.current_task_id = data.get('current_task_id')
+        session.tasks = data.get('tasks', {})
         return session
 
 

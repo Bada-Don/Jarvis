@@ -16,6 +16,7 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 import sys
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 # Add local_client to sys.path for shared modules
 _root_dir = Path(__file__).parent.parent
@@ -268,35 +269,65 @@ def _get_observation_module_class():
 
 def _compact_session_history(session: Session, keep_entries: int = 12) -> None:
     """Keep planner context bounded during repeated ReAct replanning."""
-    history = session.conversation_history
-    if len(history) <= keep_entries:
+    if not session.current_task_id or session.current_task_id not in session.tasks:
         return
 
-    preserved = []
-    if history and history[0].get('role') == 'thought':
-        preserved.append(history[0])
+    current_task = session.tasks[session.current_task_id]
+    exchanges = current_task["exchanges"]
 
-    older = history[len(preserved):-keep_entries]
-    recent = history[-keep_entries:]
-    if older:
-        failures = sum(1 for entry in older if entry.get('success') is False)
-        successes = sum(1 for entry in older if entry.get('success') is True)
-        summary = {
+    if len(exchanges) <= keep_entries:
+        return
+
+    # Filter out non-observation exchanges and keep only the last `keep_entries` observations
+    observations = [e for e in exchanges if "result" in e]
+    if len(observations) <= keep_entries:
+        return
+
+    older_observations = observations[:-keep_entries]
+    recent_observations = observations[-keep_entries:]
+    
+    # We also want to keep the very first input (the original user command for the task)
+    first_input = next((e for e in exchanges if "input" in e), None)
+    
+    failures = sum(1 for entry in older_observations if entry["result"].get('success') is False)
+    successes = sum(1 for entry in older_observations if entry["result"].get('success') is True)
+    
+    summary_exchange: Exchange = {
+        'exchange_id': f"exch_{uuid.uuid4().hex[:12]}",
+        'result': {
             'role': 'observation_summary',
             'content': (
-                f"[Compacted {len(older)} older ReAct entries: "
+                f"[Compacted {len(older_observations)} older ReAct entries: "
                 f"{successes} successful observations, {failures} failures. "
                 "Recent entries below contain the actionable state.]"
             ),
-            'success': failures == 0,
-            'timestamp': time.time()
-        }
-        session.conversation_history = preserved + [summary] + recent
-
-    for entry in session.conversation_history:
-        content = entry.get('content')
-        if isinstance(content, str) and len(content) > 1000:
-            entry['content'] = summarization_buffer._truncate_output(content, 1000)
+            'success': failures == 0
+        },
+        'timestamp': time.time(),
+        'parent_task_id': session.current_task_id
+    }
+    
+    new_exchanges = []
+    if first_input:
+        new_exchanges.append(first_input)
+    new_exchanges.append(summary_exchange)
+    
+    # Find all non-observation exchanges that happened after the last older observation
+    last_older_obs_time = older_observations[-1]["timestamp"] if older_observations else 0
+    recent_inputs = [e for e in exchanges if "input" in e and e["timestamp"] > last_older_obs_time and e != first_input]
+    
+    # Merge recent inputs and recent observations, sorted by timestamp
+    remaining_exchanges = sorted(recent_inputs + recent_observations, key=lambda x: x["timestamp"])
+    new_exchanges.extend(remaining_exchanges)
+    
+    current_task["exchanges"] = new_exchanges
+    
+    # Truncate content of individual exchanges if too long
+    for exchange in current_task["exchanges"]:
+        if "input" in exchange and isinstance(exchange["input"].get('content'), str) and len(exchange["input"]['content']) > 1000:
+            exchange["input"]['content'] = summarization_buffer._truncate_output(exchange["input"]['content'], 1000)
+        if "result" in exchange and isinstance(exchange["result"].get('content'), str) and len(exchange["result"]['content']) > 1000:
+            exchange["result"]['content'] = summarization_buffer._truncate_output(exchange["result"]['content'], 1000)
 
 
 def _resolve_runtime_path(value: str) -> str:
@@ -590,8 +621,11 @@ def _process_legacy(text: str):
     try:
         send_status_dual({'message': 'Processing your request...', 'status': 'running', 'progress': 5})
         
+        # Create a session for legacy mode as well, to track the initial command
+        session = session_manager.create_session(user_command=text)
+        
         print("🤖 Calling Planner Model (legacy mode)...")
-        plan = planner_service.generate_plan(text)
+        plan = planner_service.generate_plan(session, text)
         mode = plan.get('mode', 'general')
         step_count = len(plan.get('sequence', []))
         print(f"✓ Plan generated: {step_count} steps (mode: {mode})")
@@ -602,7 +636,8 @@ def _process_legacy(text: str):
             "action": "execute_plan",
             "plan": plan,
             "user_command": text,
-            "mode": mode
+            "mode": mode,
+            "session_id": session.session_id # Pass session_id for client tracking
         }
         
         print(f"📤 Sending execute_plan command (mode: {mode})...")
@@ -632,6 +667,7 @@ def _process_react(text: str):
     try:
         # Create session
         session = session_manager.create_session(user_command=text)
+        session.create_task(user_command=text)
         session.add_thought(f"User request: {text}")
         
         # Route the command to determine mode and modules
@@ -728,7 +764,10 @@ def _react_loop(session_id: str):
                 
                 # Check for "ask_doubt" step type
                 if step.get('type') == 'ask_doubt':
-                    answer = _request_clarification(session, step.get('question', 'Please clarify'))
+                    question = step.get('question', 'Please clarify')
+                    options = step.get('options')
+                    is_multiselect = step.get('is_multiselect', False)
+                    answer = _request_clarification(session, question, options, is_multiselect)
                     session.add_user_response(answer)
                     break  # Re-plan with the answer
                 
@@ -970,6 +1009,33 @@ def _verify_and_complete(session: Session):
             'status': 'error',
             'session_id': session.session_id
         })
+
+
+def _request_clarification(session: Session, question: str, options: Optional[List[Dict[str, Any]]] = None, is_multiselect: bool = False) -> str:
+    """
+    Sends a structured clarification request to the client and waits for a response.
+    """
+    step_event = Event()
+    _pending_step_results[session.session_id] = step_event
+
+    command_payload = {
+        "action": "ask_user",
+        "session_id": session.session_id,
+        "question": question,
+        "options": options,
+        "is_multiselect": is_multiselect
+    }
+    send_command_dual(command_payload)
+
+    try:
+        step_event.wait(timeout=STEP_RESULT_TIMEOUT)
+        result = _pending_step_data.pop(session.session_id, None)
+        _pending_step_results.pop(session.session_id, None)
+        if result and result.get('response'):
+            return result['response']
+        return "User provided no response or response timed out."
+    except Exception:
+        return "User provided no response or response timed out."
 
 
 def _is_high_risk_step(step: dict) -> bool:

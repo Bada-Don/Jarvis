@@ -1,9 +1,97 @@
 from transformers import AutoProcessor, AutoModelForCausalLM
 import re
-import pyautogui
 import time
 import subprocess
 import os
+import win32api
+import win32con
+
+# Constants for mouse events
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _hotkey(key1, key2):
+    """Simulates pressing a hotkey combination."""
+    key_map = {
+        'ctrl': win32con.VK_CONTROL,
+        'shift': win32con.VK_SHIFT,
+        'alt': win32con.VK_MENU,
+        'win': win32con.VK_LWIN,
+        'enter': win32con.VK_RETURN,
+        'a': 0x41, 's': 0x53, 'o': 0x4F, 'l': 0x4C, 'e': 0x45,
+    }
+    vk1 = key_map.get(key1.lower())
+    vk2 = key_map.get(key2.lower())
+
+    if vk1 and vk2:
+        _send_key(vk1, True)
+        _send_key(vk2, True)
+        _send_key(vk2, False)
+        _send_key(vk1, False)
+    else:
+        print(f"Warning: Hotkey '{key1}+{key2}' not supported by pywin32 mapping.")
+
+def _press(key):
+    """Simulates pressing a single key."""
+    key_map = {
+        'enter': win32con.VK_RETURN,
+        'esc': win32con.VK_ESCAPE,
+        'tab': win32con.VK_TAB,
+    }
+    vk_code = key_map.get(key.lower())
+    if vk_code:
+        _send_key(vk_code, True)
+        _send_key(vk_code, False)
+    else:
+        print(f"Warning: Key '{key}' not supported by pywin32 mapping.")
+
+def _typewrite(text, interval=0.0):
+    """Simulates typing a string of text."""
+    for char in text:
+        if 'a' <= char.lower() <= 'z' or '0' <= char <= '9':
+            vk_code = ord(char.upper())
+            _send_key(vk_code, True)
+            _send_key(vk_code, False)
+        elif char == ' ':
+            _send_key(win32con.VK_SPACE, True)
+            _send_key(win32con.VK_SPACE, False)
+        elif char == ':':
+            _send_key(win32con.VK_SHIFT, True)
+            _send_key(win32con.VK_OEM_1, True)
+            _send_key(win32con.VK_OEM_1, False)
+            _send_key(win32con.VK_SHIFT, False)
+        elif char == '\\':
+            _send_key(win32con.VK_OEM_5, True)
+            _send_key(win32con.VK_OEM_5, False)
+        elif char == '.':
+            _send_key(win32con.VK_OEM_PERIOD, True)
+            _send_key(win32con.VK_OEM_PERIOD, False)
+        # Add more character mappings as needed
+        time.sleep(interval)
+
+def _click(x, y):
+    """Simulates a mouse click at absolute coordinates."""
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+
+    abs_x = int(x * 65535 / screen_width)
+    abs_y = int(y * 65535 / screen_height)
+
+    win32api.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTDOWN, abs_x, abs_y, 0, 0)
+    win32api.mouse_event(MOUSEEVENTF_LEFTUP, abs_x, abs_y, 0, 0)
 
 LOCAL_DIR = "./local_models/functiongemma-270m-it"
 MODEL_NAME = "google/functiongemma-270m-it"
@@ -146,7 +234,7 @@ def open_app(app_name):
 def type_text(text):
     """Type text using keyboard"""
     time.sleep(0.5)  # Small delay to ensure window is focused
-    pyautogui.write(text, interval=0.05)
+    _typewrite(text, interval=0.05)
     return f"✓ Typed: {text}"
 
 def press_key(key):
@@ -155,18 +243,21 @@ def press_key(key):
     if '+' in key:
         # Handle key combinations like ctrl+s
         keys = key.split('+')
-        pyautogui.hotkey(*keys)
+        _hotkey(keys[0], keys[1])
     else:
-        pyautogui.press(key)
+        _press(key)
     return f"✓ Pressed: {key}"
 
 def click_mouse(x=None, y=None):
     """Click the mouse"""
     if x is not None and y is not None:
-        pyautogui.click(x, y)
+        _click(x, y)
         return f"✓ Clicked at ({x}, {y})"
     else:
-        pyautogui.click()
+        # Get current mouse position to click
+        x_pos = win32api.GetCursorPos()[0]
+        y_pos = win32api.GetCursorPos()[1]
+        _click(x_pos, y_pos)
         return "✓ Clicked at current position"
 
 def set_volume(level):

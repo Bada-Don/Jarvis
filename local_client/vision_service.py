@@ -8,6 +8,7 @@ import os
 import json
 from io import BytesIO
 from pathlib import Path
+import math
 
 import numpy as np
 import cv2
@@ -235,13 +236,15 @@ class VisionService:
     Supports both general and FlexiSIGN-specific modes.
     """
     
-    def __init__(self, api_key: str = None, som_model_path: str = None):
+    def __init__(self, api_key: str = None, som_model_path: str = None, max_screenshot_long_edge: int = 1500):
         """
         Initialize VisionService with Gemini API key.
         UI element detection is handled by the persistent OmniParser API server
         (backend/omni_server.py) running on port 8000 — no local model loading needed.
         """
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
+        self.max_screenshot_long_edge = max_screenshot_long_edge
+        
         if not self.api_key:
             raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
         
@@ -275,6 +278,9 @@ class VisionService:
         screenshot = pyautogui.screenshot()
         screenshot_np = np.array(screenshot)
         screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
+        
+        # Resize the screenshot if necessary
+        screenshot_bgr = self._resize_screenshot(screenshot_bgr, self.max_screenshot_long_edge)
         
         if DEBUG_LOGGER_AVAILABLE:
             try:
@@ -444,6 +450,26 @@ Return ONLY a JSON object with the mappings."""
         except Exception as e:
             print(f"⚠️ Vision Mapper error: {e}")
             raise
+
+    def _resize_screenshot(self, image: np.ndarray, max_long_edge: int = 1500) -> np.ndarray:
+        """
+        Resizes a screenshot to have its longest edge no more than max_long_edge,
+        maintaining aspect ratio.
+        """
+        h, w = image.shape[:2]
+        
+        if max(h, w) <= max_long_edge:
+            return image # No resize needed
+        
+        if h > w:
+            new_h = max_long_edge
+            new_w = math.ceil(w * (new_h / h))
+        else:
+            new_w = max_long_edge
+            new_h = math.ceil(h * (new_w / w))
+            
+        resized_image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        return resized_image
 
     def verify_task_completion(self, expected_state: str) -> dict:
         """

@@ -10,7 +10,28 @@ import psutil
 import win32gui
 import win32con
 import win32process
-import pyautogui
+
+# Constants for keyboard events
+KEYEVENTF_KEYUP = 0x0002
+
+def _send_key(vk_code, is_down):
+    """Sends a single key event."""
+    if is_down:
+        win32api.keybd_event(vk_code, 0, 0, 0)
+    else:
+        win32api.keybd_event(vk_code, 0, KEYEVENTF_KEYUP, 0)
+
+def _press(key):
+    """Simulates pressing a single key."""
+    key_map = {
+        'enter': win32con.VK_RETURN,
+    }
+    vk_code = key_map.get(key.lower())
+    if vk_code:
+        _send_key(vk_code, True)
+        _send_key(vk_code, False)
+    else:
+        print(f"Warning: Key '{key}' not supported by pywin32 mapping.")
 from typing import Optional, List, Dict, Tuple
 
 
@@ -193,7 +214,7 @@ class FlexiSignManager:
                 time.sleep(0.3)
                 
                 # Press Enter to click OK
-                pyautogui.press('enter')
+                _press('enter')
                 time.sleep(0.5)
                 
                 # Verify modal is closed

@@ -15,15 +15,10 @@ from dataclasses import dataclass, asdict, field
 try:
     import win32gui
     import win32process
+    import win32con
     WIN32_AVAILABLE = True
 except ImportError:
     WIN32_AVAILABLE = False
-
-try:
-    import pyautogui
-    PYAUTOGUI_AVAILABLE = True
-except ImportError:
-    PYAUTOGUI_AVAILABLE = False
 
 
 @dataclass
