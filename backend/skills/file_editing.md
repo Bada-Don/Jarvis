@@ -23,6 +23,12 @@ Check the file extension BEFORE proceeding:
 
 **CRITICAL: Always follow Read → Analyze → Edit. Never skip the read step on existing files.**
 
+### Copy / duplicate tasks (no hallucination)
+
+- If the goal is to copy file contents to another file: **read_file first**, then **write_file** with **identical** content to that read. Do not invent alternative snippets.
+- After a shell listing, read `Files in listing:` in the observation. If it names one clear source (e.g. `python_program.docx`), open that file — do not **ask_doubt** about an empty folder.
+- Use **ask_doubt** only when the listing has zero matches or multiple equally plausible files.
+
 ### Step 1: Read first
 ```json
 {

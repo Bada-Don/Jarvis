@@ -70,6 +70,14 @@ export interface PermissionRequest {
     sessionId?: string;
 }
 
+export interface ClarificationRequest {
+    sessionId: string;
+    question: string;
+    options?: Array<{ label?: string; value?: string } | string>;
+    isMultiselect?: boolean;
+    timestamp: number;
+}
+
 // Send permission response back to server
 export const sendPermissionResponse = (requestId: string, approved: boolean) => {
     const socket = getSocket();
@@ -89,7 +97,19 @@ export const sendPermissionResponseReact = (sessionId: string, approved: boolean
         approved,
         timestamp: Date.now(),
     });
-    console.log(`📤 ReAct permission response sent for session ${sessionId}: ${approved ? 'APPROVED' : 'DENIED'}`);
+    console.log(
+        `📤 ReAct permission response sent for session ${sessionId}: ${approved ? 'APPROVED' : 'DENIED'}`
+    );
+};
+
+export const sendClarificationResponse = (sessionId: string, answer: string) => {
+    const socket = getSocket();
+    socket.emit('clarification_response', {
+        session_id: sessionId,
+        answer,
+        timestamp: Date.now(),
+    });
+    console.log(`📤 Clarification response sent for session ${sessionId}`);
 };
 
 // Listen for permission requests

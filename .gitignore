@@ -12,6 +12,7 @@ self-operating-computer-main/
 Jarvis-aws-migration/
 test_prompts/
 warp-master/
+.cursor/
 
 # Hypothesis test cache
 .hypothesis/

@@ -22,6 +22,9 @@ except ImportError:
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
     
+    def __init__(self):
+        self.last_usage: Optional[Dict[str, Any]] = None
+
     @abstractmethod
     def generate_content(self, system_prompt: str, user_prompt: str) -> str:
         """
@@ -41,6 +44,7 @@ class GeminiProvider(LLMProvider):
     """Gemini implementation of LLMProvider."""
     
     def __init__(self, api_key: str, model_name: str = 'gemini-2.5-flash'):
+        super().__init__()
         if not GEMINI_AVAILABLE:
             raise ImportError("google-genai package is not installed. Run 'pip install google-genai'")
         self.client = genai.Client(api_key=api_key)
@@ -61,6 +65,17 @@ class GeminiProvider(LLMProvider):
                         'temperature': 0.1  # Low temperature for reliable JSON
                     }
                 )
+                
+                # Capture token usage metadata
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    self.last_usage = {
+                        'prompt_tokens': response.usage_metadata.prompt_token_count,
+                        'candidates_tokens': response.usage_metadata.candidates_token_count,
+                        'total_tokens': response.usage_metadata.total_token_count,
+                    }
+                    if hasattr(response.usage_metadata, 'thoughts_token_count'):
+                        self.last_usage['thoughts_tokens'] = response.usage_metadata.thoughts_token_count
+                
                 return response.text
             except Exception as e:
                 # Handle 503 UNAVAILABLE or other temporary issues
@@ -78,6 +93,7 @@ class OpenAIProvider(LLMProvider):
     """OpenAI implementation of LLMProvider."""
     
     def __init__(self, api_key: str, model_name: str = 'gpt-4o', base_url: Optional[str] = None):
+        super().__init__()
         if not OPENAI_AVAILABLE:
              raise ImportError("openai package is not installed. Run 'pip install openai'")
         
@@ -95,6 +111,15 @@ class OpenAIProvider(LLMProvider):
                 {"role": "user", "content": user_prompt}
             ]
         )
+        
+        # Capture token usage metadata
+        if hasattr(response, 'usage') and response.usage:
+            self.last_usage = {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'candidates_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens,
+            }
+
         return response.choices[0].message.content
 
 
@@ -117,6 +142,7 @@ class LocalProvider(LLMProvider):
         timeout: float = 120.0,
         max_retries: int = 3,
     ):
+        super().__init__()
         if not OPENAI_AVAILABLE:
             raise ImportError("openai package is not installed. Run 'pip install openai'")
 
@@ -321,6 +347,14 @@ class LocalProvider(LLMProvider):
 
                 # Track cache hit metrics
                 self._track_cache_stats(response)
+
+                # Capture token usage metadata
+                if hasattr(response, 'usage') and response.usage:
+                    self.last_usage = {
+                        'prompt_tokens': response.usage.prompt_tokens,
+                        'candidates_tokens': response.usage.completion_tokens,
+                        'total_tokens': response.usage.total_tokens,
+                    }
 
                 message = response.choices[0].message
                 content = message.content

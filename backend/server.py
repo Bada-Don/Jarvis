@@ -9,6 +9,7 @@ import time
 import subprocess
 import socket
 import re
+import uuid
 from importlib import import_module
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -30,6 +31,7 @@ from newPlanner_service import PlannerService
 from session_manager import (
     SessionManager,
     Session,
+    Exchange,
     SESSION_STATUS_RUNNING,
     SESSION_STATUS_COMPLETED,
     SESSION_STATUS_FAILED,
@@ -45,6 +47,7 @@ from eventlet.event import Event
 # ReAct configuration
 REACT_ENABLED = os.getenv('REACT_ENABLED', 'true').lower() == 'true'
 STEP_RESULT_TIMEOUT = float(os.getenv('STEP_RESULT_TIMEOUT', '120'))  # seconds to wait for step result
+CLARIFICATION_TIMEOUT = float(os.getenv('CLARIFICATION_TIMEOUT', '300'))  # seconds for ask_doubt / clarifications
 
 # Initialize Session Manager
 session_manager = SessionManager()
@@ -509,7 +512,11 @@ def _check_expected_observation(plan_data: dict, sequence: list[dict], step_resu
     stop_words = {
         'the', 'a', 'an', 'and', 'or', 'to', 'in', 'on', 'with', 'after',
         'showing', 'visible', 'will', 'be', 'is', 'are', 'step', 'success',
-        'successfully', 'window', 'folder', 'file'
+        'successfully', 'window', 'folder', 'file', 'files', 'folders',
+        'list', 'listing', 'show', 'showing', 'find', 'finding', 'detailed',
+        'details', 'detail', 'full', 'path', 'paths', 'information', 'info',
+        'present', 'analyze', 'including', 'length', 'lengths', 'time', 'times',
+        'name', 'names'
     }
     expected_tokens = {
         token for token in re.findall(r"[a-z0-9_]+", expected.lower())
@@ -520,15 +527,21 @@ def _check_expected_observation(plan_data: dict, sequence: list[dict], step_resu
         for result in step_results
         for key in ('observation', 'raw_observation', 'stdout', 'stderr', 'active_window', 'foreground_app')
     ).lower()
+
     if not expected_tokens:
         return {'matched': True, 'confidence': 'text', 'message': 'Expected observation had no concrete tokens to compare.'}
 
     matched_tokens = {token for token in expected_tokens if token in actual_text}
-    # Use a lower threshold (30%) when the batch actually succeeded, because the
-    # planner's expected_observation is often phrased in future tense ("will be
-    # extracted and available") which won't appear verbatim in the stdout.
+    
+    # Use a lower threshold (30%) when the batch actually succeeded.
+    # If the output was truncated, be even more lenient (10%).
     any_step_succeeded = any(r.get('success') for r in step_results)
+    is_truncated = "[output truncated]" in actual_text
+    
     threshold = 0.3 if any_step_succeeded else 0.5
+    if is_truncated:
+        threshold = 0.1
+
     required = max(1, min(len(expected_tokens), round(len(expected_tokens) * threshold)))
     if len(matched_tokens) >= required:
         return {'matched': True, 'confidence': 'text', 'message': 'Expected observation matched by text overlap.'}
@@ -537,7 +550,7 @@ def _check_expected_observation(plan_data: dict, sequence: list[dict], step_resu
     # If we have NO matches at all, or we are missing critical tokens, it's a STRONG failure.
     # Otherwise, it's weak (might just be a slightly different window title).
     match_rate = len(matched_tokens) / len(expected_tokens)
-    severity = 'strong' if match_rate < 0.2 else 'weak'
+    severity = 'strong' if match_rate < 0.2 and not is_truncated else 'weak'
 
     return {
         'matched': False,
@@ -726,28 +739,28 @@ def _react_loop(session_id: str):
                 session_manager.update_session(session)
                 send_status_dual({'message': f'Planner error: {e}', 'status': 'error', 'session_id': session_id})
                 return
-            
+
             session.current_plan = plan_data
             sequence = plan_data.get('sequence', [])
             is_complete = plan_data.get('is_complete', False)
             expected_observation = plan_data.get('expected_observation', '')
-            
+            usage = plan_data.get('usage')
+
             # If planner signals completion with no steps, verify and exit
             if is_complete and not sequence:
-                session.add_thought("Planner signals task is complete. Verifying...")
+                session.add_thought("Planner signals task is complete. Verifying...", usage=usage)
                 _verify_and_complete(session)
                 return
-            
+
             if not sequence:
                 print(f"⚠️ Empty sequence from planner in session {session_id}")
-                session.add_error("Planner returned empty sequence")
+                session.add_error("Planner returned empty sequence", usage=usage)
                 session.status = SESSION_STATUS_FAILED
                 session_manager.update_session(session)
                 return
-            
+
             # Log the plan
-            session.add_thought(f"Planned {len(sequence)} steps: {[s.get('desc', s.get('type')) for s in sequence]}")
-            
+            session.add_thought(f"Planned {len(sequence)} steps: {[s.get('desc', s.get('type')) for s in sequence]}", usage=usage)            
             # === ACT + OBSERVE: Execute each step ===
             batch_step_results = []
             for step in sequence:
@@ -767,7 +780,16 @@ def _react_loop(session_id: str):
                     question = step.get('question', 'Please clarify')
                     options = step.get('options')
                     is_multiselect = step.get('is_multiselect', False)
-                    answer = _request_clarification(session, question, options, is_multiselect)
+
+                    auto_answer = _maybe_auto_resolve_ask_doubt(session, step)
+                    if auto_answer:
+                        session.add_thought(
+                            f"Listing already shows target file '{auto_answer}'; skipping user prompt."
+                        )
+                        answer = auto_answer
+                    else:
+                        answer = _request_clarification(session, question, options, is_multiselect)
+
                     session.add_user_response(answer)
                     break  # Re-plan with the answer
                 
@@ -841,10 +863,10 @@ def _react_loop(session_id: str):
                     )
                 
                 if step_result.success:
-                    session.add_observation(observation_text, success=True)
+                    session.add_observation(observation_text, success=True, usage=step_result.usage)
                 else:
                     # === REFLECT: Step failed ===
-                    session.add_error(step_result.get_error_context())
+                    session.add_error(step_result.get_error_context(), usage=step_result.usage)
                     
                     if session.can_retry():
                         session.add_thought("Step failed. Re-planning with error context...")
@@ -1011,31 +1033,110 @@ def _verify_and_complete(session: Session):
         })
 
 
-def _request_clarification(session: Session, question: str, options: Optional[List[Dict[str, Any]]] = None, is_multiselect: bool = False) -> str:
-    """
-    Sends a structured clarification request to the client and waits for a response.
-    """
-    step_event = Event()
-    _pending_step_results[session.session_id] = step_event
+def _collect_session_listing_filenames(session: Session) -> List[str]:
+    """Gather filenames from execution log stdout and planner observation history."""
+    from listing_context import collect_filenames_from_texts
 
-    command_payload = {
-        "action": "ask_user",
-        "session_id": session.session_id,
-        "question": question,
-        "options": options,
-        "is_multiselect": is_multiselect
-    }
-    send_command_dual(command_payload)
+    texts: List[str] = []
+    for entry in session.execution_log:
+        texts.append(entry.get('stdout') or '')
+        texts.append(entry.get('observation') or '')
+        texts.append(entry.get('terminal_snapshot') or '')
+
+    if session.current_task_id and session.current_task_id in session.tasks:
+        for exchange in session.tasks[session.current_task_id].get('exchanges', []):
+            result = exchange.get('result') or {}
+            if result.get('role') == 'observation':
+                texts.append(result.get('content') or '')
+
+    return collect_filenames_from_texts(texts)
+
+
+def _maybe_auto_resolve_ask_doubt(session: Session, step: dict) -> Optional[str]:
+    """Skip mobile clarification when a recent listing already names the file."""
+    from listing_context import try_resolve_ask_doubt
+
+    question = step.get('question', '')
+    filenames = _collect_session_listing_filenames(session)
+    return try_resolve_ask_doubt(question, session.user_command, filenames)
+
+
+def _request_clarification(
+    session: Session,
+    question: str,
+    options: Optional[List[Dict[str, Any]]] = None,
+    is_multiselect: bool = False,
+) -> str:
+    """
+    Ask the user (mobile app) for clarification while pausing the ReAct loop.
+
+    Uses pending key ask_{session_id} so this never collides with step_result /
+    verification_result waiters that use session_id.
+    """
+    session_id = session.session_id
+    ask_key = f"ask_{session_id}"
+    step_event = Event()
+    _pending_step_results[ask_key] = step_event
+
+    session.status = SESSION_STATUS_WAITING_CLARIFICATION
+    session_manager.update_session(session)
+
+    progress = min(10 + (session.steps_executed * 10), 90)
+    send_status_dual({
+        'type': 'REQUEST_CLARIFICATION',
+        'session_id': session_id,
+        'question': question,
+        'options': options,
+        'is_multiselect': is_multiselect,
+        'status': 'running',
+        'progress': progress,
+    })
 
     try:
-        step_event.wait(timeout=STEP_RESULT_TIMEOUT)
-        result = _pending_step_data.pop(session.session_id, None)
-        _pending_step_results.pop(session.session_id, None)
-        if result and result.get('response'):
-            return result['response']
+        step_event.wait(timeout=CLARIFICATION_TIMEOUT)
+        result = _pending_step_data.pop(ask_key, None)
+        if result:
+            text = (result.get('response') or result.get('answer') or '').strip()
+            if text:
+                return text
         return "User provided no response or response timed out."
     except Exception:
         return "User provided no response or response timed out."
+    finally:
+        _pending_step_results.pop(ask_key, None)
+        session.status = SESSION_STATUS_RUNNING
+        session_manager.update_session(session)
+
+
+# Read-only / low-impact shell — never gate behind REQUEST_PERMISSION
+_SAFE_SHELL_MARKERS = (
+    'get-childitem', 'get-item', 'get-content', 'get-location',
+    'test-path', 'resolve-path', 'split-path', 'join-path',
+    'dir ', 'dir\t', 'ls ', 'pwd', 'cd ', 'set-location',
+    'explorer ', 'start explorer', 'ii ', 'invoke-item ',
+    'type ', 'cat ', 'more ', 'head ', 'tail ',
+    'echo ', 'write-output', 'out-null',
+    'format-list', 'format-table', 'select-object', 'where-object',
+    'mkdir ', 'md ', 'new-item',  # folder create on user paths is routine
+)
+# Disk-format style commands only (NOT PowerShell Format-List / Format-Table)
+_DISK_FORMAT_RE = re.compile(
+    r'\bformat\s+([a-z]:|/|\?|volume\b)',
+    re.IGNORECASE,
+)
+
+
+def _is_safe_shell_command(command: str) -> bool:
+    """True when a shell_command is read-only listing/navigation (no permission prompt)."""
+    if not command:
+        return False
+    cmd = command.strip().lower()
+    if any(marker in cmd for marker in _SAFE_SHELL_MARKERS):
+        return True
+    # Bare dir / ls at end of pipeline
+    if re.match(r'^(dir|ls|gci|get-childitem)\b', cmd):
+        return True
+    return False
 
 
 def _is_high_risk_step(step: dict) -> bool:
@@ -1043,28 +1144,49 @@ def _is_high_risk_step(step: dict) -> bool:
     step_type = step.get('type', '').lower()
     step_value = step.get('value', '').lower() if step.get('value') else ''
     step_command = step.get('command', '').lower() if step.get('command') else ''
-    step_desc = step.get('desc', '').lower()
-    
+    step_path = step.get('path', '').lower() if step.get('path') else ''
+
     # High-risk step types
     if step_type in ('delete_file', 'delete_folder'):
         return True
-    
-    # High-risk shell commands
-    high_risk_patterns = [
-        'del /s', 'del /q', 'rmdir /s', 'rmdir /q', 'rm -rf',
-        'format', 'shutdown', 'regedit', 'reg delete',
-        'rd /s', 'rd /q'
-    ]
-    for pattern in high_risk_patterns:
-        if pattern in step_command or pattern in step_value:
+
+    if step_type == 'shell_command':
+        if _is_safe_shell_command(step_command):
+            return False
+
+        high_risk_patterns = [
+            'del /s', 'del /q', 'rmdir /s', 'rmdir /q', 'rm -rf',
+            'remove-item -recurse', 'remove-item -force',
+            'shutdown', 'regedit', 'reg delete',
+            'rd /s', 'rd /q',
+            'cipher /w', 'diskpart',
+        ]
+        for pattern in high_risk_patterns:
+            if pattern in step_command or pattern in step_value:
+                return True
+
+        if _DISK_FORMAT_RE.search(step_command) or _DISK_FORMAT_RE.search(step_value):
             return True
-    
-    # System directory targets
+
+        # Destructive Remove-Item (without safe listing context)
+        if re.search(r'\bremove-item\b.*\b(-recurse|-force)\b', step_command):
+            return True
+        if re.search(r'\bdel\b', step_command) and '/s' not in step_command:
+            # bare del can still delete files
+            if not _is_safe_shell_command(step_command):
+                if re.search(r'\bdel\s+', step_command):
+                    return True
+
+    # System directory targets (writes/deletes into protected areas)
     system_dirs = ['c:\\windows', 'c:\\program files', 'c:\\system32']
+    combined = f"{step_command} {step_value} {step_path}"
     for d in system_dirs:
-        if d in step_command or d in step_value or d in step.get('path', '').lower():
+        if d in combined:
+            # Allow read-only listing under system dirs? Still risky — keep gated.
+            if step_type == 'shell_command' and _is_safe_shell_command(step_command):
+                continue
             return True
-    
+
     return False
 
 
@@ -1112,38 +1234,6 @@ def _request_permission(session: Session, step: dict) -> bool:
     session.status = SESSION_STATUS_RUNNING
     session_manager.update_session(session)
     return False
-
-
-def _request_clarification(session: Session, question: str) -> str:
-    """Request clarification from the user via mobile app."""
-    session.status = SESSION_STATUS_WAITING_CLARIFICATION
-    session_manager.update_session(session)
-    
-    clarification_event = Event()
-    _pending_step_results[f"clarify_{session.session_id}"] = clarification_event
-    
-    send_status_dual({
-        'type': 'REQUEST_CLARIFICATION',
-        'session_id': session.session_id,
-        'question': question
-    })
-    
-    try:
-        clarification_event.wait(timeout=300)  # 5 minutes for clarification
-        result = _pending_step_data.pop(f"clarify_{session.session_id}", None)
-        _pending_step_results.pop(f"clarify_{session.session_id}", None)
-        
-        session.status = SESSION_STATUS_RUNNING
-        session_manager.update_session(session)
-        
-        if result:
-            return result.get('answer', 'No response provided')
-    except Exception:
-        pass
-    
-    session.status = SESSION_STATUS_RUNNING
-    session_manager.update_session(session)
-    return "No clarification provided"
 
 
 # --- SocketIO Events ---
@@ -1331,16 +1421,16 @@ def handle_permission_response_react(data):
 
 @socketio.on('clarification_response')
 def handle_clarification_response(data):
-    """Handle clarification response from mobile app."""
+    """Handle clarification response from mobile app (ask_doubt / REQUEST_CLARIFICATION)."""
     session_id = data.get('session_id')
-    answer = data.get('answer', '')
-    
+    answer = data.get('answer') or data.get('response') or ''
+
     print(f"💬 Clarification response for {session_id}: {answer[:100]}")
-    
-    clarify_key = f"clarify_{session_id}"
-    if clarify_key in _pending_step_results:
-        _pending_step_data[clarify_key] = {'answer': answer}
-        _pending_step_results[clarify_key].send(True)
+
+    ask_key = f"ask_{session_id}"
+    if ask_key in _pending_step_results:
+        _pending_step_data[ask_key] = {'response': answer}
+        _pending_step_results[ask_key].send(True)
 
 
 def start_omni_server():

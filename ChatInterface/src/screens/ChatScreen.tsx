@@ -4,6 +4,7 @@ import { ChatHeader } from '../components/ChatHeader';
 import { MessageList } from '../components/MessageList';
 import { ChatInput } from '../components/ChatInput';
 import { PermissionModal } from '../components/PermissionModal';
+import { ClarificationModal } from '../components/ClarificationModal';
 import { AbortButton } from '../components/AbortButton';
 import { PairingScreen } from './PairingScreen';
 import { 
@@ -15,6 +16,8 @@ import {
     sendPermissionResponseReact,
     abortTask,
     PermissionRequest,
+    ClarificationRequest,
+    sendClarificationResponse,
 } from '../services/api';
 import { FirebaseService } from '../services/FirebaseService';
 import { PairingManager } from '../services/PairingManager';
@@ -34,6 +37,7 @@ export default function ChatScreen() {
     const [isSending, setIsSending] = useState(false);
     const [isTaskRunning, setIsTaskRunning] = useState(false);
     const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
+    const [clarificationRequest, setClarificationRequest] = useState<ClarificationRequest | null>(null);
     const [showPairingScreen, setShowPairingScreen] = useState(false);
     const [isPaired, setIsPaired] = useState(false);
     const [useFirebase, setUseFirebase] = useState(false);
@@ -118,6 +122,18 @@ export default function ChatScreen() {
 
     const handleFirebaseStatus = (status: any) => {
         console.log('📱 Firebase status update:', status);
+
+        if (status.type === 'REQUEST_CLARIFICATION') {
+            setClarificationRequest({
+                sessionId: status.session_id,
+                question: status.question || 'Please clarify.',
+                options: status.options,
+                isMultiselect: status.is_multiselect,
+                timestamp: Date.now(),
+            });
+            setIsTaskRunning(true);
+            return;
+        }
         
         // Handle ReAct permission requests
         if (status.type === 'REQUEST_PERMISSION') {
@@ -218,6 +234,18 @@ export default function ChatScreen() {
                 progressData = statusData.message;
             }
             
+            if (statusData.type === 'REQUEST_CLARIFICATION') {
+                setClarificationRequest({
+                    sessionId: statusData.session_id,
+                    question: statusData.question || 'Please clarify.',
+                    options: statusData.options,
+                    isMultiselect: statusData.is_multiselect,
+                    timestamp: Date.now(),
+                });
+                setIsTaskRunning(true);
+                return;
+            }
+
             // Handle ReAct permission requests via WebSocket status
             if (statusData.type === 'REQUEST_PERMISSION') {
                 console.log('🔐 ReAct Permission request via WebSocket:', statusData);
@@ -343,6 +371,17 @@ export default function ChatScreen() {
             'Pairing Complete',
             'Your device is now paired with the desktop application. You can now send commands remotely!'
         );
+    };
+
+    const handleClarificationSubmit = (answer: string) => {
+        if (clarificationRequest) {
+            sendClarificationResponse(clarificationRequest.sessionId, answer);
+            setClarificationRequest(null);
+        }
+    };
+
+    const handleClarificationSkip = () => {
+        handleClarificationSubmit('');
     };
 
     const handlePermissionApprove = () => {
@@ -512,11 +551,20 @@ export default function ChatScreen() {
             />
 
             <PermissionModal
-                visible={permissionRequest !== null}
+                visible={permissionRequest !== null && clarificationRequest === null}
                 operation={permissionRequest?.operation || ''}
                 details={permissionRequest?.details || ''}
                 onApprove={handlePermissionApprove}
                 onDeny={handlePermissionDeny}
+            />
+
+            <ClarificationModal
+                visible={clarificationRequest !== null}
+                question={clarificationRequest?.question || ''}
+                options={clarificationRequest?.options}
+                isMultiselect={clarificationRequest?.isMultiselect}
+                onSubmit={handleClarificationSubmit}
+                onSkip={handleClarificationSkip}
             />
         </KeyboardAvoidingView>
     );

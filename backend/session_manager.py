@@ -21,6 +21,7 @@ class Exchange(TypedDict, total=False):
     input: Dict[str, Any]  # User query or system trigger
     output: Dict[str, Any] # LLM reasoning and requested AIAgentActions
     result: Dict[str, Any] # Outcome of tool execution
+    usage: Dict[str, Any]  # Token usage information
     timestamp: float
     parent_task_id: TaskId
 
@@ -109,49 +110,53 @@ class Session:
         self.tasks[task_id]["updated_at"] = time.time()
         self.updated_at = time.time()
 
-    def add_thought(self, content: str):
+    def add_thought(self, content: str, usage: Optional[Dict[str, Any]] = None):
         """Add a 'thought' entry to the current task's exchanges."""
         if not self.current_task_id:
             raise ValueError("No current task to add thought to.")
         exchange: Exchange = {
             "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
             "input": {"role": "thought", "content": content},
+            "usage": usage,
             "timestamp": time.time(),
             "parent_task_id": self.current_task_id
         }
         self.add_exchange_to_task(self.current_task_id, exchange)
 
-    def add_action(self, step: Dict):
+    def add_action(self, step: Dict, usage: Optional[Dict[str, Any]] = None):
         """Add an 'action' entry to the current task's exchanges."""
         if not self.current_task_id:
             raise ValueError("No current task to add action to.")
         exchange: Exchange = {
             "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
             "input": {"role": "action", "content": f"Executing step {step.get('order', '?')}: {step.get('desc', step.get('type', 'unknown'))}", "step": step},
+            "usage": usage,
             "timestamp": time.time(),
             "parent_task_id": self.current_task_id
         }
         self.add_exchange_to_task(self.current_task_id, exchange)
 
-    def add_observation(self, content: str, success: bool = True):
+    def add_observation(self, content: str, success: bool = True, usage: Optional[Dict[str, Any]] = None):
         """Add an 'observation' entry to the current task's exchanges."""
         if not self.current_task_id:
             raise ValueError("No current task to add observation to.")
         exchange: Exchange = {
             "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
             "result": {"role": "observation", "content": content, "success": success},
+            "usage": usage,
             "timestamp": time.time(),
             "parent_task_id": self.current_task_id
         }
         self.add_exchange_to_task(self.current_task_id, exchange)
 
-    def add_error(self, error_context: str):
+    def add_error(self, error_context: str, usage: Optional[Dict[str, Any]] = None):
         """Add an error observation to the current task's exchanges."""
         if not self.current_task_id:
             raise ValueError("No current task to add error to.")
         exchange: Exchange = {
             "exchange_id": f"exch_{uuid.uuid4().hex[:12]}",
             "result": {"role": "observation", "content": error_context, "success": False},
+            "usage": usage,
             "timestamp": time.time(),
             "parent_task_id": self.current_task_id
         }

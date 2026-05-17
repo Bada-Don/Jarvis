@@ -94,7 +94,24 @@ def read_file(path: str, encoding: str = 'utf-8', max_bytes: int = 50 * 1024) ->
         
         if not file_path.is_file():
             return False, f"Path is not a file: {path}", None
-        
+
+        # Word documents: delegate to optional python-docx reader
+        if file_path.suffix.lower() == '.docx':
+            try:
+                from docx_support import read_docx
+            except ImportError:
+                return False, (
+                    "Cannot read .docx (docx_support unavailable). "
+                    "Install python-docx: pip install python-docx"
+                ), None
+            ok, msg, content = read_docx(str(file_path))
+            if not ok or content is None:
+                return False, msg, None
+            if len(content) > max_bytes:
+                content = content[:max_bytes]
+                msg = f"{msg} Content truncated to {max_bytes} characters."
+            return True, msg, content
+
         # Binary file detection (more robust check)
         # Read a small chunk to sniff for binary content
         with open(file_path, 'rb') as f:
@@ -106,7 +123,7 @@ def read_file(path: str, encoding: str = 'utf-8', max_bytes: int = 50 * 1024) ->
 
         # Extension check for known binary documents (as a fallback/additional check)
         ext = file_path.suffix.lower()
-        if ext in ('.docx', '.doc', '.xlsx', '.xls', '.pdf', '.pptx', '.zip', '.exe', '.dll', '.bin', '.jpg', '.png', '.gif', '.bmp', '.mp3', '.mp4', '.avi', '.mov'):
+        if ext in ('.doc', '.xlsx', '.xls', '.pdf', '.pptx', '.zip', '.exe', '.dll', '.bin', '.jpg', '.png', '.gif', '.bmp', '.mp3', '.mp4', '.avi', '.mov'):
             return False, f"Binary file detected ({ext}). Use specialized skills (e.g., word_docs, spreadsheets, pdf_handling) instead of read_file.", None
 
         file_size = file_path.stat().st_size

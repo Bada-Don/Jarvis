@@ -422,6 +422,7 @@ class PlannerService:
                         step['content'] = content
 
             plan['mode'] = route_data["mode"]
+            plan['usage'] = getattr(self.provider, 'last_usage', None)
             return plan
 
         except json.JSONDecodeError as e:
@@ -479,7 +480,8 @@ class PlannerService:
             'open_file', 'open_folder', 'save_file', 'shell_command',
             'write_file', 'read_file', 'path_exists', 'directory_exists', 'append_file', 'create_directory',
             'replace_in_file', 'modify_lines', 'insert_at_line', 'delete_lines',
-            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email', 'web_automation'
+            'ai_edit_text', 'ai_edit_excel', 'ai_edit_word', 'send_email', 'web_automation',
+            'ask_doubt',
         }
 
         for i, step in enumerate(plan['sequence']):
@@ -536,6 +538,9 @@ class PlannerService:
             # Validate shell_command step type
             if step_type == 'shell_command' and 'command' not in step:
                 raise ValueError(f"shell_command step {i+1} missing 'command' field")
+
+            if step_type == 'ask_doubt' and 'question' not in step:
+                raise ValueError(f"ask_doubt step {i+1} missing 'question' field")
 
             # Validate AI editing step types
             if step_type in ('ai_edit_text', 'ai_edit_excel', 'ai_edit_word'):
@@ -631,6 +636,7 @@ Generate the next 1-3 steps. If the task is complete, set is_complete to true wi
             plan = self._resolve_placeholders(plan)
             plan = self._validate_react_plan(plan)
             plan['mode'] = route_data.get("mode", "general")
+            plan['usage'] = getattr(self.llm, 'last_usage', None)
             return plan
 
         except Exception as e:
@@ -664,6 +670,8 @@ Generate the next 1-3 steps. If the task is complete, set is_complete to true wi
                 step['order'] = i + 1
             if 'desc' not in step:
                 step['desc'] = f"Executing {step.get('type', 'step')}"
+            if step.get('type') == 'ask_doubt' and 'question' not in step:
+                raise ValueError(f"ReAct step {i+1} (ask_doubt) missing 'question'")
 
         return plan
 

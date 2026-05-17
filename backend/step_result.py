@@ -39,6 +39,7 @@ class StepResult:
         error_message: Optional[str] = None,
         files_modified: Optional[List[str]] = None,
         observation: str = "",
+        usage: Optional[dict] = None,
         timestamp: Optional[float] = None
     ):
         self.session_id = session_id
@@ -52,6 +53,7 @@ class StepResult:
         self.error_message = error_message
         self.files_modified = files_modified or []
         self.observation = observation
+        self.usage = usage
         self.timestamp = timestamp or time.time()
     
     def to_dict(self) -> dict:
@@ -68,6 +70,7 @@ class StepResult:
             'error_message': self.error_message,
             'files_modified': self.files_modified,
             'observation': self.observation,
+            'usage': self.usage,
             'timestamp': self.timestamp
         }
     
@@ -86,6 +89,7 @@ class StepResult:
             error_message=data.get('error_message'),
             files_modified=data.get('files_modified', []),
             observation=data.get('observation', ''),
+            usage=data.get('usage'),
             timestamp=data.get('timestamp', time.time())
         )
     

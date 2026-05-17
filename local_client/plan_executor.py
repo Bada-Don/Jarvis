@@ -379,9 +379,24 @@ class PlanExecutor:
                 if mkdir_already_exists:
                     result['observation'] = "Directory already exists; treating as complete."
                 else:
-                    result['observation'] = f"Command succeeded. Output: {result['stdout'][:200]}"
+                    try:
+                        from listing_context import format_shell_observation
+                        result['observation'] = format_shell_observation(
+                            result['stdout'], result['stderr'], success=True
+                        )
+                    except ImportError:
+                        result['observation'] = f"Command succeeded. Output: {result['stdout'][:800]}"
             else:
-                result['observation'] = f"Command failed (exit code {process.returncode}). Error: {result['stderr'][:200]}"
+                try:
+                    from listing_context import format_shell_observation
+                    result['observation'] = format_shell_observation(
+                        result['stdout'], result['stderr'], success=False
+                    )
+                except ImportError:
+                    result['observation'] = (
+                        f"Command failed (exit code {process.returncode}). "
+                        f"Error: {result['stderr'][:500]}"
+                    )
 
             if lower.startswith("start ") or " start " in lower:
                 time.sleep(4.0)
@@ -1537,7 +1552,12 @@ class PlanExecutor:
                 f.write(new_content)
                 
             self._send_status(f"✓ AI edits applied to {os.path.basename(file_path)}", "success")
-            return {'success': True, 'error_message': None}
+            return {
+                'success': True, 
+                'error_message': None,
+                'observation': f"AI successfully edited {os.path.basename(file_path)} based on the prompt.",
+                'usage': self._ai_editor_engine.last_usage
+            }
         except Exception as e:
             self._send_status(f"AI text edit error: {e}", "error")
             return {'success': False, 'error_message': str(e)}
@@ -1564,7 +1584,12 @@ class PlanExecutor:
             
             self._ai_editor_engine.apply_excel_edits(wb, edits.commands)
             wb.save(file_path)
-            return {'success': True, 'error_message': None}
+            return {
+                'success': True, 
+                'error_message': None,
+                'observation': f"AI successfully edited Excel file {os.path.basename(file_path)}.",
+                'usage': self._ai_editor_engine.last_usage
+            }
         except Exception as e:
             self._send_status(f"AI excel edit error: {e}", "error")
             return {'success': False, 'error_message': str(e)}
@@ -1597,7 +1622,12 @@ class PlanExecutor:
 
             self._ai_editor_engine.apply_word_edits(doc, edits.edits)
             doc.save(file_path)
-            return {'success': True, 'error_message': None}
+            return {
+                'success': True, 
+                'error_message': None,
+                'observation': f"AI successfully edited Word document {os.path.basename(file_path)}.",
+                'usage': self._ai_editor_engine.last_usage
+            }
         except Exception as e:
             return {'success': False, 'error_message': f"Word edit failed: {str(e)}"}
     
@@ -1787,11 +1817,20 @@ class PlanExecutor:
         path = step.get('path', '')
         line_number = step.get('line_number')
         new_content = step.get('new_content', '')
-        if not path or line_number is None: return False
+        if not path or line_number is None:
+            self.last_error = (
+                f"modify_lines missing required fields: path={bool(path)}, "
+                f"line_number={line_number!r} (got keys: {sorted(step.keys())})"
+            )
+            return False
         try:
-            success, _, _ = self._file_editor.modify_lines(path, line_number, new_content)
+            success, msg, _ = self._file_editor.modify_lines(path, line_number, new_content)
+            if not success:
+                self.last_error = msg or "modify_lines failed"
             return success
-        except Exception: return False
+        except Exception as e:
+            self.last_error = str(e)
+            return False
     
     def _execute_insert_at_line_step(self, step: dict) -> bool:
         """Execute an insert_at_line step."""
@@ -1919,6 +1958,17 @@ Your task is to write a standalone Python script to accomplish a document task.
                 contents=[system_prompt]
             )
             
+            # Extract usage
+            usage = {}
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = {
+                    'prompt_tokens': response.usage_metadata.prompt_token_count,
+                    'candidates_tokens': response.usage_metadata.candidates_token_count,
+                    'total_tokens': response.usage_metadata.total_token_count
+                }
+                if hasattr(response.usage_metadata, 'thoughts_token_count'):
+                    usage['thoughts_tokens'] = response.usage_metadata.thoughts_token_count
+
             code_match = re.search(r"```python\n(.*?)\n```", response.text, re.DOTALL)
             if not code_match:
                 # Fallback to entire text if no code block
@@ -1951,7 +2001,8 @@ Your task is to write a standalone Python script to accomplish a document task.
                 "stdout": process.stdout,
                 "stderr": process.stderr,
                 "error_message": None if success else f"Script failed with exit code {process.returncode}",
-                "observation": process.stdout if success else f"Script Error: {process.stderr}"
+                "observation": process.stdout if success else f"Script Error: {process.stderr}",
+                "usage": usage
             }
             
         except Exception as e:

@@ -49,6 +49,17 @@ class AIEditorEngine:
             raise ValueError("GEMINI_API_KEY not found in environment or provided.")
         self.client = genai.Client(api_key=api_key)
         self.model = "gemini-2.5-flash"
+        self.last_usage: Optional[dict] = None
+
+    def _update_usage(self, response):
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            self.last_usage = {
+                'prompt_tokens': response.usage_metadata.prompt_token_count,
+                'candidates_tokens': response.usage_metadata.candidates_token_count,
+                'total_tokens': response.usage_metadata.total_token_count,
+            }
+            if hasattr(response.usage_metadata, 'thoughts_token_count'):
+                self.last_usage['thoughts_tokens'] = response.usage_metadata.thoughts_token_count
 
     # --- Text Editing ---
     def get_text_edits(self, content: str, prompt: str) -> TextFileEdits:
@@ -70,6 +81,7 @@ class AIEditorEngine:
                 response_schema=TextFileEdits,
             ),
         )
+        self._update_usage(response)
         return response.parsed
 
     def apply_text_edits(self, content: str, edits: List[TextEditCommand]) -> str:
@@ -118,6 +130,7 @@ class AIEditorEngine:
                 response_schema=ExcelFileEdits,
             ),
         )
+        self._update_usage(response)
         return response.parsed
 
     def apply_excel_edits(self, wb: openpyxl.Workbook, commands: List[ExcelCommand]) -> List[dict]:
@@ -184,6 +197,7 @@ class AIEditorEngine:
                 response_schema=WordFileEdits,
             ),
         )
+        self._update_usage(response)
         return response.parsed
 
     def apply_word_edits(self, doc: docx.Document, edits: List[WordEditCommand]) -> bool:

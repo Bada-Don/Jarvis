@@ -12,10 +12,12 @@ description: "Use this skill whenever the user needs to run command prompt or Po
   - Explicit UI menu navigation (LAST RESORT - e.g., right-click → New → Text Document)
 - Ctrl+N MAY ONLY be used when the user explicitly requests "new window" or "new document" AND the application is known
 
-**IMPORTANT Command Syntax:**
-- Create folder: `mkdir FolderName`
-- Create empty file: `type nul > filename.txt`
-- Create multiple files: `type nul > file1.txt && type nul > file2.txt`
+**IMPORTANT Command Syntax (default shell is PowerShell — not CMD):**
+- Create folder: `mkdir FolderName` / `New-Item -ItemType Directory -Path "..." -Force`
+- Create empty file (PowerShell): `New-Item -ItemType File -Path "filename.txt" -Force`
+  - Alternatively empty UTF-8 file: `Set-Content -Path "filename.txt" -Value ""`
+  - **CMD-only idiom** `type nul > file.txt` breaks under PowerShell (`type` is `Get-Content`). Only use it wrapped as: `cmd /c "type nul > filename.txt"`
+- Create multiple files: chain with `;` in PowerShell (e.g. `New-Item -ItemType File -Path "a.txt" -Force; New-Item ...`)
 - Navigate to Desktop: `cd {DESKTOP_PATH}`
 - Navigate to Documents: `cd {DOCUMENTS_PATH}`
 - Open folder in Explorer: `explorer FolderName` or `explorer .` (current folder)
@@ -28,7 +30,7 @@ Example: After creating "AI Lab" folder with files, add: `explorer "{DESKTOP_PAT
 For file/folder creation and manipulation, ALWAYS use shell commands FIRST. This is the "Killer Combo" workflow:
 
 **CRITICAL: The Killer Combo Workflow for File Operations:**
-1. **Create** the file/folder using `shell_command` FIRST (e.g., `mkdir FolderName`, `type nul > file.txt`)
+1. **Create** the file/folder using `shell_command` FIRST with **PowerShell-safe** commands (see Command Syntax above). Avoid bare `type nul >` unless wrapped in `cmd /c`.
 2. **Open** the file using `open_file` or `start filename` command
 3. **Edit** via keyboard actions
 4. **Save** via `Ctrl+S` (silent save because file already exists)
